@@ -8,36 +8,34 @@ It simply gathers the pieces into one coherent workspace.
 
 ## 1. Installation
 
-With **uv**:
-
-```
-uv pip install qen
+```bash
+uv tool install qen
 ```
 
-Or with pip:
+Or run without installing:
 
-```
-pip install qen
+```bash
+uvx qen init
 ```
 
 ## 2. Quick Start
 
 ### Create a new context
 
-```
+```bash
 qen init
 ```
 
 ### Add participating repositories
 
-```
+```bash
 qen add-repo org/service-a feature/auth-flow
 qen add-repo org/frontend-b feature/user-login
 ```
 
 ### Materialize the working workspace
 
-```
+```bash
 qen sync
 ```
 
@@ -61,7 +59,7 @@ This makes multi-repo feature work:
 
 ## 4. Minimal Example `manifest.yml`
 
-```
+```yaml
 feature: F-1234-improved-auth-flow
 repos:
   - name: org/service-a
