@@ -126,12 +126,16 @@ class TestInitErrorConditions:
         # Placeholder: Will test non-git directory error
         pass
 
-    def test_init_fails_without_pyproject_toml(self, temp_git_repo: Path, isolated_config: Path) -> None:
+    def test_init_fails_without_pyproject_toml(
+        self, temp_git_repo: Path, isolated_config: Path
+    ) -> None:
         """Test that init fails without pyproject.toml."""
         # Placeholder: Will test missing pyproject.toml error
         pass
 
-    def test_init_validates_pyproject_toml_format(self, meta_repo: Path, isolated_config: Path) -> None:
+    def test_init_validates_pyproject_toml_format(
+        self, meta_repo: Path, isolated_config: Path
+    ) -> None:
         """Test that init validates pyproject.toml format."""
         # Placeholder: Will test TOML validation
         pass

@@ -4,20 +4,17 @@
 
 set -e
 
-# Check if we're in a virtual environment
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo "Warning: Not in a virtual environment. Attempting to use uv or pip..."
-
-    # Try to use uv first, then fall back to pip
-    if command -v uv &> /dev/null; then
-        exec uv run poe "$@"
-    elif command -v python &> /dev/null; then
-        exec python -m poe "$@"
-    else
-        echo "Error: Neither uv nor python found in PATH"
-        exit 1
-    fi
-else
-    # In a virtual environment, just run poe directly
+# Prefer uv if available (modern Python package manager)
+if command -v uv &> /dev/null; then
+    exec uv run poe "$@"
+# Fall back to activated virtual environment
+elif [ -n "$VIRTUAL_ENV" ]; then
     exec poe "$@"
+# Last resort: try global python installation
+elif command -v python &> /dev/null; then
+    echo "Warning: Not in a virtual environment and uv not found. Using global python..."
+    exec python -m poe "$@"
+else
+    echo "Error: No suitable Python environment found (tried uv, venv, and global python)"
+    exit 1
 fi
