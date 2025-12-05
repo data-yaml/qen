@@ -11,6 +11,7 @@ import json
 import tomllib
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 from .exceptions import FormatError
 from .types import ProfileConfig
@@ -136,7 +137,8 @@ class JSONHandler(FormatHandler):
         """
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                result: dict[str, Any] = json.load(f)
+                return result
         except Exception as e:
             raise FormatError("JSON", f"Failed to read {path}: {e}") from e
 
