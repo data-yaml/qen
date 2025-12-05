@@ -1,75 +1,61 @@
 # QEN: A Developer Nest for Multi-Repo Innovation
 
+## 1. Introduction
+
 **QEN** (“קֵן”, *nest* in [Biblical Hebrew](https://biblehub.com/hebrew/7064.htm)) is a tiny, extensible tool for organizing multi-repository development work.  
 A “qen” is a lightweight context—a safe, structured “nest”—where complex feature development can incubate across multiple repos.
 
 QEN does not replace your workflow.  
-It simply gathers the pieces into one coherent workspace.
-
-## 1. Installation
-
-```bash
-uv tool install qen
-```
-
-Or run without installing:
-
-```bash
-uvx qen init
-```
+It simply gathers all context for a project (code, specs, artifacts, etc.) into a single managed folder inside a central repository (default `meta`).
 
 ## 2. Quick Start
 
-### Create a new context
+### Initialize qen itself
 
 ```bash
 qen init
 ```
 
-### Add participating repositories
+1. Tries to find `meta` in current or parent folder (else errors)
+2. Infers git repo, organization, etc.
+3. Stores that in `$XDG_CONFIG_HOME/qen/config.toml`
+
+### Initialize qen project in meta repo
 
 ```bash
-qen add-repo org/service-a feature/auth-flow
-qen add-repo org/frontend-b feature/user-login
+qen init proj-name
 ```
 
-### Materialize the working workspace
+1. Creates meta branch `YYYY-MM-DD-proj-name`
+2. Creates folder `proj/YYYY-MM-DD-proj-name` in meta
+3. Creates stub README.md
+4. Creates `meta.toml` for repo management
+5. Creates and gitignores a 'repos' subfolder
+6. Sets 'proj-name' as the current project in qen config.
+
+### Add sub-repos
 
 ```bash
-qen sync
+qen add repo
+qen add org/repo
+qen add org/repo -b custom-branch
 ```
 
-QEN clones the repositories, checks out the branches, and constructs a working “nest” under `workspace/`.
+1. Operates on current project
+1. Infers org
+1. Checks out repo into `repos/`
+1. Defaults to the same branch name as project
+1. Updates `meta.toml`
+1. Can have multiple instances of the same repo
 
-## 3. Concept: Context as a Repo
+> Question: should we do all this directly, or leverage .gitmodules and/or worktrees?
 
-A QEN context is simply a small git repository that contains:
+### Other Operations
 
-- a minimal `manifest.yml`  
-- optional notes, prompts, or agent definitions  
-- a generated `workspace/` directory that gathers the active repos
+- status: Shows git status across all sub-repos
+- sync: push and pull sub-repos (error if uncommited changes)
 
-This makes multi-repo feature work:
-
-- reproducible  
-- shareable  
-- archive-able  
-- easy to resurrect  
-- safe to experiment with
-
-## 4. Minimal Example `manifest.yml`
-
-```yaml
-feature: F-1234-improved-auth-flow
-repos:
-  - name: org/service-a
-    branch: feature/auth-flow
-  - name: org/frontend-b
-    branch: feature/user-login
-status: active
-```
-
-## 5. Philosophy
+## 3. Philosophy
 
 **QEN is intentionally small.**  
 Its job is not to tell you how to develop—it simply creates a structured nest where complex, multi-repo work can grow.
@@ -82,6 +68,6 @@ Design principles:
 - zero global state  
 - human-readable, human-manageable repos
 
-## 6. License
+## 4. License
 
 MIT License.
