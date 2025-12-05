@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from qenvy.exceptions import (
+    AtomicWriteError,
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
 )
@@ -342,7 +343,7 @@ class TestAtomicWrites:
 
         monkeypatch.setattr(qenvy.format_handler, "write", failing_write)
 
-        with pytest.raises(OSError):
+        with pytest.raises(AtomicWriteError):
             qenvy.write_profile("test", {"test": "value"})
 
         # Verify no temp files left behind
