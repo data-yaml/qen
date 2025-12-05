@@ -1,9 +1,9 @@
 """
-qenvy - XDG-compliant configuration management library.
+qenvy - Cross-platform configuration management library.
 
 A modern Python library for managing profile-based configurations with
 inheritance, validation, and atomic writes. Built on platformdirs for
-XDG Base Directory specification compliance.
+platform-native directory resolution.
 
 Example:
     >>> from qenvy import QenvyConfig

@@ -3,7 +3,7 @@ Filesystem storage implementation for configuration management.
 
 This module provides QenvyConfig, a concrete implementation of QenvyBase
 that stores configurations in the filesystem using platformdirs for
-XDG-compliant directory resolution.
+platform-native directory resolution.
 """
 
 import os
@@ -19,20 +19,26 @@ from .types import ProfileConfig
 
 
 class QenvyConfig(QenvyBase):
-    """Filesystem-based configuration storage with XDG compliance.
+    """Filesystem-based configuration storage using platformdirs.
 
     This class provides ONLY filesystem storage primitives. All business logic
     (validation, inheritance, profile management) is inherited from QenvyBase.
 
-    Directory Structure:
-        ~/.config/{app_name}/
+    Directory Structure (platform-specific via platformdirs):
+        Linux:   ~/.config/{app_name}/
+        macOS:   ~/Library/Application Support/{app_name}/
+        Windows: %APPDATA%\\{app_name}\\
+
+        Example structure:
+        {config_dir}/
         ├── default/
         │   └── config.toml (or config.json)
         └── dev/
             └── config.toml (or config.json)
 
     Features:
-        - XDG Base Directory specification compliance
+        - Platform-native config directories (via platformdirs)
+        - Respects XDG_CONFIG_HOME when set (Linux)
         - Atomic writes using temp files + rename
         - Automatic backups before overwriting
         - Pluggable format support (TOML, JSON)
@@ -48,7 +54,7 @@ class QenvyConfig(QenvyBase):
 
         Args:
             app_name: Application name (used for directory name)
-            base_dir: Base configuration directory (default: XDG config dir)
+            base_dir: Base configuration directory (default: platform-native config dir)
             format: Configuration format ('toml' or 'json', default: 'toml')
 
         Raises:

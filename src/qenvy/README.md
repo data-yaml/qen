@@ -1,13 +1,13 @@
 # qenvy
 
-A lightweight, type-safe Python library for XDG-compliant configuration management.
+A lightweight, type-safe Python library for cross-platform configuration management.
 
 ## Features
 
 - **Profile-based configuration** - Organize configs by environment (dev, staging, prod)
 - **Profile inheritance** - Extend base configurations with deep merge
 - **Multiple formats** - TOML (default) and JSON support
-- **XDG compliance** - Respects XDG Base Directory specification
+- **Platform-native directories** - Uses OS-appropriate config locations via platformdirs
 - **Atomic writes** - Safe file operations with automatic backups
 - **Type safety** - Full Python 3.12+ type hints
 - **Zero config** - Works out of the box with sensible defaults
@@ -64,18 +64,18 @@ print(profiles)  # ['default']
 
 ## Configuration Storage
 
-By default, qenvy stores configurations in XDG-compliant directories:
+By default, qenvy stores configurations in platform-native directories:
 
 - Linux: `~/.config/myapp/`
 - macOS: `~/Library/Application Support/myapp/`
 - Windows: `%APPDATA%\myapp\`
 
-Respects `XDG_CONFIG_HOME` environment variable if set.
+On Linux, respects `XDG_CONFIG_HOME` environment variable if set.
 
 ### Directory Structure
 
 ```
-~/.config/myapp/
+{config_dir}/myapp/
 ├── default/
 │   ├── config.toml
 │   └── config.toml.backup
@@ -156,7 +156,7 @@ from qenvy import QenvyConfig, ConfigFormat
 
 config = QenvyConfig("myapp", format=ConfigFormat.TOML)
 config.write_profile("default", {...})
-# Creates: ~/.config/myapp/default/config.toml
+# Creates: {config_dir}/myapp/default/config.toml
 ```
 
 ### JSON
@@ -164,7 +164,7 @@ config.write_profile("default", {...})
 ```python
 config = QenvyConfig("myapp", format=ConfigFormat.JSON)
 config.write_profile("default", {...})
-# Creates: ~/.config/myapp/default/config.json
+# Creates: {config_dir}/myapp/default/config.json
 ```
 
 ## Advanced Usage
@@ -251,7 +251,7 @@ config.write_profile("prod", {...})
 Before overwriting any file, qenvy creates a `.backup` copy:
 
 ```
-~/.config/myapp/default/
+{config_dir}/myapp/default/
 ├── config.toml
 └── config.toml.backup  # Previous version
 ```
@@ -322,7 +322,7 @@ This separation allows for:
 
 ## Design Principles
 
-- **XDG compliance** - Follows freedesktop.org standards
+- **Cross-platform** - Platform-native config directories via platformdirs
 - **Type safety** - Full type hints for IDE support
 - **Simplicity** - Minimal API surface
 - **Extensibility** - Protocol-based for custom implementations
@@ -342,4 +342,4 @@ MIT
 
 ## Credits
 
-Modeled after the TypeScript XDG configuration library from the [benchling-webhook](https://github.com/quiltdata/benchling-webhook) project.
+Modeled after the TypeScript configuration library from the [benchling-webhook](https://github.com/quiltdata/benchling-webhook) project.
