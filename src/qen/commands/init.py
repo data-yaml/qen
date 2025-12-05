@@ -10,6 +10,8 @@ from pathlib import Path
 
 import click
 
+from qenvy.base import QenvyBase
+
 from ..config import ProjectAlreadyExistsError, QenConfig, QenConfigError
 from ..git_utils import (
     AmbiguousOrgError,
@@ -22,7 +24,7 @@ from ..git_utils import (
 from ..project import ProjectError, create_project
 
 
-def init_qen(verbose: bool = False) -> None:
+def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
     """Initialize qen tooling.
 
     Behavior:
@@ -73,7 +75,7 @@ def init_qen(verbose: bool = False) -> None:
         click.echo(f"Organization: {org}")
 
     # Create configuration
-    config = QenConfig()
+    config = QenConfig(storage=storage)
 
     try:
         config.write_main_config(
@@ -94,7 +96,7 @@ def init_qen(verbose: bool = False) -> None:
     click.echo("You can now create projects with: qen init <project-name>")
 
 
-def init_project(project_name: str, verbose: bool = False) -> None:
+def init_project(project_name: str, verbose: bool = False, storage: QenvyBase | None = None) -> None:
     """Create a new project in the meta repository.
 
     Behavior:
@@ -110,6 +112,7 @@ def init_project(project_name: str, verbose: bool = False) -> None:
     Args:
         project_name: Name of the project
         verbose: Enable verbose output
+        storage: Optional storage backend for testing
 
     Raises:
         ProjectAlreadyExistsError: If project already exists
@@ -117,7 +120,7 @@ def init_project(project_name: str, verbose: bool = False) -> None:
         ProjectError: If project creation fails
     """
     # Load configuration
-    config = QenConfig()
+    config = QenConfig(storage=storage)
 
     # Check if main config exists
     if not config.main_config_exists():
@@ -193,4 +196,3 @@ def init_project(project_name: str, verbose: bool = False) -> None:
     click.echo("Next steps:")
     click.echo(f"  cd {meta_path / folder_path}")
     click.echo("  # Add repositories with: qen add <repo-url>")
-    click.echo("  # Commit changes: git commit -m 'Initialize project'")

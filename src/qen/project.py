@@ -199,6 +199,24 @@ def stage_project_files(meta_path: Path, folder_path: str) -> None:
         raise ProjectError(f"Failed to stage project files: {e}") from e
 
 
+def commit_project(meta_path: Path, project_name: str, folder_path: str) -> None:
+    """Commit project files with a standardized message.
+
+    Args:
+        meta_path: Path to meta repository
+        project_name: Name of the project
+        folder_path: Project folder path (relative to meta repo)
+
+    Raises:
+        ProjectError: If commit fails
+    """
+    commit_message = f"Initialize project: {project_name}"
+    try:
+        run_git_command(["commit", "-m", commit_message], cwd=meta_path)
+    except Exception as e:
+        raise ProjectError(f"Failed to commit project files: {e}") from e
+
+
 def create_project(
     meta_path: Path,
     project_name: str,
@@ -212,7 +230,8 @@ def create_project(
     3. Creates stub files (README.md, pyproject.toml)
     4. Creates repos/ directory
     5. Adds .gitignore entry for repos/
-    6. Stages files for commit (but does not commit)
+    6. Stages files for commit
+    7. Commits the changes
 
     Args:
         meta_path: Path to meta repository
@@ -255,6 +274,12 @@ def create_project(
     # Stage files
     try:
         stage_project_files(meta_path, folder_path)
+    except Exception as e:
+        raise e
+
+    # Commit changes
+    try:
+        commit_project(meta_path, project_name, folder_path)
     except Exception as e:
         raise e
 

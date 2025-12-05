@@ -97,7 +97,8 @@ def find_meta_repo(start_path: Path | None = None) -> Path:
     """Search for meta repository by traversing upward from start path.
 
     Searches current directory and all parent directories for a directory
-    named 'meta' that is also a git repository.
+    named 'meta' that is also a git repository. If not found in the upward
+    path, searches peer directories (siblings of current directory and its parents).
 
     Args:
         start_path: Starting directory (default: current working directory)
@@ -124,6 +125,14 @@ def find_meta_repo(start_path: Path | None = None) -> Path:
     for parent in [current] + list(current.parents):
         if parent.name == "meta" and is_git_repo(parent):
             return parent
+
+    # Search peer directories (siblings)
+    for parent in [current] + list(current.parents):
+        parent_dir = parent.parent
+        if parent_dir.exists():
+            meta_peer = parent_dir / "meta"
+            if meta_peer.exists() and meta_peer.is_dir() and is_git_repo(meta_peer):
+                return meta_peer
 
     raise MetaRepoNotFoundError(
         "Cannot find meta repository. Run from within meta or a subdirectory."
