@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from qenvy import ProfileAlreadyExistsError, QenvyConfig
+from qenvy.base import QenvyBase
 
 
 class QenConfigError(Exception):
@@ -40,17 +41,23 @@ class QenConfig:
 
     MAIN_PROFILE = "main"
 
-    def __init__(self, config_dir: Path | str | None = None):
+    def __init__(self, config_dir: Path | str | None = None, storage: QenvyBase | None = None):
         """Initialize qen configuration manager.
 
         Args:
             config_dir: Override default config directory (for testing)
+            storage: Override storage backend (for testing with in-memory storage)
         """
-        self._qenvy = QenvyConfig(
-            app_name="qen",
-            base_dir=config_dir,
-            format="toml",
-        )
+        if storage is not None:
+            # Use provided storage backend (for testing)
+            self._qenvy = storage
+        else:
+            # Use default filesystem storage
+            self._qenvy = QenvyConfig(
+                app_name="qen",
+                base_dir=config_dir,
+                format="toml",
+            )
 
     def get_config_dir(self) -> Path:
         """Get the qen configuration directory.
@@ -58,7 +65,9 @@ class QenConfig:
         Returns:
             Path to configuration directory
         """
-        return self._qenvy.get_base_dir()
+        from typing import cast
+
+        return cast(Path, self._qenvy.get_base_dir())
 
     def get_main_config_path(self) -> Path:
         """Get path to main configuration file.
@@ -66,7 +75,9 @@ class QenConfig:
         Returns:
             Path to main config file
         """
-        return self._qenvy.get_config_path(self.MAIN_PROFILE)
+        from typing import cast
+
+        return cast(Path, self._qenvy.get_config_path(self.MAIN_PROFILE))
 
     def get_project_config_path(self, project_name: str) -> Path:
         """Get path to project configuration file.
@@ -77,7 +88,9 @@ class QenConfig:
         Returns:
             Path to project config file
         """
-        return self._qenvy.get_config_path(project_name)
+        from typing import cast
+
+        return cast(Path, self._qenvy.get_config_path(project_name))
 
     def main_config_exists(self) -> bool:
         """Check if main configuration exists.

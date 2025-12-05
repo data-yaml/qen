@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.qenvy_test import QenvyTest
+
 
 @pytest.fixture
 def temp_git_repo(tmp_path: Path) -> Path:
@@ -44,28 +46,35 @@ def temp_git_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def test_storage() -> QenvyTest:
+    """Provide clean in-memory storage for each test.
+
+    Returns:
+        Fresh QenvyTest instance that will be cleaned up after test
     """
-    Isolate XDG_CONFIG_HOME to a temporary directory.
+    storage = QenvyTest()
+    yield storage
+    storage.clear()
 
-    This ensures tests don't interfere with real user configuration.
-    Returns the isolated config directory.
+
+@pytest.fixture
+def test_config(test_storage: QenvyTest, tmp_path: Path) -> tuple[QenvyTest, Path]:
+    """Provide test storage and temp directory with initialized config.
+
+    Returns:
+        Tuple of (storage, meta_repo_path)
     """
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
+    meta_repo = tmp_path / "meta"
+    meta_repo.mkdir()
 
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_dir))
+    # Initialize with test data
+    test_storage.write_profile("main", {
+        "meta_path": str(meta_repo),
+        "org": "testorg",
+        "current_project": None,
+    })
 
-    # Clear platformdirs cache if it exists
-    try:
-        import platformdirs
-
-        if hasattr(platformdirs, "_cache"):
-            platformdirs._cache.clear()
-    except ImportError:
-        pass
-
-    return config_dir
+    return test_storage, meta_repo
 
 
 @pytest.fixture

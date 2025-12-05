@@ -1,0 +1,193 @@
+"""Implementation of qen add command.
+
+Add a repository to the current project by:
+1. Parsing the repository URL
+2. Cloning the repository
+3. Updating pyproject.toml with the repository entry
+"""
+
+from pathlib import Path
+
+import click
+
+from qenvy.base import QenvyBase
+
+from ..config import QenConfig, QenConfigError
+from ..git_utils import GitError
+from ..pyproject_utils import (
+    PyProjectNotFoundError,
+    PyProjectUpdateError,
+    add_repo_to_pyproject,
+    repo_exists_in_pyproject,
+)
+from ..repo_utils import (
+    RepoUrlParseError,
+    clone_repository,
+    infer_repo_path,
+    parse_repo_url,
+)
+
+
+class AddCommandError(Exception):
+    """Base exception for add command errors."""
+
+    pass
+
+
+class NoActiveProjectError(AddCommandError):
+    """Raised when no active project is set."""
+
+    pass
+
+
+class RepositoryAlreadyExistsError(AddCommandError):
+    """Raised when repository already exists in project."""
+
+    pass
+
+
+def add_repository(
+    repo: str,
+    branch: str | None = None,
+    path: str | None = None,
+    verbose: bool = False,
+    config_dir: Path | str | None = None,
+    storage: QenvyBase | None = None,
+) -> None:
+    """Add a repository to the current project.
+
+    Args:
+        repo: Repository identifier (full URL, org/repo, or repo name)
+        branch: Branch to track (default: "main")
+        path: Local path for repository (default: repos/<name>)
+        verbose: Enable verbose output
+        config_dir: Override config directory (for testing)
+        storage: Override storage backend (for testing with in-memory storage)
+
+    Raises:
+        NoActiveProjectError: If no project is currently active
+        RepoUrlParseError: If repository URL cannot be parsed
+        RepositoryAlreadyExistsError: If repository already exists
+        GitError: If clone operation fails
+        PyProjectUpdateError: If pyproject.toml update fails
+        QenConfigError: If configuration cannot be read
+    """
+    # 1. Load configuration and get current project
+    config = QenConfig(config_dir=config_dir, storage=storage)
+
+    if not config.main_config_exists():
+        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
+        raise click.Abort()
+
+    try:
+        main_config = config.read_main_config()
+    except QenConfigError as e:
+        click.echo(f"Error reading configuration: {e}", err=True)
+        raise click.Abort() from e
+
+    current_project = main_config.get("current_project")
+    if not current_project:
+        click.echo(
+            "Error: No active project. Create a project with 'qen init <project-name>' first.",
+            err=True,
+        )
+        raise click.Abort()
+
+    if verbose:
+        click.echo(f"Current project: {current_project}")
+
+    # 2. Get project folder and construct project directory path
+    try:
+        project_config = config.read_project_config(current_project)
+    except QenConfigError as e:
+        click.echo(f"Error reading project configuration: {e}", err=True)
+        raise click.Abort() from e
+
+    meta_path = Path(main_config["meta_path"])
+    folder = project_config["folder"]
+    project_dir = meta_path / folder
+
+    if verbose:
+        click.echo(f"Project directory: {project_dir}")
+
+    # 3. Parse repository URL
+    org = main_config.get("org")
+
+    try:
+        parsed = parse_repo_url(repo, org)
+    except RepoUrlParseError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise click.Abort() from e
+
+    url = parsed["url"]
+    repo_name = parsed["repo"]
+
+    if verbose:
+        click.echo(f"Parsed URL: {url}")
+        click.echo(f"Repository name: {repo_name}")
+        click.echo(f"Organization: {parsed['org']}")
+
+    # 4. Apply defaults for branch and path
+    if branch is None:
+        branch = "main"
+
+    if path is None:
+        path = infer_repo_path(repo_name)
+
+    if verbose:
+        click.echo(f"Branch: {branch}")
+        click.echo(f"Path: {path}")
+
+    # 5. Check if repository already exists in pyproject.toml
+    try:
+        if repo_exists_in_pyproject(project_dir, url):
+            click.echo(f"Error: Repository already exists in project: {url}", err=True)
+            raise click.Abort()
+    except PyProjectNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise click.Abort() from e
+    except PyProjectUpdateError as e:
+        click.echo(f"Error checking repository: {e}", err=True)
+        raise click.Abort() from e
+
+    # 6. Clone the repository
+    clone_path = project_dir / path
+
+    if verbose:
+        click.echo(f"Cloning to: {clone_path}")
+
+    try:
+        clone_repository(url, clone_path, branch, verbose)
+    except GitError as e:
+        click.echo(f"Error cloning repository: {e}", err=True)
+        raise click.Abort() from e
+
+    # 7. Update pyproject.toml
+    if verbose:
+        click.echo("Updating pyproject.toml...")
+
+    try:
+        add_repo_to_pyproject(project_dir, url, branch, path)
+    except PyProjectNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        # Clean up the cloned repository
+        if clone_path.exists():
+            import shutil
+            shutil.rmtree(clone_path)
+        raise click.Abort() from e
+    except PyProjectUpdateError as e:
+        click.echo(f"Error updating pyproject.toml: {e}", err=True)
+        # Clean up the cloned repository
+        if clone_path.exists():
+            import shutil
+            shutil.rmtree(clone_path)
+        raise click.Abort() from e
+
+    # 8. Success message
+    click.echo(f"Added repository: {url}")
+    click.echo(f"  Branch: {branch}")
+    click.echo(f"  Path: {clone_path}")
+    click.echo()
+    click.echo("Next steps:")
+    click.echo("  - Review the cloned repository")
+    click.echo("  - Commit changes: git add pyproject.toml && git commit -m 'Add repository'")

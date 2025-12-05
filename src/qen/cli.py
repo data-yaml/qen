@@ -6,6 +6,7 @@ qen - A tiny, extensible tool for organizing multi-repository development work.
 import click
 
 from . import __version__
+from .commands.add import add_repository
 from .commands.init import init_project, init_qen
 
 
@@ -58,6 +59,49 @@ def init(project_name: str | None, verbose: bool) -> None:
     else:
         # Mode 2: Create new project
         init_project(project_name, verbose=verbose)
+
+
+@main.command("add")
+@click.argument("repo")
+@click.option("--branch", "-b", help="Branch to track (default: main)")
+@click.option("--path", "-p", help="Local path (default: repos/<name>)")
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
+def add(repo: str, branch: str | None, path: str | None, verbose: bool) -> None:
+    """Add a repository to the current project.
+
+    REPO can be specified in three formats:
+
+    \b
+    - Full URL: https://github.com/org/repo
+    - Org/repo: org/repo (assumes GitHub)
+    - Repo name: repo (uses org from config)
+
+    The repository will be cloned to the project's repos/ directory
+    and added to pyproject.toml.
+
+    Examples:
+
+    \b
+        # Add using full URL
+        $ qen add https://github.com/myorg/myrepo
+
+    \b
+        # Add using org/repo format
+        $ qen add myorg/myrepo
+
+    \b
+        # Add using repo name (uses org from config)
+        $ qen add myrepo
+
+    \b
+        # Add with specific branch
+        $ qen add myorg/myrepo --branch develop
+
+    \b
+        # Add with custom path
+        $ qen add myorg/myrepo --path repos/custom-name
+    """
+    add_repository(repo, branch, path, verbose)
 
 
 if __name__ == "__main__":

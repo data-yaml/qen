@@ -464,3 +464,23 @@ class QenvyBase(ABC):
             Path or identifier for the profile
         """
         ...
+
+    @abstractmethod
+    def get_base_dir(self) -> Any:
+        """Get the base directory for configuration storage.
+
+        Returns:
+            Base directory path or identifier
+        """
+        ...
+
+    def get_config_path(self, profile: str) -> Any:
+        """Get the configuration path for a specific profile.
+
+        Args:
+            profile: Profile name
+
+        Returns:
+            Configuration path or identifier for the profile
+        """
+        return self._get_profile_path(profile)
