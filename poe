@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Shim script for running Poe the Poet tasks
+# Usage: ./poe <task> [args...]
+
+set -e
+
+# Check if we're in a virtual environment
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Warning: Not in a virtual environment. Attempting to use uv or pip..."
+
+    # Try to use uv first, then fall back to pip
+    if command -v uv &> /dev/null; then
+        exec uv run poe "$@"
+    elif command -v python &> /dev/null; then
+        exec python -m poe "$@"
+    else
+        echo "Error: Neither uv nor python found in PATH"
+        exit 1
+    fi
+else
+    # In a virtual environment, just run poe directly
+    exec poe "$@"
+fi
