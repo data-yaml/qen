@@ -8,7 +8,7 @@ within a meta repository. It handles:
 - .gitignore management
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .git_utils import create_branch, run_git_command
@@ -33,7 +33,7 @@ def generate_branch_name(project_name: str, date: datetime | None = None) -> str
         Branch name with date prefix
     """
     if date is None:
-        date = datetime.now(timezone.utc)
+        date = datetime.now(UTC)
 
     date_prefix = date.strftime("%Y-%m-%d")
     return f"{date_prefix}-{project_name}"
@@ -52,7 +52,7 @@ def generate_folder_path(project_name: str, date: datetime | None = None) -> str
         Folder path relative to meta repo root
     """
     if date is None:
-        date = datetime.now(timezone.utc)
+        date = datetime.now(UTC)
 
     date_prefix = date.strftime("%Y-%m-%d")
     return f"proj/{date_prefix}-{project_name}"
@@ -95,7 +95,7 @@ def create_project_structure(
     readme_path = project_dir / "README.md"
     readme_content = f"""# {project_name}
 
-Project created on {datetime.now(timezone.utc).strftime("%Y-%m-%d")}
+Project created on {datetime.now(UTC).strftime("%Y-%m-%d")}
 
 ## Overview
 
@@ -227,7 +227,7 @@ def create_project(
         ProjectError: If project creation fails
     """
     if date is None:
-        date = datetime.now(timezone.utc)
+        date = datetime.now(UTC)
 
     # Generate branch and folder names
     branch_name = generate_branch_name(project_name, date)

@@ -8,7 +8,7 @@ Storage implementations only need to implement the raw storage primitives.
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .exceptions import (
@@ -388,7 +388,7 @@ class QenvyBase(ABC):
                 for key, value in metadata.items():
                     if not isinstance(key, str):
                         result.add_error(f"Metadata key must be string, got {type(key).__name__}")
-                    if not isinstance(value, (str, int, float, bool, type(None))):
+                    if not isinstance(value, str | int | float | bool | type(None)):
                         result.add_warning(
                             f"Metadata value '{key}' has non-primitive type {type(value).__name__}"
                         )
@@ -410,7 +410,7 @@ class QenvyBase(ABC):
             Configuration with updated metadata (new instance)
         """
         config_copy = deepcopy(config)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         if "_metadata" not in config_copy:
             config_copy["_metadata"] = {}

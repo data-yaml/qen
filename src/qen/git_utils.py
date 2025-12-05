@@ -249,7 +249,7 @@ def extract_org_from_remotes(path: Path) -> str:
         raise GitError("No git remotes found")
 
     orgs: set[str] = set()
-    for remote_name, url in remotes.items():
+    for _remote_name, url in remotes.items():
         try:
             parsed = parse_git_url(url)
             orgs.add(parsed["org"])

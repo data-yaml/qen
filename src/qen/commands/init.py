@@ -5,7 +5,7 @@ Two modes:
 2. qen init <proj-name> - Create new project
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import click
@@ -48,10 +48,10 @@ def init_qen(verbose: bool = False) -> None:
         meta_path = find_meta_repo()
     except NotAGitRepoError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
     except MetaRepoNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     if verbose:
         click.echo(f"Found meta repository: {meta_path}")
@@ -64,10 +64,10 @@ def init_qen(verbose: bool = False) -> None:
         org = extract_org_from_remotes(meta_path)
     except AmbiguousOrgError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
     except GitError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     if verbose:
         click.echo(f"Organization: {org}")
@@ -83,7 +83,7 @@ def init_qen(verbose: bool = False) -> None:
         )
     except QenConfigError as e:
         click.echo(f"Error creating configuration: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     # Success message
     config_path = config.get_main_config_path()
@@ -132,7 +132,7 @@ def init_project(project_name: str, verbose: bool = False) -> None:
         meta_path = Path(main_config["meta_path"])
     except QenConfigError as e:
         click.echo(f"Error reading configuration: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     # Check if project already exists
     if config.project_config_exists(project_name):
@@ -148,13 +148,13 @@ def init_project(project_name: str, verbose: bool = False) -> None:
         click.echo(f"Meta repository: {meta_path}")
 
     # Create project with current timestamp
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     try:
         branch_name, folder_path = create_project(meta_path, project_name, date=now)
     except ProjectError as e:
         click.echo(f"Error creating project: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     if verbose:
         click.echo(f"Created branch: {branch_name}")
@@ -170,10 +170,10 @@ def init_project(project_name: str, verbose: bool = False) -> None:
         )
     except ProjectAlreadyExistsError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
     except QenConfigError as e:
         click.echo(f"Error creating project configuration: {e}", err=True)
-        raise click.Abort()
+        raise click.Abort() from e
 
     if verbose:
         project_config_path = config.get_project_config_path(project_name)

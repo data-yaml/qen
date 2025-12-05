@@ -9,8 +9,6 @@ Tests configuration operations including:
 
 from pathlib import Path
 
-import pytest
-
 # Note: Since qen CLI is minimal, these tests are placeholders
 # Once the actual config management is implemented, these tests
 # will be expanded to cover the functionality.
@@ -23,7 +21,6 @@ class TestConfigStructure:
         """Test that qen creates config directory."""
         # This test will verify config directory creation
         # once qen config management is implemented
-        qen_config = isolated_config / "qen"
         assert isolated_config.exists()
 
     def test_config_file_format(self, isolated_config: Path) -> None:

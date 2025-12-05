@@ -6,19 +6,14 @@ configuration files in different formats (TOML, JSON).
 """
 
 import json
-import sys
+
+# Use built-in tomllib (Python 3.11+)
+import tomllib
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 from .exceptions import FormatError
 from .types import ProfileConfig
-
-# Use built-in tomllib for Python 3.11+, tomli for older versions
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 # tomli_w is used for writing TOML regardless of Python version
 try:
@@ -140,7 +135,7 @@ class JSONHandler(FormatHandler):
             FormatError: If parsing fails
         """
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             raise FormatError("JSON", f"Failed to read {path}: {e}") from e

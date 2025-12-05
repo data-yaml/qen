@@ -8,8 +8,6 @@ Tests filesystem operations including:
 - Profile CRUD operations
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,7 +15,6 @@ import pytest
 from qenvy.exceptions import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
-    StorageError,
 )
 from qenvy.storage import QenvyConfig
 
@@ -336,13 +333,12 @@ class TestAtomicWrites:
         profile_dir.mkdir(parents=True)
 
         # Patch format handler to raise error
-        original_write = qenvy.format_handler.write
         def failing_write(path: Path, config: dict) -> None:
-            raise IOError("Simulated write failure")
+            raise OSError("Simulated write failure")
 
         monkeypatch.setattr(qenvy.format_handler, "write", failing_write)
 
-        with pytest.raises(Exception):
+        with pytest.raises(OSError):
             qenvy.write_profile("test", {"test": "value"})
 
         # Verify no temp files left behind

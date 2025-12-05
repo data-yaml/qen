@@ -2,7 +2,6 @@
 Shared pytest fixtures and configuration for all tests.
 """
 
-import os
 import subprocess
 from pathlib import Path
 

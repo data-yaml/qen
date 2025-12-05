@@ -334,8 +334,6 @@ class TestInheritanceMetadata:
         qenvy.create_profile("base", config={"key": "value"})
         qenvy.create_profile("derived", config={"inherits": "base"})
 
-        resolved = qenvy.read_profile("derived", resolve_inheritance=True)
-
         # The inherits field should not be in the resolved config
         # but should remain in the raw config on disk
         raw = qenvy.read_profile("derived", resolve_inheritance=False)

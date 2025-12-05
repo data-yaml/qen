@@ -14,7 +14,7 @@ from platformdirs import user_config_path
 
 from .base import QenvyBase
 from .exceptions import AtomicWriteError, BackupError, ProfileNotFoundError, StorageError
-from .formats import FormatHandler, get_format_handler
+from .formats import get_format_handler
 from .types import ProfileConfig
 
 

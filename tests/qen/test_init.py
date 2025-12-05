@@ -10,8 +10,6 @@ Tests qen init functionality including:
 
 from pathlib import Path
 
-import pytest
-
 # Note: Since qen CLI is minimal, these tests are placeholders
 # Once the qen init command is implemented, these tests
 # will be expanded to cover the functionality.

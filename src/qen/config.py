@@ -7,7 +7,7 @@ the qenvy library. It handles:
 - XDG-compliant storage using qenvy
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -217,7 +217,7 @@ class QenConfig:
 
         # Use current time if not provided
         if created is None:
-            created = datetime.now(timezone.utc).isoformat()
+            created = datetime.now(UTC).isoformat()
 
         config = {
             "name": project_name,
@@ -230,10 +230,10 @@ class QenConfig:
             self._qenvy.create_profile(
                 project_name, config, overwrite=False
             )
-        except ProfileAlreadyExistsError:
+        except ProfileAlreadyExistsError as e:
             # This should not happen because we checked above, but handle it
             config_path = self.get_project_config_path(project_name)
-            raise ProjectAlreadyExistsError(project_name, str(config_path))
+            raise ProjectAlreadyExistsError(project_name, str(config_path)) from e
         except Exception as e:
             raise QenConfigError(
                 f"Failed to write project config '{project_name}': {e}"

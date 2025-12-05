@@ -14,7 +14,6 @@ import pytest
 
 from qenvy.exceptions import FormatError
 from qenvy.formats import (
-    FormatHandler,
     JSONHandler,
     TOMLHandler,
     get_format_handler,
