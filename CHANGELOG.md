@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Implement `qen init` command with comprehensive testing infrastructure
+- Implement `qen init` and `qen add` command with comprehensive testing infrastructure
 - Add qenvy XDG configuration library for cross-platform config management
 - Add Poe the Poet task runner with shim script for dev workflow
 
