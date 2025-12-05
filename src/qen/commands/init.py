@@ -121,9 +121,7 @@ def init_project(project_name: str, verbose: bool = False) -> None:
 
     # Check if main config exists
     if not config.main_config_exists():
-        click.echo(
-            "Error: qen is not initialized. Run 'qen init' first.", err=True
-        )
+        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
         raise click.Abort()
 
     # Read main config to get meta_path

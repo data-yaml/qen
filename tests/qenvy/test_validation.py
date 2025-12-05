@@ -179,7 +179,9 @@ class TestReservedKeys:
 
         assert result.valid is True
         # Should not have warning about reserved prefix for _metadata
-        assert not any("_metadata" in warn and "reserved prefix" in warn for warn in result.warnings)
+        assert not any(
+            "_metadata" in warn and "reserved prefix" in warn for warn in result.warnings
+        )
 
     def test_multiple_underscore_keys(self, qenvy: QenvyConfig) -> None:
         """Test multiple underscore-prefixed keys."""

@@ -350,7 +350,9 @@ class QenvyBase(ABC):
     # Validation
     # ====================================================================
 
-    def validate_config(self, config: ProfileConfig, profile: str | None = None) -> ValidationResult:
+    def validate_config(
+        self, config: ProfileConfig, profile: str | None = None
+    ) -> ValidationResult:
         """Validate configuration structure and values.
 
         Args:

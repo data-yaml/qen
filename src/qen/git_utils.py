@@ -117,9 +117,7 @@ def find_meta_repo(start_path: Path | None = None) -> Path:
 
     # Check if we're in a git repo at all
     if not is_git_repo(start_path):
-        raise NotAGitRepoError(
-            "Not in a git repository. qen requires a meta git repository."
-        )
+        raise NotAGitRepoError("Not in a git repository. qen requires a meta git repository.")
 
     # Search upward for meta repo
     current = start_path

@@ -42,6 +42,7 @@ def qenvy_with_xdg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> QenvyConf
 
     # Clear the platformdirs cache
     import platformdirs
+
     if hasattr(platformdirs, "_cache"):
         platformdirs._cache.clear()
 
@@ -226,6 +227,7 @@ class TestProfileWriting:
 
         # Wait a tiny bit to ensure different timestamp
         import time
+
         time.sleep(0.05)
 
         qenvy.write_profile("test", {"updated": True})
@@ -327,7 +329,9 @@ class TestAtomicWrites:
         temp_files = list(profile_dir.glob(".config.tmp-*"))
         assert len(temp_files) == 0
 
-    def test_atomic_write_on_failure_cleans_up(self, qenvy: QenvyConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_atomic_write_on_failure_cleans_up(
+        self, qenvy: QenvyConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that atomic write cleans up temp file on failure."""
         profile_dir = qenvy.get_profile_dir("test")
         profile_dir.mkdir(parents=True)

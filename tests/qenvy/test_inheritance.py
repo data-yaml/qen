@@ -108,17 +108,23 @@ class TestMultiLevelInheritance:
         qenvy.create_profile("base", config={"level": "base", "from_base": True})
 
         # Middle profile
-        qenvy.create_profile("middle", config={
-            "inherits": "base",
-            "level": "middle",
-            "from_middle": True,
-        })
+        qenvy.create_profile(
+            "middle",
+            config={
+                "inherits": "base",
+                "level": "middle",
+                "from_middle": True,
+            },
+        )
 
         # Derived profile
-        qenvy.create_profile("derived", config={
-            "inherits": "middle",
-            "level": "derived",
-        })
+        qenvy.create_profile(
+            "derived",
+            config={
+                "inherits": "middle",
+                "level": "derived",
+            },
+        )
 
         resolved = qenvy.read_profile("derived", resolve_inheritance=True)
 
@@ -219,19 +225,28 @@ class TestDeepMerge:
 
     def test_deep_merge_multiple_levels(self, qenvy: QenvyConfig) -> None:
         """Test deep merge across multiple inheritance levels."""
-        qenvy.create_profile("base", config={
-            "config": {"a": 1, "b": {"x": 10, "y": 20}},
-        })
+        qenvy.create_profile(
+            "base",
+            config={
+                "config": {"a": 1, "b": {"x": 10, "y": 20}},
+            },
+        )
 
-        qenvy.create_profile("middle", config={
-            "inherits": "base",
-            "config": {"b": {"y": 25, "z": 30}},
-        })
+        qenvy.create_profile(
+            "middle",
+            config={
+                "inherits": "base",
+                "config": {"b": {"y": 25, "z": 30}},
+            },
+        )
 
-        qenvy.create_profile("derived", config={
-            "inherits": "middle",
-            "config": {"b": {"z": 35}, "c": 3},
-        })
+        qenvy.create_profile(
+            "derived",
+            config={
+                "inherits": "middle",
+                "config": {"b": {"z": 35}, "c": 3},
+            },
+        )
 
         resolved = qenvy.read_profile("derived", resolve_inheritance=True)
 
@@ -310,6 +325,7 @@ class TestInheritanceMetadata:
 
         # Wait a tiny bit to ensure different timestamp
         import time
+
         time.sleep(0.01)
 
         qenvy.create_profile("derived", config={"inherits": "base"})
@@ -346,35 +362,44 @@ class TestComplexInheritanceScenarios:
     def test_environment_inheritance_pattern(self, qenvy: QenvyConfig) -> None:
         """Test typical environment inheritance pattern (base -> dev/stage/prod)."""
         # Base configuration
-        qenvy.create_profile("base", config={
-            "app_name": "myapp",
-            "log_level": "INFO",
-            "database": {
-                "pool_size": 10,
-                "timeout": 30,
+        qenvy.create_profile(
+            "base",
+            config={
+                "app_name": "myapp",
+                "log_level": "INFO",
+                "database": {
+                    "pool_size": 10,
+                    "timeout": 30,
+                },
             },
-        })
+        )
 
         # Development environment
-        qenvy.create_profile("dev", config={
-            "inherits": "base",
-            "log_level": "DEBUG",
-            "database": {
-                "host": "localhost",
-                "port": 5432,
+        qenvy.create_profile(
+            "dev",
+            config={
+                "inherits": "base",
+                "log_level": "DEBUG",
+                "database": {
+                    "host": "localhost",
+                    "port": 5432,
+                },
             },
-        })
+        )
 
         # Production environment
-        qenvy.create_profile("prod", config={
-            "inherits": "base",
-            "log_level": "WARNING",
-            "database": {
-                "host": "prod.example.com",
-                "port": 5432,
-                "pool_size": 50,  # Override for production
+        qenvy.create_profile(
+            "prod",
+            config={
+                "inherits": "base",
+                "log_level": "WARNING",
+                "database": {
+                    "host": "prod.example.com",
+                    "port": 5432,
+                    "pool_size": 50,  # Override for production
+                },
             },
-        })
+        )
 
         dev_config = qenvy.read_profile("dev", resolve_inheritance=True)
         prod_config = qenvy.read_profile("prod", resolve_inheritance=True)
@@ -391,21 +416,27 @@ class TestComplexInheritanceScenarios:
 
     def test_feature_flag_inheritance(self, qenvy: QenvyConfig) -> None:
         """Test feature flag inheritance pattern."""
-        qenvy.create_profile("base", config={
-            "features": {
-                "feature_a": False,
-                "feature_b": False,
-                "feature_c": False,
+        qenvy.create_profile(
+            "base",
+            config={
+                "features": {
+                    "feature_a": False,
+                    "feature_b": False,
+                    "feature_c": False,
+                },
             },
-        })
+        )
 
-        qenvy.create_profile("experimental", config={
-            "inherits": "base",
-            "features": {
-                "feature_a": True,
-                "feature_b": True,
+        qenvy.create_profile(
+            "experimental",
+            config={
+                "inherits": "base",
+                "features": {
+                    "feature_a": True,
+                    "feature_b": True,
+                },
             },
-        })
+        )
 
         config = qenvy.read_profile("experimental", resolve_inheritance=True)
 

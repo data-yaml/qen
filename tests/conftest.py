@@ -59,6 +59,7 @@ def isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # Clear platformdirs cache if it exists
     try:
         import platformdirs
+
         if hasattr(platformdirs, "_cache"):
             platformdirs._cache.clear()
     except ImportError:

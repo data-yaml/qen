@@ -83,13 +83,9 @@ def create_project_structure(
     try:
         project_dir.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
-        raise ProjectError(
-            f"Project directory already exists: {project_dir}"
-        ) from None
+        raise ProjectError(f"Project directory already exists: {project_dir}") from None
     except Exception as e:
-        raise ProjectError(
-            f"Failed to create project directory: {e}"
-        ) from e
+        raise ProjectError(f"Failed to create project directory: {e}") from e
 
     # Create README.md stub
     readme_path = project_dir / "README.md"

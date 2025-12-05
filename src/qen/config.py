@@ -26,9 +26,7 @@ class ProjectAlreadyExistsError(QenConfigError):
     def __init__(self, project_name: str, config_path: str):
         self.project_name = project_name
         self.config_path = config_path
-        super().__init__(
-            f"Project '{project_name}' already exists at {config_path}."
-        )
+        super().__init__(f"Project '{project_name}' already exists at {config_path}.")
 
 
 class QenConfig:
@@ -110,9 +108,7 @@ class QenConfig:
             QenConfigError: If main config does not exist or read fails
         """
         try:
-            return self._qenvy.read_profile(
-                self.MAIN_PROFILE, resolve_inheritance=False
-            )
+            return self._qenvy.read_profile(self.MAIN_PROFILE, resolve_inheritance=False)
         except Exception as e:
             raise QenConfigError(f"Failed to read main config: {e}") from e
 
@@ -140,9 +136,7 @@ class QenConfig:
 
         try:
             # Use create_profile with overwrite=True to allow updating
-            self._qenvy.create_profile(
-                self.MAIN_PROFILE, config, overwrite=True
-            )
+            self._qenvy.create_profile(self.MAIN_PROFILE, config, overwrite=True)
         except Exception as e:
             raise QenConfigError(f"Failed to write main config: {e}") from e
 
@@ -166,9 +160,7 @@ class QenConfig:
                 self.MAIN_PROFILE, config, validate=True, update_metadata=True
             )
         except Exception as e:
-            raise QenConfigError(
-                f"Failed to update current_project: {e}"
-            ) from e
+            raise QenConfigError(f"Failed to update current_project: {e}") from e
 
     def read_project_config(self, project_name: str) -> dict[str, Any]:
         """Read project configuration.
@@ -183,13 +175,9 @@ class QenConfig:
             QenConfigError: If project config does not exist or read fails
         """
         try:
-            return self._qenvy.read_profile(
-                project_name, resolve_inheritance=False
-            )
+            return self._qenvy.read_profile(project_name, resolve_inheritance=False)
         except Exception as e:
-            raise QenConfigError(
-                f"Failed to read project config '{project_name}': {e}"
-            ) from e
+            raise QenConfigError(f"Failed to read project config '{project_name}': {e}") from e
 
     def write_project_config(
         self,
@@ -227,17 +215,13 @@ class QenConfig:
         }
 
         try:
-            self._qenvy.create_profile(
-                project_name, config, overwrite=False
-            )
+            self._qenvy.create_profile(project_name, config, overwrite=False)
         except ProfileAlreadyExistsError as e:
             # This should not happen because we checked above, but handle it
             config_path = self.get_project_config_path(project_name)
             raise ProjectAlreadyExistsError(project_name, str(config_path)) from e
         except Exception as e:
-            raise QenConfigError(
-                f"Failed to write project config '{project_name}': {e}"
-            ) from e
+            raise QenConfigError(f"Failed to write project config '{project_name}': {e}") from e
 
     def list_projects(self) -> list[str]:
         """List all project names.
@@ -260,6 +244,4 @@ class QenConfig:
         try:
             self._qenvy.delete_profile(project_name)
         except Exception as e:
-            raise QenConfigError(
-                f"Failed to delete project config '{project_name}': {e}"
-            ) from e
+            raise QenConfigError(f"Failed to delete project config '{project_name}': {e}") from e
