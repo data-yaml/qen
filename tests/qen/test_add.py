@@ -279,12 +279,13 @@ branch = "main"
 path = "repos/repo1"
 """)
 
-        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1") is True
-        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo2") is False
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "main") is True
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "develop") is False
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo2", "main") is False
 
     def test_repo_exists_no_pyproject(self, tmp_path: Path) -> None:
         """Test checking repo existence when pyproject.toml doesn't exist."""
-        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo") is False
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo", "main") is False
 
     def test_add_repo_to_nonexistent_pyproject(self, tmp_path: Path) -> None:
         """Test that adding repo fails if pyproject.toml doesn't exist."""
@@ -295,6 +296,86 @@ path = "repos/repo1"
                 "main",
                 "repos/repo",
             )
+
+    def test_add_same_repo_different_branches(self, tmp_path: Path) -> None:
+        """Test adding same repository with different branches."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("""
+[tool.qen]
+created = "2025-12-05T10:00:00Z"
+""")
+
+        # Add first branch
+        add_repo_to_pyproject(
+            tmp_path,
+            "https://github.com/org/repo",
+            "feature-1",
+            "repos/repo-feature-1",
+        )
+
+        # Add second branch - should succeed
+        add_repo_to_pyproject(
+            tmp_path,
+            "https://github.com/org/repo",
+            "feature-2",
+            "repos/repo-feature-2",
+        )
+
+        # Check pyproject.toml has both entries
+        result = read_pyproject(tmp_path)
+        repos = result["tool"]["qen"]["repos"]
+        assert len(repos) == 2
+        assert repos[0]["url"] == "https://github.com/org/repo"
+        assert repos[0]["branch"] == "feature-1"
+        assert repos[0]["path"] == "repos/repo-feature-1"
+        assert repos[1]["url"] == "https://github.com/org/repo"
+        assert repos[1]["branch"] == "feature-2"
+        assert repos[1]["path"] == "repos/repo-feature-2"
+
+    def test_prevent_duplicate_url_branch(self, tmp_path: Path) -> None:
+        """Test that duplicate (url, branch) combination is detected."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("""
+[tool.qen]
+created = "2025-12-05T10:00:00Z"
+
+[[tool.qen.repos]]
+url = "https://github.com/org/repo"
+branch = "main"
+path = "repos/repo"
+""")
+
+        # Same URL with same branch should be detected as duplicate
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo", "main") is True
+
+        # Same URL with different branch should not be duplicate
+        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo", "develop") is False
+
+    def test_infer_repo_path_with_branch_collision(self, tmp_path: Path) -> None:
+        """Test automatic path suffixing when branch collision detected."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("""
+[tool.qen]
+created = "2025-12-05T10:00:00Z"
+
+[[tool.qen.repos]]
+url = "https://github.com/org/deployment"
+branch = "main"
+path = "repos/deployment"
+""")
+
+        # First branch already has clean path "repos/deployment"
+        # Second branch should get suffixed path
+        path = infer_repo_path("deployment", "feature-x", tmp_path)
+        assert path == "repos/deployment-feature-x"
+
+        # Same branch as existing should get clean path (no collision)
+        path_same = infer_repo_path("deployment", "main", tmp_path)
+        assert path_same == "repos/deployment"
+
+        # No collision for different repo name
+        path_different = infer_repo_path("other-repo", "feature-x", tmp_path)
+        assert path_different == "repos/other-repo"
 
 
 # ==============================================================================
@@ -518,6 +599,133 @@ created = "2025-12-05T10:00:00Z"
         )
 
         # Try to add same repository again - should fail
+        import click
+
+        with pytest.raises(click.exceptions.Abort):
+            add_repository(
+                repo=str(child_repo),
+                branch="main",
+                path=None,
+                verbose=False,
+                storage=test_storage,
+            )
+
+    def test_add_same_repo_different_branches_integration(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test adding same repository with different branches - full integration."""
+        # Setup
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile("main", {
+            "meta_path": str(meta_repo),
+            "org": "testorg",
+            "current_project": None,
+        })
+
+        project_name = "test-project"
+        branch = "2025-12-05-test-project"
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text("""
+[tool.qen]
+created = "2025-12-05T10:00:00Z"
+""")
+
+        test_storage.write_profile(project_name, {
+            "name": project_name,
+            "branch": branch,
+            "folder": folder,
+            "created": "2025-12-05T10:00:00Z",
+        })
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # Create a feature branch in child_repo
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-1"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+        feature_file = child_repo / "feature1.txt"
+        feature_file.write_text("feature 1")
+        subprocess.run(
+            ["git", "add", "feature1.txt"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Add feature 1"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Add repository with main branch
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            storage=test_storage,
+        )
+
+        # Add same repository with feature-1 branch - should succeed
+        add_repository(
+            repo=str(child_repo),
+            branch="feature-1",
+            path=None,
+            verbose=False,
+            storage=test_storage,
+        )
+
+        # Verify: Both clones exist
+        clone_main = project_dir / "repos" / "child_repo"
+        clone_feature = project_dir / "repos" / "child_repo-feature-1"
+        assert clone_main.exists()
+        assert clone_feature.exists()
+        assert (clone_main / "README.md").exists()
+        assert (clone_feature / "feature1.txt").exists()
+        assert not (clone_main / "feature1.txt").exists()  # Feature file not in main
+
+        # Verify: pyproject.toml has both entries
+        result = read_pyproject(project_dir)
+        assert len(result["tool"]["qen"]["repos"]) == 2
+        assert result["tool"]["qen"]["repos"][0]["branch"] == "main"
+        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/child_repo"
+        assert result["tool"]["qen"]["repos"][1]["branch"] == "feature-1"
+        assert result["tool"]["qen"]["repos"][1]["path"] == "repos/child_repo-feature-1"
+
+        # Try to add main branch again - should fail
         import click
 
         with pytest.raises(click.exceptions.Abort):

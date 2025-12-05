@@ -47,15 +47,16 @@ def read_pyproject(project_dir: Path) -> dict[str, Any]:
         raise PyProjectUpdateError(f"Failed to read pyproject.toml: {e}") from e
 
 
-def repo_exists_in_pyproject(project_dir: Path, url: str) -> bool:
-    """Check if a repository URL already exists in pyproject.toml.
+def repo_exists_in_pyproject(project_dir: Path, url: str, branch: str) -> bool:
+    """Check if a repository with given URL and branch already exists.
 
     Args:
         project_dir: Path to project directory
         url: Repository URL to check
+        branch: Branch name to check
 
     Returns:
-        True if URL exists in [[tool.qen.repos]]
+        True if (url, branch) combination exists in [[tool.qen.repos]]
 
     Raises:
         PyProjectNotFoundError: If pyproject.toml does not exist
@@ -78,10 +79,11 @@ def repo_exists_in_pyproject(project_dir: Path, url: str) -> bool:
     if not isinstance(repos, list):
         return False
 
-    # Check if URL exists
+    # Check if (url, branch) tuple exists
     for repo in repos:
-        if isinstance(repo, dict) and repo.get("url") == url:
-            return True
+        if isinstance(repo, dict):
+            if repo.get("url") == url and repo.get("branch") == branch:
+                return True
 
     return False
 

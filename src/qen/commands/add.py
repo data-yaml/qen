@@ -132,7 +132,7 @@ def add_repository(
         branch = "main"
 
     if path is None:
-        path = infer_repo_path(repo_name)
+        path = infer_repo_path(repo_name, branch, project_dir)
 
     if verbose:
         click.echo(f"Branch: {branch}")
@@ -140,8 +140,11 @@ def add_repository(
 
     # 5. Check if repository already exists in pyproject.toml
     try:
-        if repo_exists_in_pyproject(project_dir, url):
-            click.echo(f"Error: Repository already exists in project: {url}", err=True)
+        if repo_exists_in_pyproject(project_dir, url, branch):
+            click.echo(
+                f"Error: Repository already exists in project: {url} (branch: {branch})",
+                err=True,
+            )
             raise click.Abort()
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)

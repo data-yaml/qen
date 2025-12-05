@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add qenvy XDG configuration library for cross-platform config management
 - Add Poe the Poet task runner with shim script for dev workflow
 
+### Fixed
+
+- Fix `qen add` to allow multiple branches of same repository (uniqueness now checks url+branch tuple instead of url only)
+- Auto-suffix repository paths with branch name when adding same repo with different branches
+
 ### Development
 
 - Add `./poe lint` as a single command to handle `ruff` formatting and `mypy` type checking

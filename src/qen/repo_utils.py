@@ -112,20 +112,53 @@ def parse_repo_url(repo: str, org: str | None = None) -> dict[str, str]:
     )
 
 
-def infer_repo_path(repo_name: str) -> str:
+def infer_repo_path(
+    repo_name: str, branch: str | None = None, project_dir: Path | None = None
+) -> str:
     """Infer the local path for a repository.
+
+    If branch is provided and there's a potential collision with existing
+    repos, append the branch name to make the path unique.
 
     Args:
         repo_name: Name of the repository
+        branch: Optional branch name for disambiguation
+        project_dir: Optional project directory to check for collisions
 
     Returns:
-        Relative path in the format "repos/{repo_name}"
+        Relative path in the format "repos/{repo_name}" or "repos/{repo_name}-{branch}"
 
     Examples:
         >>> infer_repo_path("myrepo")
         'repos/myrepo'
+
+        >>> infer_repo_path("myrepo", branch="feature-x", project_dir=Path("/path/to/proj"))
+        'repos/myrepo-feature-x'  # If collision detected
     """
-    return f"repos/{repo_name}"
+    base_path = f"repos/{repo_name}"
+
+    # If branch provided and project_dir exists, check for collision
+    if branch and project_dir:
+        from .pyproject_utils import read_pyproject
+
+        pyproject_path = project_dir / "pyproject.toml"
+        if pyproject_path.exists():
+            try:
+                config = read_pyproject(project_dir)
+                existing_repos = config.get("tool", {}).get("qen", {}).get("repos", [])
+
+                # Check if base_path already used by a different branch
+                for repo in existing_repos:
+                    if isinstance(repo, dict):
+                        if repo.get("path") == base_path and repo.get("branch") != branch:
+                            # Collision: same path, different branch
+                            # Append branch to make unique
+                            return f"repos/{repo_name}-{branch}"
+            except Exception:
+                # If we can't read pyproject.toml, just use base path
+                pass
+
+    return base_path
 
 
 def clone_repository(
