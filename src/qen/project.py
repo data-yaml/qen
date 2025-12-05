@@ -66,7 +66,7 @@ def create_project_structure(
     Creates:
     - proj/YYYY-MM-DD-<project-name>/
     - proj/YYYY-MM-DD-<project-name>/README.md (stub)
-    - proj/YYYY-MM-DD-<project-name>/meta.toml (empty repos list)
+    - proj/YYYY-MM-DD-<project-name>/pyproject.toml ([tool.qen] configuration)
     - proj/YYYY-MM-DD-<project-name>/repos/ (directory)
 
     Args:
@@ -99,7 +99,7 @@ Project created on {datetime.now(UTC).strftime("%Y-%m-%d")}
 
 ## Repositories
 
-See `meta.toml` for the list of repositories in this project.
+See `pyproject.toml` ([tool.qen] section) for the list of repositories in this project.
 
 ## Getting Started
 
@@ -119,21 +119,24 @@ qen status
     except Exception as e:
         raise ProjectError(f"Failed to create README.md: {e}") from e
 
-    # Create meta.toml stub
-    meta_toml_path = project_dir / "meta.toml"
-    meta_toml_content = """# Repository configuration for this project
+    # Create pyproject.toml stub
+    pyproject_path = project_dir / "pyproject.toml"
+    pyproject_content = f"""# qen proj configuration
 # Add repositories using: qen add <repo-url>
 
-[[repos]]
-# Example:
+[tool.qen]
+created = "{datetime.now(UTC).isoformat()}"
+
+# Example repository:
+# [[tool.qen.repos]]
 # url = "https://github.com/org/repo"
 # branch = "main"
 # path = "repos/repo"
 """
     try:
-        meta_toml_path.write_text(meta_toml_content)
+        pyproject_path.write_text(pyproject_content)
     except Exception as e:
-        raise ProjectError(f"Failed to create meta.toml: {e}") from e
+        raise ProjectError(f"Failed to create pyproject.toml: {e}") from e
 
     # Create repos/ directory
     repos_dir = project_dir / "repos"
@@ -206,7 +209,7 @@ def create_project(
     This function:
     1. Creates a new branch with date prefix
     2. Creates project directory structure
-    3. Creates stub files (README.md, meta.toml)
+    3. Creates stub files (README.md, pyproject.toml)
     4. Creates repos/ directory
     5. Adds .gitignore entry for repos/
     6. Stages files for commit (but does not commit)

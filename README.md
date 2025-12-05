@@ -29,7 +29,7 @@ qen init proj-name
 1. Creates meta branch `YYYY-MM-DD-proj-name`
 2. Creates folder `proj/YYYY-MM-DD-proj-name` in meta
 3. Creates stub README.md
-4. Creates `meta.toml` for repo management
+4. Creates `pyproject.toml` with [tool.qen] configuration for repo management
 5. Creates and gitignores a 'repos' subfolder
 6. Sets 'proj-name' as the current project in qen config.
 
@@ -45,7 +45,7 @@ qen add org/repo -b custom-branch
 1. Infers org
 1. Checks out repo into `repos/`
 1. Defaults to the same branch name as project
-1. Updates `meta.toml`
+1. Updates `pyproject.toml` ([tool.qen.repos] array)
 1. Can have multiple instances of the same repo
 
 > Question: should we do all this directly, or leverage .gitmodules and/or worktrees?

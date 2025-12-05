@@ -19,13 +19,13 @@ class TestMetaRepoDiscovery:
     """Test discovery of meta repository."""
 
     def test_discover_meta_repo_in_current_dir(self, meta_repo: Path) -> None:
-        """Test discovering meta.toml in current directory."""
+        """Test discovering pyproject.toml with [tool.qen] in current directory."""
         # Placeholder: Will test meta repo discovery
-        meta_toml = meta_repo / "meta.toml"
-        assert meta_toml.exists()
+        pyproject_toml = meta_repo / "pyproject.toml"
+        assert pyproject_toml.exists() or (meta_repo / "meta.toml").exists()
 
     def test_discover_meta_repo_in_parent_dir(self, meta_repo: Path, tmp_path: Path) -> None:
-        """Test discovering meta.toml in parent directory."""
+        """Test discovering pyproject.toml in parent directory."""
         # Create subdirectory
         subdir = meta_repo / "subdir"
         subdir.mkdir()
@@ -33,12 +33,12 @@ class TestMetaRepoDiscovery:
         pass
 
     def test_fail_when_no_meta_repo(self, temp_git_repo: Path) -> None:
-        """Test failure when no meta.toml found."""
+        """Test failure when no pyproject.toml found."""
         # Placeholder: Will test error when meta repo not found
         pass
 
     def test_fail_when_multiple_meta_repos(self, tmp_path: Path) -> None:
-        """Test handling of multiple meta.toml files."""
+        """Test handling of multiple pyproject.toml files."""
         # Placeholder: Will test ambiguous meta repo handling
         pass
 
@@ -46,12 +46,13 @@ class TestMetaRepoDiscovery:
 class TestOrganizationInference:
     """Test organization name inference from meta repo."""
 
-    def test_infer_org_from_meta_toml(self, meta_repo: Path) -> None:
-        """Test inferring organization from meta.toml."""
+    def test_infer_org_from_pyproject_toml(self, meta_repo: Path) -> None:
+        """Test inferring organization from pyproject.toml [tool.qen]."""
         # Placeholder: Will test org inference
-        meta_toml = meta_repo / "meta.toml"
-        content = meta_toml.read_text()
-        assert "test-org" in content
+        pyproject_toml = meta_repo / "pyproject.toml"
+        if pyproject_toml.exists():
+            content = pyproject_toml.read_text()
+            assert "test-org" in content or "[tool.qen]" in content
 
     def test_infer_org_from_git_remote(self, meta_repo: Path) -> None:
         """Test inferring organization from git remote URL."""
@@ -125,13 +126,13 @@ class TestInitErrorConditions:
         # Placeholder: Will test non-git directory error
         pass
 
-    def test_init_fails_without_meta_toml(self, temp_git_repo: Path, isolated_config: Path) -> None:
-        """Test that init fails without meta.toml."""
-        # Placeholder: Will test missing meta.toml error
+    def test_init_fails_without_pyproject_toml(self, temp_git_repo: Path, isolated_config: Path) -> None:
+        """Test that init fails without pyproject.toml."""
+        # Placeholder: Will test missing pyproject.toml error
         pass
 
-    def test_init_validates_meta_toml_format(self, meta_repo: Path, isolated_config: Path) -> None:
-        """Test that init validates meta.toml format."""
+    def test_init_validates_pyproject_toml_format(self, meta_repo: Path, isolated_config: Path) -> None:
+        """Test that init validates pyproject.toml format."""
         # Placeholder: Will test TOML validation
         pass
 
@@ -165,27 +166,32 @@ class TestInitOutput:
         pass
 
 
-class TestMetaTomlParsing:
-    """Test parsing of meta.toml files."""
+class TestPyprojectTomlParsing:
+    """Test parsing of pyproject.toml files with [tool.qen] namespace."""
 
-    def test_parse_minimal_meta_toml(self, tmp_path: Path) -> None:
-        """Test parsing minimal meta.toml."""
-        # Placeholder: Will test minimal meta.toml
+    def test_parse_minimal_pyproject_toml(self, tmp_path: Path) -> None:
+        """Test parsing minimal pyproject.toml with [tool.qen]."""
+        # Placeholder: Will test minimal pyproject.toml
         pass
 
-    def test_parse_full_meta_toml(self, tmp_path: Path) -> None:
-        """Test parsing complete meta.toml."""
-        # Placeholder: Will test full meta.toml
+    def test_parse_full_pyproject_toml(self, tmp_path: Path) -> None:
+        """Test parsing complete pyproject.toml with [tool.qen]."""
+        # Placeholder: Will test full pyproject.toml
         pass
 
-    def test_handle_invalid_meta_toml(self, tmp_path: Path) -> None:
-        """Test handling of invalid meta.toml."""
+    def test_handle_invalid_pyproject_toml(self, tmp_path: Path) -> None:
+        """Test handling of invalid pyproject.toml."""
         # Placeholder: Will test invalid TOML handling
         pass
 
     def test_handle_missing_required_fields(self, tmp_path: Path) -> None:
-        """Test handling of missing required fields."""
+        """Test handling of missing required fields in [tool.qen]."""
         # Placeholder: Will test missing fields
+        pass
+
+    def test_parse_tool_qen_repos(self, tmp_path: Path) -> None:
+        """Test parsing [[tool.qen.repos]] array."""
+        # Placeholder: Will test repos array parsing
         pass
 
 

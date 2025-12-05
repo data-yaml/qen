@@ -27,7 +27,7 @@ current_project = null
 2. Create branch `YYYY-MM-DD-<proj-name>` in meta repo
 3. Create directory `proj/YYYY-MM-DD-<proj-name>/` with:
    - `README.md` (stub)
-   - `meta.toml` (empty repos list)
+   - `pyproject.toml` ([tool.qen] configuration)
    - `repos/` (gitignored)
 4. Create `$XDG_CONFIG_HOME/qen/<proj-name>.toml`
 5. Update main config: set `current_project = "proj-name"`
@@ -40,10 +40,16 @@ folder = "proj/YYYY-MM-DD-proj-name"
 created = "2025-12-05T10:30:00Z"
 ```
 
-**meta.toml structure:**
+**pyproject.toml structure:**
 ```toml
-[[repos]]
-# Will be populated by `qen add`
+[tool.qen]
+created = "2025-12-05T10:30:00Z"
+
+# Will be populated by `qen add`:
+# [[tool.qen.repos]]
+# url = "https://github.com/org/repo"
+# branch = "main"
+# path = "repos/repo"
 ```
 
 ## Design Decisions
@@ -61,7 +67,7 @@ created = "2025-12-05T10:30:00Z"
 3. Implement project name uniqueness check
 4. Implement branch creation in meta repo
 5. Implement directory structure creation
-6. Implement stub file generation (README.md, meta.toml)
+6. Implement stub file generation (README.md, pyproject.toml)
 7. Implement config file management (create, update)
 8. Add .gitignore entry for `repos/` folder
 
