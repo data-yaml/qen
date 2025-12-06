@@ -328,9 +328,9 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
     # Check status
     if pr.pr_checks:
         if pr.pr_checks == "passing":
-            lines.append("   ✓ Checks: passing")
+            lines.append(click.style("   ✓ Checks: passing", fg="green"))
         elif pr.pr_checks == "failing":
-            lines.append("   ✗ Checks: failing")
+            lines.append(click.style("   ✗ Checks: failing", fg="red"))
             # Show which checks failed
             if pr.pr_check_details:
                 failing_checks = [
@@ -344,7 +344,7 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
                     else:
                         lines.append(f"      • {check.name}")
         elif pr.pr_checks == "pending":
-            lines.append("   ⏳ Checks: pending")
+            lines.append(click.style("   ⏳ Checks: pending", fg="yellow"))
         elif pr.pr_checks == "skipped":
             lines.append("   ⊝ Checks: skipped")
         else:
@@ -353,9 +353,9 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
     # Mergeable status
     if pr.pr_mergeable:
         if pr.pr_mergeable == "mergeable":
-            lines.append("   ✓ Mergeable")
+            lines.append(click.style("   ✓ Mergeable", fg="green"))
         elif pr.pr_mergeable == "conflicting":
-            lines.append("   ✗ Has conflicts")
+            lines.append(click.style("   ✗ Has conflicts", fg="red"))
 
     # Verbose information
     if verbose:
@@ -476,9 +476,9 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
             if pr.pr_checks:
                 indent = "      " if is_last else "   │  "
                 if pr.pr_checks == "passing":
-                    lines.append(f"{indent}✓ Checks: passing")
+                    lines.append(click.style(f"{indent}✓ Checks: passing", fg="green"))
                 elif pr.pr_checks == "failing":
-                    lines.append(f"{indent}✗ Checks: failing")
+                    lines.append(click.style(f"{indent}✗ Checks: failing", fg="red"))
                     # Show which checks failed
                     if pr.pr_check_details:
                         failing_checks = [
@@ -493,7 +493,7 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
                             else:
                                 lines.append(f"{fail_indent}• {check.name}")
                 elif pr.pr_checks == "pending":
-                    lines.append(f"{indent}⏳ Checks: pending")
+                    lines.append(click.style(f"{indent}⏳ Checks: pending", fg="yellow"))
                 elif pr.pr_checks == "skipped":
                     lines.append(f"{indent}⊝ Checks: skipped")
 
@@ -501,9 +501,9 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
             if pr.pr_mergeable:
                 indent = "      " if is_last else "   │  "
                 if pr.pr_mergeable == "mergeable":
-                    lines.append(f"{indent}✓ Mergeable")
+                    lines.append(click.style(f"{indent}✓ Mergeable", fg="green"))
                 elif pr.pr_mergeable == "conflicting":
-                    lines.append(f"{indent}✗ Has conflicts")
+                    lines.append(click.style(f"{indent}✗ Has conflicts", fg="red"))
                     # In verbose mode, show which files are changed (may be conflicting)
                     if verbose and pr.pr_file_paths:
                         lines.append(f"{indent}   📄 Changed files:")
