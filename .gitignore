@@ -13,3 +13,6 @@ wheels/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Claude Code project-specific instructions
+CLAUDE.md
