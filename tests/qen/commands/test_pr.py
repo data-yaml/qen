@@ -1029,13 +1029,13 @@ class TestGetStackSummary:
 class TestPrStackCommand:
     """Test qen pr stack command."""
 
-    @patch("qen.commands.pr.pr_status_command")
-    def test_stack_no_prs(self, mock_pr_status: Mock) -> None:
+    @patch("qen.commands.pr.get_all_pr_infos")
+    def test_stack_no_prs(self, mock_get_pr_infos: Mock) -> None:
         """Test error when no PRs in project."""
         runner = CliRunner()
 
-        # Mock pr_status_command to return no PRs
-        mock_pr_status.return_value = [
+        # Mock get_all_pr_infos to return no PRs
+        mock_get_pr_infos.return_value = [
             PrInfo(
                 repo_path="repo1",
                 repo_url="https://github.com/org/repo1",
@@ -1049,13 +1049,13 @@ class TestPrStackCommand:
         assert result.exit_code != 0
         assert "No PRs found" in result.output
 
-    @patch("qen.commands.pr.pr_status_command")
-    def test_stack_no_stacks_found(self, mock_pr_status: Mock) -> None:
+    @patch("qen.commands.pr.get_all_pr_infos")
+    def test_stack_no_stacks_found(self, mock_get_pr_infos: Mock) -> None:
         """Test when PRs exist but no stacks."""
         runner = CliRunner()
 
-        # Mock pr_status_command to return PRs all targeting main
-        mock_pr_status.return_value = [
+        # Mock get_all_pr_infos to return PRs all targeting main
+        mock_get_pr_infos.return_value = [
             PrInfo(
                 repo_path="repo1",
                 repo_url="https://github.com/org/repo1",
@@ -1079,13 +1079,13 @@ class TestPrStackCommand:
         assert result.exit_code == 0
         assert "No stacks found" in result.output
 
-    @patch("qen.commands.pr.pr_status_command")
-    def test_stack_display(self, mock_pr_status: Mock) -> None:
+    @patch("qen.commands.pr.get_all_pr_infos")
+    def test_stack_display(self, mock_get_pr_infos: Mock) -> None:
         """Test stack display output."""
         runner = CliRunner()
 
-        # Mock pr_status_command to return a stack
-        mock_pr_status.return_value = [
+        # Mock get_all_pr_infos to return a stack
+        mock_get_pr_infos.return_value = [
             PrInfo(
                 repo_path="repo1",
                 repo_url="https://github.com/org/repo1",
@@ -1124,13 +1124,13 @@ class TestPrStackCommand:
         assert "2 PRs in stacks" in result.output
         assert "Maximum stack depth: 2" in result.output
 
-    @patch("qen.commands.pr.pr_status_command")
-    def test_stack_verbose(self, mock_pr_status: Mock) -> None:
+    @patch("qen.commands.pr.get_all_pr_infos")
+    def test_stack_verbose(self, mock_get_pr_infos: Mock) -> None:
         """Test verbose stack output."""
         runner = CliRunner()
 
-        # Mock pr_status_command to return a stack
-        mock_pr_status.return_value = [
+        # Mock get_all_pr_infos to return a stack
+        mock_get_pr_infos.return_value = [
             PrInfo(
                 repo_path="repo1",
                 repo_url="https://github.com/org/repo1",

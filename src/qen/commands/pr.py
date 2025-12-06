@@ -442,17 +442,18 @@ def get_stack_summary(stacks: dict[str, list[PrInfo]]) -> dict[str, int]:
     }
 
 
-def pr_status_command(
+def get_all_pr_infos(
     project_name: str | None = None,
-    verbose: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
 ) -> list[PrInfo]:
-    """Get PR status for all repositories in the current project.
+    """Get PR information for all repositories in the current project.
+
+    This is the core data-fetching function without any display logic.
+    Used by both pr_status_command and pr_stack_command.
 
     Args:
         project_name: Name of project (if None, use current project from config)
-        verbose: Enable verbose output
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing)
 
@@ -485,9 +486,6 @@ def pr_status_command(
             err=True,
         )
         raise click.Abort()
-
-    if verbose:
-        click.echo(f"Current project: {current_project}")
 
     # Check if gh CLI is available
     if not check_gh_installed():
@@ -524,9 +522,6 @@ def pr_status_command(
         click.echo("Add repositories with: qen add <repo>")
         return []
 
-    # Display header
-    click.echo(f"PR Status for project: {current_project}")
-
     # Query PR info for each repository
     pr_infos = []
     for repo_entry in repos:
@@ -554,7 +549,51 @@ def pr_status_command(
 
         pr_infos.append(pr_info)
 
-        # Display result
+    return pr_infos
+
+
+def pr_status_command(
+    project_name: str | None = None,
+    verbose: bool = False,
+    config_dir: Path | str | None = None,
+    storage: QenvyBase | None = None,
+) -> list[PrInfo]:
+    """Get PR status for all repositories in the current project.
+
+    Args:
+        project_name: Name of project (if None, use current project from config)
+        verbose: Enable verbose output
+        config_dir: Override config directory (for testing)
+        storage: Override storage backend (for testing)
+
+    Returns:
+        List of PrInfo objects for all repositories
+
+    Raises:
+        NoActiveProjectError: If no project is currently active
+        QenConfigError: If configuration cannot be read
+        PyProjectNotFoundError: If pyproject.toml not found
+    """
+    # Get configuration to show project name
+    config = QenConfig(config_dir=config_dir, storage=storage)
+    main_config = config.read_main_config()
+    current_project = main_config.get("current_project")
+
+    if verbose:
+        click.echo(f"Current project: {current_project}")
+
+    # Get all PR info using shared function
+    pr_infos = get_all_pr_infos(
+        project_name=project_name,
+        config_dir=config_dir,
+        storage=storage,
+    )
+
+    # Display header
+    click.echo(f"PR Status for project: {current_project}")
+
+    # Display each PR
+    for pr_info in pr_infos:
         click.echo(format_pr_info(pr_info, verbose))
 
     # Display summary
@@ -624,22 +663,12 @@ def pr_stack_command(
     Raises:
         click.Abort: If no PRs found or other errors
     """
-    # Get all PR info silently (suppress pr_status_command output)
-    import io
-    import sys
-
-    old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-
-    try:
-        pr_infos = pr_status_command(
-            project_name=project_name,
-            verbose=False,
-            config_dir=config_dir,
-            storage=storage,
-        )
-    finally:
-        sys.stdout = old_stdout
+    # Get all PR info using shared data-fetching function
+    pr_infos = get_all_pr_infos(
+        project_name=project_name,
+        config_dir=config_dir,
+        storage=storage,
+    )
 
     # Check if we have any PRs
     prs_with_pr = [pr for pr in pr_infos if pr.has_pr]
