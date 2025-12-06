@@ -640,6 +640,181 @@ def pr_stack_command(
     return stacks
 
 
+def parse_repo_owner_and_name(repo_url: str) -> tuple[str, str] | None:
+    """Parse owner and name from a GitHub repository URL.
+
+    Args:
+        repo_url: GitHub repository URL (https://github.com/owner/repo)
+
+    Returns:
+        Tuple of (owner, repo_name) or None if parsing fails
+    """
+    # Handle different URL formats:
+    # - https://github.com/owner/repo
+    # - git@github.com:owner/repo.git
+    # - owner/repo
+    try:
+        if repo_url.startswith("https://github.com/"):
+            parts = repo_url.replace("https://github.com/", "").rstrip("/").split("/")
+            if len(parts) >= 2:
+                return (parts[0], parts[1].replace(".git", ""))
+        elif repo_url.startswith("git@github.com:"):
+            parts = repo_url.replace("git@github.com:", "").rstrip("/").split("/")
+            if len(parts) >= 2:
+                return (parts[0], parts[1].replace(".git", ""))
+        elif "/" in repo_url and not repo_url.startswith("http"):
+            # Assume owner/repo format
+            parts = repo_url.split("/")
+            if len(parts) == 2:
+                return (parts[0], parts[1])
+    except Exception:
+        pass
+
+    return None
+
+
+def restack_pr(owner: str, repo: str, pr_number: int, dry_run: bool = False) -> bool:
+    """Update a PR branch to be based on the latest version of its base branch.
+
+    Uses GitHub API via gh CLI to update the PR branch.
+
+    Args:
+        owner: Repository owner
+        repo: Repository name
+        pr_number: PR number to update
+        dry_run: If True, don't actually update the branch
+
+    Returns:
+        True if update succeeded, False otherwise
+    """
+    if dry_run:
+        click.echo(f"   [DRY RUN] Would update PR #{pr_number} in {owner}/{repo}")
+        return True
+
+    try:
+        # Use gh API to update the PR branch
+        # https://docs.github.com/en/rest/pulls/pulls#update-a-pull-request-branch
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{owner}/{repo}/pulls/{pr_number}/update-branch",
+                "-X",
+                "PUT",
+                "-f",
+                "expected_head_sha=",  # Empty means update regardless
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            # Check if error is about branch being up to date
+            if "already up to date" in result.stderr.lower():
+                click.echo(f"   ✓ PR #{pr_number} already up to date")
+                return True
+            else:
+                click.echo(f"   ✗ Failed to update PR #{pr_number}: {result.stderr}", err=True)
+                return False
+
+        click.echo(f"   ✓ Updated PR #{pr_number}")
+        return True
+
+    except subprocess.TimeoutExpired:
+        click.echo(f"   ✗ Timeout updating PR #{pr_number}", err=True)
+        return False
+    except Exception as e:
+        click.echo(f"   ✗ Error updating PR #{pr_number}: {e}", err=True)
+        return False
+
+
+def pr_restack_command(
+    project_name: str | None = None,
+    dry_run: bool = False,
+    config_dir: Path | str | None = None,
+    storage: QenvyBase | None = None,
+) -> dict[str, list[tuple[PrInfo, bool]]]:
+    """Update all stacked PRs to be based on latest versions of their base branches.
+
+    Args:
+        project_name: Name of project (if None, use current project from config)
+        dry_run: If True, show what would be done without making changes
+        config_dir: Override config directory (for testing)
+        storage: Override storage backend (for testing)
+
+    Returns:
+        Dictionary mapping root branch to list of (PrInfo, success) tuples
+
+    Raises:
+        click.Abort: If no stacks found or other errors
+    """
+    # Get stacks using existing command
+    stacks = pr_stack_command(
+        project_name=project_name,
+        verbose=False,
+        config_dir=config_dir,
+        storage=storage,
+    )
+
+    if not stacks:
+        click.echo("Error: No stacks found to restack.", err=True)
+        raise click.Abort()
+
+    if dry_run:
+        click.echo("\n=== DRY RUN MODE ===")
+        click.echo("No changes will be made.\n")
+
+    click.echo("\nRestacking PRs...")
+
+    results: dict[str, list[tuple[PrInfo, bool]]] = {}
+
+    for root_branch, prs in stacks.items():
+        click.echo(f"\n📚 Stack: {root_branch}")
+        stack_results: list[tuple[PrInfo, bool]] = []
+
+        # Process PRs in order (parent before children)
+        for pr in prs:
+            if not pr.pr_number or not pr.repo_url:
+                click.echo("   ⚠ Skipping PR: missing number or URL")
+                stack_results.append((pr, False))
+                continue
+
+            # Parse owner and repo from URL
+            parsed = parse_repo_owner_and_name(pr.repo_url)
+            if not parsed:
+                click.echo(f"   ⚠ Skipping PR #{pr.pr_number}: failed to parse repo URL")
+                stack_results.append((pr, False))
+                continue
+
+            owner, repo = parsed
+            click.echo(f"   📋 PR #{pr.pr_number}: {pr.pr_title or '(no title)'}")
+
+            # Update the PR
+            success = restack_pr(owner, repo, pr.pr_number, dry_run=dry_run)
+            stack_results.append((pr, success))
+
+        results[root_branch] = stack_results
+
+    # Display summary
+    total_prs = sum(len(stack_results) for stack_results in results.values())
+    successful = sum(
+        1 for stack_results in results.values() for _, success in stack_results if success
+    )
+    failed = total_prs - successful
+
+    click.echo("\n=== Summary ===")
+    click.echo(f"Total PRs processed: {total_prs}")
+    if dry_run:
+        click.echo(f"Would update: {successful}")
+    else:
+        click.echo(f"Successfully updated: {successful}")
+        if failed > 0:
+            click.echo(f"Failed: {failed}")
+
+    return results
+
+
 @click.group(name="pr")
 def pr_command() -> None:
     """Manage pull requests across repositories.
@@ -694,3 +869,30 @@ def pr_stack(verbose: bool) -> None:
         $ qen pr stack -v
     """
     pr_stack_command(verbose=verbose)
+
+
+@pr_command.command("restack")
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+def pr_restack(dry_run: bool) -> None:
+    """Update stacked PRs to be based on latest versions of their base branches.
+
+    Finds all stacked PRs in the project and updates them in order (parent PRs first)
+    to ensure each PR is based on the latest version of its base branch.
+
+    This is useful when changes are merged to parent PRs in a stack, and you want to
+    update all child PRs to include those changes.
+
+    Requires GitHub CLI (gh) to be installed and authenticated with appropriate
+    repository permissions.
+
+    Examples:
+
+    \b
+        # Update all stacked PRs
+        $ qen pr restack
+
+    \b
+        # Preview what would be updated without making changes
+        $ qen pr restack --dry-run
+    """
+    pr_restack_command(dry_run=dry_run)

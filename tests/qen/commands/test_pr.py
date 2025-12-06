@@ -16,7 +16,9 @@ from qen.commands.pr import (
     check_gh_installed,
     format_pr_info,
     get_pr_info_for_branch,
+    parse_repo_owner_and_name,
     pr_status_command,
+    restack_pr,
 )
 
 
@@ -1096,3 +1098,331 @@ class TestPrStackCommand:
         assert "testuser2" in result.output
         assert "https://github.com/org/repo1/pull/1" in result.output
         assert "https://github.com/org/repo1/pull/2" in result.output
+
+
+class TestParseRepoOwnerAndName:
+    """Test repository URL parsing."""
+
+    def test_parse_https_url(self) -> None:
+        """Test parsing HTTPS GitHub URL."""
+        result = parse_repo_owner_and_name("https://github.com/owner/repo")
+        assert result == ("owner", "repo")
+
+    def test_parse_https_url_with_git_suffix(self) -> None:
+        """Test parsing HTTPS URL with .git suffix."""
+        result = parse_repo_owner_and_name("https://github.com/owner/repo.git")
+        assert result == ("owner", "repo")
+
+    def test_parse_ssh_url(self) -> None:
+        """Test parsing SSH GitHub URL."""
+        result = parse_repo_owner_and_name("git@github.com:owner/repo.git")
+        assert result == ("owner", "repo")
+
+    def test_parse_owner_repo_format(self) -> None:
+        """Test parsing owner/repo format."""
+        result = parse_repo_owner_and_name("owner/repo")
+        assert result == ("owner", "repo")
+
+    def test_parse_invalid_url(self) -> None:
+        """Test parsing invalid URL returns None."""
+        assert parse_repo_owner_and_name("invalid-url") is None
+        assert parse_repo_owner_and_name("http://example.com/repo") is None
+
+
+class TestRestackPr:
+    """Test PR restacking functionality."""
+
+    @patch("subprocess.run")
+    def test_restack_pr_success(self, mock_run: Mock) -> None:
+        """Test successful PR branch update."""
+        mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+
+        result = restack_pr("owner", "repo", 123)
+
+        assert result is True
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "gh" in call_args
+        assert "api" in call_args
+        assert "repos/owner/repo/pulls/123/update-branch" in call_args
+        assert "-X" in call_args
+        assert "PUT" in call_args
+
+    @patch("subprocess.run")
+    def test_restack_pr_already_up_to_date(self, mock_run: Mock) -> None:
+        """Test when PR is already up to date."""
+        mock_run.return_value = Mock(
+            returncode=1, stdout="", stderr="pull request branch is already up to date"
+        )
+
+        result = restack_pr("owner", "repo", 123)
+
+        assert result is True
+
+    @patch("subprocess.run")
+    def test_restack_pr_failure(self, mock_run: Mock) -> None:
+        """Test PR update failure."""
+        mock_run.return_value = Mock(returncode=1, stdout="", stderr="API error")
+
+        result = restack_pr("owner", "repo", 123)
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_restack_pr_timeout(self, mock_run: Mock) -> None:
+        """Test PR update timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired("gh", 30)
+
+        result = restack_pr("owner", "repo", 123)
+
+        assert result is False
+
+    def test_restack_pr_dry_run(self) -> None:
+        """Test dry run mode doesn't make API calls."""
+        result = restack_pr("owner", "repo", 123, dry_run=True)
+
+        assert result is True
+
+
+class TestPrRestackCommand:
+    """Test qen pr restack command."""
+
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_no_stacks(self, mock_stack: Mock) -> None:
+        """Test error when no stacks found."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return empty dict
+        mock_stack.return_value = {}
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code != 0
+        assert "No stacks found to restack" in result.output
+
+    @patch("qen.commands.pr.restack_pr")
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_success(self, mock_stack: Mock, mock_restack: Mock) -> None:
+        """Test successful restacking."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return a stack
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_title="First PR",
+                    pr_base="main",
+                ),
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-2",
+                    has_pr=True,
+                    pr_number=2,
+                    pr_title="Second PR",
+                    pr_base="feature-1",
+                ),
+            ]
+        }
+
+        # Mock successful restacking
+        mock_restack.return_value = True
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code == 0
+        assert "Restacking PRs" in result.output
+        assert "Stack: feature-1" in result.output
+        assert "PR #1: First PR" in result.output
+        assert "PR #2: Second PR" in result.output
+        assert "Total PRs processed: 2" in result.output
+        assert "Successfully updated: 2" in result.output
+
+        # Verify restack was called for both PRs in order
+        assert mock_restack.call_count == 2
+        mock_restack.assert_any_call("org", "repo1", 1, dry_run=False)
+        mock_restack.assert_any_call("org", "repo1", 2, dry_run=False)
+
+    @patch("qen.commands.pr.restack_pr")
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_dry_run(self, mock_stack: Mock, mock_restack: Mock) -> None:
+        """Test dry run mode."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return a stack
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_title="First PR",
+                    pr_base="main",
+                ),
+            ]
+        }
+
+        # Mock successful dry run
+        mock_restack.return_value = True
+
+        result = runner.invoke(main, ["pr", "restack", "--dry-run"])
+
+        assert result.exit_code == 0
+        assert "DRY RUN MODE" in result.output
+        assert "No changes will be made" in result.output
+        assert "Would update: 1" in result.output
+
+        # Verify restack was called with dry_run=True
+        mock_restack.assert_called_once_with("org", "repo1", 1, dry_run=True)
+
+    @patch("qen.commands.pr.restack_pr")
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_partial_failure(self, mock_stack: Mock, mock_restack: Mock) -> None:
+        """Test when some PRs fail to restack."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return a stack
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_title="First PR",
+                    pr_base="main",
+                ),
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-2",
+                    has_pr=True,
+                    pr_number=2,
+                    pr_title="Second PR",
+                    pr_base="feature-1",
+                ),
+            ]
+        }
+
+        # Mock first success, second failure
+        mock_restack.side_effect = [True, False]
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code == 0
+        assert "Total PRs processed: 2" in result.output
+        assert "Successfully updated: 1" in result.output
+        assert "Failed: 1" in result.output
+
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_missing_pr_number(self, mock_stack: Mock) -> None:
+        """Test handling of PR with missing number."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return a PR without number
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=None,  # Missing number
+                    pr_base="main",
+                ),
+            ]
+        }
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code == 0
+        assert "Skipping PR: missing number or URL" in result.output
+        assert "Failed: 1" in result.output
+
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_invalid_repo_url(self, mock_stack: Mock) -> None:
+        """Test handling of invalid repository URL."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return a PR with invalid URL
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="invalid-url",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_base="main",
+                ),
+            ]
+        }
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code == 0
+        assert "failed to parse repo URL" in result.output
+        assert "Failed: 1" in result.output
+
+    @patch("qen.commands.pr.restack_pr")
+    @patch("qen.commands.pr.pr_stack_command")
+    def test_restack_multiple_stacks(self, mock_stack: Mock, mock_restack: Mock) -> None:
+        """Test restacking multiple independent stacks."""
+        runner = CliRunner()
+
+        # Mock pr_stack_command to return multiple stacks
+        mock_stack.return_value = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_title="First PR",
+                    pr_base="main",
+                ),
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-2",
+                    has_pr=True,
+                    pr_number=2,
+                    pr_title="Second PR",
+                    pr_base="feature-1",
+                ),
+            ],
+            "feature-3": [
+                PrInfo(
+                    repo_path="repo2",
+                    repo_url="https://github.com/org/repo2",
+                    branch="feature-3",
+                    has_pr=True,
+                    pr_number=3,
+                    pr_title="Third PR",
+                    pr_base="main",
+                ),
+            ],
+        }
+
+        # Mock successful restacking for all PRs
+        mock_restack.return_value = True
+
+        result = runner.invoke(main, ["pr", "restack"])
+
+        assert result.exit_code == 0
+        assert "Stack: feature-1" in result.output
+        assert "Stack: feature-3" in result.output
+        assert "Total PRs processed: 3" in result.output
+        assert "Successfully updated: 3" in result.output
+
+        # Verify restack was called for all PRs
+        assert mock_restack.call_count == 3
