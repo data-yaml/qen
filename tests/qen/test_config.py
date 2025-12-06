@@ -14,12 +14,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 from qen.config import (
     ProjectAlreadyExistsError,
     QenConfig,
     QenConfigError,
 )
+
 from tests.helpers.qenvy_test import QenvyTest
 
 

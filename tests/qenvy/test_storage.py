@@ -11,7 +11,6 @@ Tests filesystem operations including:
 from pathlib import Path
 
 import pytest
-
 from qenvy.exceptions import (
     AtomicWriteError,
     ProfileAlreadyExistsError,

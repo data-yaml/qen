@@ -12,6 +12,7 @@ from pathlib import Path
 
 from qen.commands.add import add_repository
 from qen.pyproject_utils import read_pyproject
+
 from tests.helpers.qenvy_test import QenvyTest
 
 # Note: Some tests are placeholders that will be implemented
