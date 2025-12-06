@@ -19,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `qen push` command for pushing changes across multiple repos
 - Add specifications for `qen pull` and `qen push` commands
 
-### Changed
-
-- `qen status` and `qen pull` now use default project from config instead of requiring current directory context
-
 ## [0.1.3] - 2024-12-05
 
 Re-released 0.1.2 to fix CI.

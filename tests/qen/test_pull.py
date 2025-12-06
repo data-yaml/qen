@@ -766,6 +766,19 @@ path = "repos/main/child_repo"
         child_repo2 = tmp_path / "child_repo2"
         child_repo2.mkdir()
         subprocess.run(["git", "init"], cwd=child_repo2, check=True, capture_output=True)
+        # Configure git user (required for commits in CI)
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=child_repo2,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=child_repo2,
+            check=True,
+            capture_output=True,
+        )
         (child_repo2 / "README.md").write_text("# Child Repo 2\n")
         subprocess.run(
             ["git", "add", "README.md"], cwd=child_repo2, check=True, capture_output=True
