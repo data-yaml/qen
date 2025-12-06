@@ -100,7 +100,7 @@ Design principles:
 uv pip install -e ".[dev]"
 
 # Git hooks are automatically installed when you run tests
-poe test
+./poe test
 ```
 
 ### Git Hooks
@@ -110,13 +110,13 @@ The project uses `pre-commit` to maintain code quality:
 - **pre-commit**: Runs linting (ruff) and type checking (mypy) before each commit
 - **pre-push**: Runs the full test suite before pushing
 
-Hooks are **automatically installed** when you run `poe test` for the first time.
+Hooks are **automatically installed** when you run `./poe test` for the first time.
 
 To manually manage hooks:
 
 ```bash
 # Install hooks explicitly
-poe setup-hooks
+./poe setup-hooks
 
 # Run pre-commit checks manually
 uv run pre-commit run --all-files
@@ -129,22 +129,22 @@ uv run pre-commit run --hook-stage pre-push --all-files
 
 ```bash
 # Run tests
-poe test
+./poe test
 
 # Run tests with coverage
-poe test-cov
+./poe test-cov
 
 # Type checking
-poe typecheck
+./poe typecheck
 
 # Lint and format
-poe lint
+./poe lint
 
 # Version management
-poe version                    # Show current version
-poe version -b patch           # Bump patch, commit (no push)
-poe version --tag              # Create release tag v0.1.2, push everything
-poe version --dev              # Create timestamped dev tag v0.1.2-dev.YYYYMMDD.HHMMSS, push
+./poe version                    # Show current version
+./poe version -b patch           # Bump patch, commit (no push)
+./poe version --tag              # Create release tag v0.1.2, push everything
+./poe version --dev              # Create timestamped dev tag v0.1.2-dev.YYYYMMDD.HHMMSS, push
 ```
 
 ### Project Structure
