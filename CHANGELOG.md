@@ -8,20 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2024-12-05
+
 ### Added
 
 - Implement `qen init` and `qen add` command with comprehensive testing infrastructure
-- Add qenvy XDG configuration library for cross-platform config management
-- Add Poe the Poet task runner with shim script for dev workflow
-
-### Fixed
-
-- Fix `qen add` to allow multiple branches of same repository (uniqueness now checks url+branch tuple instead of url only)
-- Auto-suffix repository paths with branch name when adding same repo with different branches
+- Add `qenvy` XDG configuration library for cross-platform config management
+- Add Poe the Poet task runner with shim script (`./poe`) for dev workflows
 
 ### Development
 
 - Add `./poe lint` as a single command to handle `ruff` formatting and `mypy` type checking
+- Add `./poe version` to display current version and bump versions (major/minor/patch)
 
 ## [0.1.1] - 2024-12-05
 
