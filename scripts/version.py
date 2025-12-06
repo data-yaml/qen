@@ -81,17 +81,14 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
 
     Args:
         bump: Optional version part to bump ("major", "minor", or "patch").
-              If None, just display the current version.
-        tag: If True, create and push a git tag for the version.
-        dev: If True, create a dev tag (e.g., v0.1.2-dev) instead of release tag.
+              If provided, bumps version and commits (does NOT push).
+        tag: If True, create release tag for current version and push everything.
+        dev: If True, create dev tag for current version and push everything.
     """
     current_version = get_version()
 
-    if bump is None:
-        # Just show current version
-        print(current_version)
-    else:
-        # Bump version
+    # Handle bump (separate from tagging/releasing)
+    if bump is not None:
         if bump not in ("major", "minor", "patch"):
             print(
                 f"Error: Invalid bump type '{bump}'. Must be 'major', 'minor', or 'patch'",
@@ -111,7 +108,7 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
             print(f"Error updating uv.lock: {e.stderr.decode()}", file=sys.stderr)
             sys.exit(1)
 
-        # Commit the changes
+        # Commit the changes (but don't push)
         print("Committing version bump...")
         try:
             subprocess.run(
@@ -126,33 +123,50 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
                 capture_output=True
             )
             print(f"Committed: {commit_msg}")
+            print("(Not pushed - use --tag or --dev to create a release)")
         except subprocess.CalledProcessError as e:
             print(f"Error committing changes: {e.stderr.decode()}", file=sys.stderr)
             sys.exit(1)
+        return
 
-        # Create and push tag if requested
-        if tag or dev:
-            tag_suffix = "-dev" if dev else ""
-            tag_name = f"v{new_version}{tag_suffix}"
-            tag_msg = f"Development release {tag_name}" if dev else f"Release {tag_name}"
+    # Handle release tagging (separate from bumping)
+    if tag or dev:
+        tag_suffix = "-dev" if dev else ""
+        tag_name = f"v{current_version}{tag_suffix}"
+        tag_msg = f"Development release {tag_name}" if dev else f"Release {tag_name}"
 
-            print(f"Creating tag {tag_name}...")
-            try:
-                subprocess.run(
-                    ["git", "tag", "-a", tag_name, "-m", tag_msg],
-                    check=True,
-                    capture_output=True
-                )
-                print(f"Pushing tag {tag_name}...")
-                subprocess.run(
-                    ["git", "push", "origin", tag_name],
-                    check=True,
-                    capture_output=True
-                )
-                print(f"Tagged and pushed: {tag_name}")
-            except subprocess.CalledProcessError as e:
-                print(f"Error creating/pushing tag: {e.stderr.decode()}", file=sys.stderr)
-                sys.exit(1)
+        print(f"Creating tag {tag_name} for current version {current_version}...")
+        try:
+            # Create tag
+            subprocess.run(
+                ["git", "tag", "-a", tag_name, "-m", tag_msg],
+                check=True,
+                capture_output=True
+            )
+
+            # Push commits first
+            print("Pushing commits...")
+            subprocess.run(
+                ["git", "push"],
+                check=True,
+                capture_output=True
+            )
+
+            # Push tag
+            print(f"Pushing tag {tag_name}...")
+            subprocess.run(
+                ["git", "push", "origin", tag_name],
+                check=True,
+                capture_output=True
+            )
+            print(f"Released: {tag_name}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error creating/pushing release: {e.stderr.decode()}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    # Default: just show current version
+    print(current_version)
 
 
 if __name__ == "__main__":
