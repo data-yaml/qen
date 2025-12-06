@@ -99,10 +99,8 @@ Design principles:
 # Install with dev dependencies
 uv pip install -e ".[dev]"
 
-# Install pre-commit (for contributors)
-uv pip install pre-commit
-uv run pre-commit install
-uv run pre-commit install --hook-type pre-push
+# Git hooks are automatically installed when you run tests
+poe test
 ```
 
 ### Git Hooks
@@ -112,13 +110,18 @@ The project uses `pre-commit` to maintain code quality:
 - **pre-commit**: Runs linting (ruff) and type checking (mypy) before each commit
 - **pre-push**: Runs the full test suite before pushing
 
-To run hooks manually:
+Hooks are **automatically installed** when you run `poe test` for the first time.
+
+To manually manage hooks:
 
 ```bash
-# Run pre-commit checks
+# Install hooks explicitly
+poe setup-hooks
+
+# Run pre-commit checks manually
 uv run pre-commit run --all-files
 
-# Run pre-push checks (including tests)
+# Run pre-push checks manually (including tests)
 uv run pre-commit run --hook-stage pre-push --all-files
 ```
 
