@@ -35,17 +35,11 @@ Each repository stores minimal, essential information. This metadata is committe
 url = "https://github.com/org/example-repo"
 branch = "feature/my-work"              # Current working branch
 added = "2025-12-05T14:30:00Z"          # When added to project
-last_pulled = "2025-12-05T15:45:00Z"    # Last successful pull
+updated = "2025-12-05T15:45:00Z"    # Last successful pull
 pr = 123                                # Optional: PR number if tracking
 pr_base = "main"                        # Optional: PR target branch
 issue = 456                             # Optional: Issue number if tracking
 ```
-
-### Design Principle: Query on Demand
-
-All dynamic state (git status, PR state, CI checks, etc.) is queried on-demand when running
-`qen pull` or `qen status`. No caching is used - git and GitHub CLI queries are fast enough
-for real-time display.
 
 **Not stored in pyproject.toml:**
 
@@ -58,7 +52,7 @@ for real-time display.
 ### Summary View
 
 ```log
-Pulling project: proj/2025-12-05-feature-work
+Pulling project: feature-work
 
 📦 example-repo (feature/my-work)
    ✓ Pulled 3 commits from origin/feature/my-work
