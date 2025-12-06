@@ -98,6 +98,28 @@ Design principles:
 ```bash
 # Install with dev dependencies
 uv pip install -e ".[dev]"
+
+# Install pre-commit (for contributors)
+uv pip install pre-commit
+uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
+```
+
+### Git Hooks
+
+The project uses `pre-commit` to maintain code quality:
+
+- **pre-commit**: Runs linting (ruff) and type checking (mypy) before each commit
+- **pre-push**: Runs the full test suite before pushing
+
+To run hooks manually:
+
+```bash
+# Run pre-commit checks
+uv run pre-commit run --all-files
+
+# Run pre-push checks (including tests)
+uv run pre-commit run --hook-stage pre-push --all-files
 ```
 
 ### Testing
