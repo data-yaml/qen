@@ -95,6 +95,8 @@ class TestGetPrInfoForBranch:
             "author": {"login": "testuser"},
             "createdAt": "2025-01-01T10:00:00Z",
             "updatedAt": "2025-01-02T15:30:00Z",
+            "commits": [{"oid": "abc123"}, {"oid": "def456"}],
+            "files": [{"path": "file1.py"}, {"path": "file2.py"}, {"path": "file3.py"}],
         }
 
         with patch("subprocess.run") as mock_run:
@@ -115,6 +117,8 @@ class TestGetPrInfoForBranch:
         assert pr_info.pr_author == "testuser"
         assert pr_info.pr_created_at == "2025-01-01T10:00:00Z"
         assert pr_info.pr_updated_at == "2025-01-02T15:30:00Z"
+        assert pr_info.pr_commits == 2
+        assert pr_info.pr_files_changed == 3
 
     @patch("qen.commands.pr.get_current_branch")
     @patch("qen.commands.pr.is_git_repo")

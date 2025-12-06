@@ -53,6 +53,8 @@ class PrInfo:
     pr_author: str | None = None
     pr_created_at: str | None = None
     pr_updated_at: str | None = None
+    pr_commits: int | None = None
+    pr_files_changed: int | None = None
     error: str | None = None
 
 
@@ -115,7 +117,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                 "view",
                 current_branch,
                 "--json",
-                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt",
+                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt,commits,files",
             ],
             cwd=repo_path,
             capture_output=True,
@@ -152,6 +154,13 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         author_data = pr_data.get("author", {})
         pr_author = author_data.get("login") if isinstance(author_data, dict) else None
 
+        # Parse commits and files
+        commits_data = pr_data.get("commits", [])
+        pr_commits = len(commits_data) if isinstance(commits_data, list) else None
+
+        files_data = pr_data.get("files", [])
+        pr_files_changed = len(files_data) if isinstance(files_data, list) else None
+
         return PrInfo(
             repo_path=str(repo_path.name),
             repo_url=url,
@@ -167,6 +176,8 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             pr_author=pr_author,
             pr_created_at=pr_data.get("createdAt"),
             pr_updated_at=pr_data.get("updatedAt"),
+            pr_commits=pr_commits,
+            pr_files_changed=pr_files_changed,
         )
 
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
