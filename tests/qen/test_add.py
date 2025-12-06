@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
 from qen.commands.add import add_repository
 from qen.git_utils import GitError
 from qen.pyproject_utils import (
@@ -18,7 +19,6 @@ from qen.repo_utils import (
     infer_repo_path,
     parse_repo_url,
 )
-
 from tests.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================

@@ -14,9 +14,9 @@ from pathlib import Path
 
 import click
 import pytest
+
 from qen.commands.init import init_project, init_qen
 from qen.config import ProjectAlreadyExistsError, QenConfig, QenConfigError
-
 from tests.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
