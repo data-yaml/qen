@@ -13,7 +13,7 @@ import click
 from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError
-from ..git_utils import GitError
+from ..git_utils import GitError, get_current_branch
 from ..pyproject_utils import (
     PyProjectNotFoundError,
     PyProjectUpdateError,
@@ -58,7 +58,7 @@ def add_repository(
 
     Args:
         repo: Repository identifier (full URL, org/repo, or repo name)
-        branch: Branch to track (default: "main")
+        branch: Branch to track (default: current meta repo branch)
         path: Local path for repository (default: repos/<name>)
         verbose: Enable verbose output
         config_dir: Override config directory (for testing)
@@ -129,7 +129,14 @@ def add_repository(
 
     # 4. Apply defaults for branch and path
     if branch is None:
-        branch = "main"
+        # Default to the current branch of the meta repo
+        try:
+            branch = get_current_branch(meta_path)
+            if verbose:
+                click.echo(f"Using meta branch: {branch}")
+        except GitError as e:
+            click.echo(f"Error getting current branch: {e}", err=True)
+            raise click.Abort() from e
 
     if path is None:
         path = infer_repo_path(repo_name, branch, project_dir)

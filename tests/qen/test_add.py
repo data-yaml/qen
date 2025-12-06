@@ -103,9 +103,14 @@ class TestRepoPath:
     """Tests for infer_repo_path function."""
 
     def test_infer_repo_path(self) -> None:
-        """Test inferring repository path."""
-        assert infer_repo_path("myrepo") == "repos/myrepo"
-        assert infer_repo_path("another-repo") == "repos/another-repo"
+        """Test inferring repository path with branch organization."""
+        assert infer_repo_path("myrepo", "main") == "repos/main/myrepo"
+        assert infer_repo_path("another-repo", "feature-x") == "repos/feature-x/another-repo"
+        assert infer_repo_path("deployment", "feature/add-support") == "repos/feature/add-support/deployment"
+
+        # Test that branch is required
+        with pytest.raises(ValueError):
+            infer_repo_path("myrepo")
 
 
 # ==============================================================================
@@ -165,6 +170,26 @@ class TestRepoCloning:
 
         assert dest.exists()
         assert (dest / "develop.txt").exists()
+
+    def test_clone_with_nonexistent_branch(self, child_repo: Path, tmp_path: Path) -> None:
+        """Test cloning with a branch that doesn't exist remotely creates it."""
+        # Clone with a branch that doesn't exist in the repo
+        dest = tmp_path / "cloned"
+        clone_repository(str(child_repo), dest, branch="new-feature")
+
+        assert dest.exists()
+        assert (dest / ".git").exists()
+        assert (dest / "README.md").exists()
+
+        # Verify we're on the new branch
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=dest,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert result.stdout.strip() == "new-feature"
 
     def test_clone_fails_if_dest_exists(self, child_repo: Path, tmp_path: Path) -> None:
         """Test that cloning fails if destination exists."""
@@ -310,7 +335,7 @@ created = "2025-12-05T10:00:00Z"
             tmp_path,
             "https://github.com/org/repo",
             "feature-1",
-            "repos/repo-feature-1",
+            "repos/feature-1/repo",
         )
 
         # Add second branch - should succeed
@@ -318,7 +343,7 @@ created = "2025-12-05T10:00:00Z"
             tmp_path,
             "https://github.com/org/repo",
             "feature-2",
-            "repos/repo-feature-2",
+            "repos/feature-2/repo",
         )
 
         # Check pyproject.toml has both entries
@@ -327,10 +352,10 @@ created = "2025-12-05T10:00:00Z"
         assert len(repos) == 2
         assert repos[0]["url"] == "https://github.com/org/repo"
         assert repos[0]["branch"] == "feature-1"
-        assert repos[0]["path"] == "repos/repo-feature-1"
+        assert repos[0]["path"] == "repos/feature-1/repo"
         assert repos[1]["url"] == "https://github.com/org/repo"
         assert repos[1]["branch"] == "feature-2"
-        assert repos[1]["path"] == "repos/repo-feature-2"
+        assert repos[1]["path"] == "repos/feature-2/repo"
 
     def test_prevent_duplicate_url_branch(self, tmp_path: Path) -> None:
         """Test that duplicate (url, branch) combination is detected."""
@@ -351,31 +376,21 @@ path = "repos/repo"
         # Same URL with different branch should not be duplicate
         assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo", "develop") is False
 
-    def test_infer_repo_path_with_branch_collision(self, tmp_path: Path) -> None:
-        """Test automatic path suffixing when branch collision detected."""
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
-[tool.qen]
-created = "2025-12-05T10:00:00Z"
+    def test_infer_repo_path_branch_organization(self, tmp_path: Path) -> None:
+        """Test that repos are always organized by branch to prevent collisions."""
+        # All repos are organized by branch
+        path_main = infer_repo_path("deployment", "main", tmp_path)
+        assert path_main == "repos/main/deployment"
 
-[[tool.qen.repos]]
-url = "https://github.com/org/deployment"
-branch = "main"
-path = "repos/deployment"
-""")
+        path_feature = infer_repo_path("deployment", "feature-x", tmp_path)
+        assert path_feature == "repos/feature-x/deployment"
 
-        # First branch already has clean path "repos/deployment"
-        # Second branch should get suffixed path
-        path = infer_repo_path("deployment", "feature-x", tmp_path)
-        assert path == "repos/deployment-feature-x"
+        # Same repo, different branches get different paths
+        assert path_main != path_feature
 
-        # Same branch as existing should get clean path (no collision)
-        path_same = infer_repo_path("deployment", "main", tmp_path)
-        assert path_same == "repos/deployment"
-
-        # No collision for different repo name
-        path_different = infer_repo_path("other-repo", "feature-x", tmp_path)
-        assert path_different == "repos/other-repo"
+        # Branch with slashes creates nested directories
+        path_nested = infer_repo_path("deployment", "feature/add-support", tmp_path)
+        assert path_nested == "repos/feature/add-support/deployment"
 
 
 # ==============================================================================
@@ -453,8 +468,8 @@ created = "2025-12-05T10:00:00Z"
             storage=test_storage,
         )
 
-        # Verify: Repository was cloned
-        cloned_path = project_dir / "repos" / "child_repo"
+        # Verify: Repository was cloned to branch-organized path
+        cloned_path = project_dir / "repos" / "main" / "child_repo"
         assert cloned_path.exists()
         assert (cloned_path / ".git").exists()
         assert (cloned_path / "README.md").exists()
@@ -462,7 +477,7 @@ created = "2025-12-05T10:00:00Z"
         # Verify: pyproject.toml was updated
         result = read_pyproject(project_dir)
         assert len(result["tool"]["qen"]["repos"]) == 1
-        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/child_repo"
+        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/main/child_repo"
         assert result["tool"]["qen"]["repos"][0]["branch"] == "main"
 
     def test_add_repository_with_custom_options(
@@ -708,9 +723,9 @@ created = "2025-12-05T10:00:00Z"
             storage=test_storage,
         )
 
-        # Verify: Both clones exist
-        clone_main = project_dir / "repos" / "child_repo"
-        clone_feature = project_dir / "repos" / "child_repo-feature-1"
+        # Verify: Both clones exist in branch-organized paths
+        clone_main = project_dir / "repos" / "main" / "child_repo"
+        clone_feature = project_dir / "repos" / "feature-1" / "child_repo"
         assert clone_main.exists()
         assert clone_feature.exists()
         assert (clone_main / "README.md").exists()
@@ -721,9 +736,9 @@ created = "2025-12-05T10:00:00Z"
         result = read_pyproject(project_dir)
         assert len(result["tool"]["qen"]["repos"]) == 2
         assert result["tool"]["qen"]["repos"][0]["branch"] == "main"
-        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/child_repo"
+        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/main/child_repo"
         assert result["tool"]["qen"]["repos"][1]["branch"] == "feature-1"
-        assert result["tool"]["qen"]["repos"][1]["path"] == "repos/child_repo-feature-1"
+        assert result["tool"]["qen"]["repos"][1]["path"] == "repos/feature-1/child_repo"
 
         # Try to add main branch again - should fail
         import click
@@ -736,3 +751,122 @@ created = "2025-12-05T10:00:00Z"
                 verbose=False,
                 storage=test_storage,
             )
+
+    def test_add_repository_uses_meta_branch_by_default(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test that add_repository defaults to meta repo's current branch."""
+        # Setup: Create a meta repo with a feature branch
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Make an initial commit so HEAD exists
+        (meta_repo / "README.md").write_text("# Meta repo\n")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Create and switch to a feature branch in meta repo
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-branch"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile("main", {
+            "meta_path": str(meta_repo),
+            "org": "testorg",
+            "current_project": None,
+        })
+
+        project_name = "test-project"
+        branch = "feature-branch"  # Project branch matches meta branch
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text("""
+[tool.qen]
+created = "2025-12-05T10:00:00Z"
+""")
+
+        test_storage.write_profile(project_name, {
+            "name": project_name,
+            "branch": branch,
+            "folder": folder,
+            "created": "2025-12-05T10:00:00Z",
+        })
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # Create feature-branch in child_repo
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-branch"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+        feature_file = child_repo / "feature.txt"
+        feature_file.write_text("feature content")
+        subprocess.run(
+            ["git", "add", "feature.txt"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Add feature"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Test: Add repository without specifying branch
+        # Should use meta repo's current branch (feature-branch)
+        add_repository(
+            repo=str(child_repo),
+            branch=None,  # Don't specify branch - should default to meta branch
+            path=None,
+            verbose=False,
+            storage=test_storage,
+        )
+
+        # Verify: Repository was cloned with feature-branch to branch-organized path
+        cloned_path = project_dir / "repos" / "feature-branch" / "child_repo"
+        assert cloned_path.exists()
+        assert (cloned_path / ".git").exists()
+        assert (cloned_path / "feature.txt").exists()  # Feature file should exist
+
+        # Verify: pyproject.toml has feature-branch
+        result = read_pyproject(project_dir)
+        assert len(result["tool"]["qen"]["repos"]) == 1
+        assert result["tool"]["qen"]["repos"][0]["branch"] == "feature-branch"
+        assert result["tool"]["qen"]["repos"][0]["path"] == "repos/feature-branch/child_repo"

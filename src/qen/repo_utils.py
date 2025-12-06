@@ -117,48 +117,31 @@ def infer_repo_path(
 ) -> str:
     """Infer the local path for a repository.
 
-    If branch is provided and there's a potential collision with existing
-    repos, append the branch name to make the path unique.
+    When branch is provided, organizes repos by branch: repos/{branch}/{repo_name}.
+    This allows multiple branches of the same repository to coexist without collision.
 
     Args:
         repo_name: Name of the repository
-        branch: Optional branch name for disambiguation
-        project_dir: Optional project directory to check for collisions
+        branch: Branch name (required for proper organization)
+        project_dir: Optional project directory (unused, kept for API compatibility)
 
     Returns:
-        Relative path in the format "repos/{repo_name}" or "repos/{repo_name}-{branch}"
+        Relative path in the format "repos/{branch}/{repo_name}"
 
     Examples:
-        >>> infer_repo_path("myrepo")
-        'repos/myrepo'
+        >>> infer_repo_path("myrepo", branch="main")
+        'repos/main/myrepo'
 
-        >>> infer_repo_path("myrepo", branch="feature-x", project_dir=Path("/path/to/proj"))
-        'repos/myrepo-feature-x'  # If collision detected
+        >>> infer_repo_path("myrepo", branch="feature/add-support")
+        'repos/feature/add-support/myrepo'
+
+        >>> infer_repo_path("myrepo", branch="2025-12-05-project-name")
+        'repos/2025-12-05-project-name/myrepo'
     """
-    base_path = f"repos/{repo_name}"
+    if not branch:
+        raise ValueError("branch parameter is required for infer_repo_path")
 
-    # If branch provided and project_dir exists, check for collision
-    if branch and project_dir:
-        from .pyproject_utils import read_pyproject
-
-        pyproject_path = project_dir / "pyproject.toml"
-        if pyproject_path.exists():
-            try:
-                config = read_pyproject(project_dir)
-                existing_repos = config.get("tool", {}).get("qen", {}).get("repos", [])
-
-                # Check if base_path already used by a different branch
-                for repo in existing_repos:
-                    if isinstance(repo, dict):
-                        if repo.get("path") == base_path and repo.get("branch") != branch:
-                            # Collision: same path, different branch
-                            # Append branch to make unique
-                            return f"repos/{repo_name}-{branch}"
-            except Exception:
-                # If we can't read pyproject.toml, just use base path
-                pass
-
-    return base_path
+    return f"repos/{branch}/{repo_name}"
 
 
 def clone_repository(
@@ -192,11 +175,16 @@ def clone_repository(
     # Checkout specific branch if requested
     if branch and branch != "main" and branch != "master":
         try:
-            # Try to checkout the branch
+            # Try to checkout the branch if it exists locally
             run_git_command(["checkout", branch], cwd=dest_path)
         except GitError:
             # If branch doesn't exist locally, try to track remote branch
             try:
                 run_git_command(["checkout", "-b", branch, f"origin/{branch}"], cwd=dest_path)
-            except GitError as e:
-                raise GitError(f"Failed to checkout branch '{branch}': {e}") from e
+            except GitError:
+                # If remote branch doesn't exist either, create a new local branch
+                # This is expected when adding a repo to a new project branch
+                try:
+                    run_git_command(["checkout", "-b", branch], cwd=dest_path)
+                except GitError as e:
+                    raise GitError(f"Failed to create branch '{branch}': {e}") from e
