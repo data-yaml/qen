@@ -119,7 +119,7 @@ poe lint
 poe version                    # Show current version
 poe version -b patch           # Bump patch, commit (no push)
 poe version --tag              # Create release tag v0.1.2, push everything
-poe version --dev              # Create dev tag v0.1.2-dev, push everything
+poe version --dev              # Create timestamped dev tag v0.1.2-dev.YYYYMMDD.HHMMSS, push
 ```
 
 ### Project Structure

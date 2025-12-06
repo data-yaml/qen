@@ -4,6 +4,7 @@
 import re
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -131,7 +132,12 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
 
     # Handle release tagging (separate from bumping)
     if tag or dev:
-        tag_suffix = "-dev" if dev else ""
+        if dev:
+            # Add timestamp for dev tags: v0.1.2-dev.20241205.162345
+            timestamp = datetime.now().strftime("%Y%m%d.%H%M%S")
+            tag_suffix = f"-dev.{timestamp}"
+        else:
+            tag_suffix = ""
         tag_name = f"v{current_version}{tag_suffix}"
         tag_msg = f"Development release {tag_name}" if dev else f"Release {tag_name}"
 
