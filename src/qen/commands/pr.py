@@ -141,17 +141,36 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         checks = pr_data.get("statusCheckRollup", [])
         pr_checks = None
         if checks:
-            # Count check states for better reporting
-            check_states = [c.get("state", "").upper() for c in checks]
+            # GitHub API returns checks with 'status' and 'conclusion' fields:
+            # - status: IN_PROGRESS, COMPLETED, QUEUED, WAITING
+            # - conclusion: SUCCESS, FAILURE, NEUTRAL, CANCELLED, SKIPPED, TIMED_OUT, ACTION_REQUIRED
+            #   (only present when status is COMPLETED)
+
+            # Determine the effective state for each check
+            check_states = []
+            for c in checks:
+                status = c.get("status", "").upper()
+                conclusion = c.get("conclusion", "").upper()
+
+                # For in-progress checks, use the status
+                if status in ("IN_PROGRESS", "QUEUED", "WAITING", "PENDING"):
+                    check_states.append(status)
+                # For completed checks, use the conclusion
+                elif status == "COMPLETED" and conclusion:
+                    check_states.append(conclusion)
+                # Unknown/missing state
+                else:
+                    check_states.append("UNKNOWN")
 
             # Determine overall check status with priority:
             # 1. If any failing/error -> failing
             # 2. If any pending/in_progress -> pending
             # 3. If all success -> passing
             # 4. If mix of success/skipped/neutral -> passing (skipped don't block)
-            # 5. Otherwise -> unknown (should never happen, log for debugging)
 
-            has_failure = any(s in ("FAILURE", "ERROR") for s in check_states)
+            has_failure = any(
+                s in ("FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED") for s in check_states
+            )
             has_pending = any(
                 s in ("PENDING", "IN_PROGRESS", "QUEUED", "WAITING") for s in check_states
             )
@@ -172,7 +191,6 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                 pr_checks = "skipped"
             else:
                 # This should never happen - log the states we're seeing
-
                 unique_states = set(check_states)
                 click.echo(
                     f"WARNING: Encountered unknown check states: {unique_states}",
