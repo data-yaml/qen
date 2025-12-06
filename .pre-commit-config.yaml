@@ -1,0 +1,52 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: mixed-line-ending
+
+  # Python linting and formatting (runs on pre-commit)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        stages: [pre-commit]
+      # Run the formatter
+      - id: ruff-format
+        stages: [pre-commit]
+
+  # Local hooks for type checking and testing
+  - repo: local
+    hooks:
+      # Type checking (runs on pre-commit)
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        args: [src/]
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Run tests (runs on pre-push)
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        args: [tests/, -v]
+        pass_filenames: false
+        stages: [pre-push]
+        always_run: true
