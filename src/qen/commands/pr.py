@@ -36,6 +36,16 @@ class NoActiveProjectError(PrCommandError):
 
 
 @dataclass
+class CheckInfo:
+    """Individual check information."""
+
+    name: str
+    status: str
+    conclusion: str | None
+    details_url: str | None
+
+
+@dataclass
 class PrInfo:
     """PR information for a repository."""
 
@@ -49,6 +59,7 @@ class PrInfo:
     pr_base: str | None = None
     pr_url: str | None = None
     pr_checks: str | None = None
+    pr_check_details: list[CheckInfo] | None = None
     pr_mergeable: str | None = None
     pr_author: str | None = None
     pr_created_at: str | None = None
@@ -140,18 +151,33 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         # Parse check status
         checks = pr_data.get("statusCheckRollup", [])
         pr_checks = None
+        pr_check_details = None
         if checks:
             # GitHub API returns checks with 'status' and 'conclusion' fields:
             # - status: IN_PROGRESS, COMPLETED, QUEUED, WAITING
             # - conclusion: SUCCESS, FAILURE, NEUTRAL, CANCELLED, SKIPPED, TIMED_OUT, ACTION_REQUIRED
             #   (only present when status is COMPLETED)
 
-            # Determine the effective state for each check
+            # Capture detailed check information
+            pr_check_details = []
             check_states = []
             for c in checks:
                 status = c.get("status", "").upper()
-                conclusion = c.get("conclusion", "").upper()
+                conclusion = c.get("conclusion", "").upper() if c.get("conclusion") else None
+                name = c.get("name", "unknown")
+                details_url = c.get("detailsUrl")
 
+                # Store check details
+                pr_check_details.append(
+                    CheckInfo(
+                        name=name,
+                        status=status,
+                        conclusion=conclusion,
+                        details_url=details_url,
+                    )
+                )
+
+                # Determine the effective state for each check
                 # For in-progress checks, use the status
                 if status in ("IN_PROGRESS", "QUEUED", "WAITING", "PENDING"):
                     check_states.append(status)
@@ -235,6 +261,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             pr_base=pr_data.get("baseRefName"),
             pr_url=pr_data.get("url"),
             pr_checks=pr_checks,
+            pr_check_details=pr_check_details,
             pr_mergeable=pr_data.get("mergeable", "").lower(),
             pr_author=pr_author,
             pr_created_at=pr_data.get("createdAt"),
@@ -304,6 +331,18 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
             lines.append("   ✓ Checks: passing")
         elif pr.pr_checks == "failing":
             lines.append("   ✗ Checks: failing")
+            # Show which checks failed
+            if pr.pr_check_details:
+                failing_checks = [
+                    c
+                    for c in pr.pr_check_details
+                    if c.conclusion in ("FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED")
+                ]
+                for check in failing_checks:
+                    if check.details_url:
+                        lines.append(f"      • {check.name}: {check.details_url}")
+                    else:
+                        lines.append(f"      • {check.name}")
         elif pr.pr_checks == "pending":
             lines.append("   ⏳ Checks: pending")
         elif pr.pr_checks == "skipped":
@@ -440,6 +479,19 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
                     lines.append(f"{indent}✓ Checks: passing")
                 elif pr.pr_checks == "failing":
                     lines.append(f"{indent}✗ Checks: failing")
+                    # Show which checks failed
+                    if pr.pr_check_details:
+                        failing_checks = [
+                            c
+                            for c in pr.pr_check_details
+                            if c.conclusion in ("FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED")
+                        ]
+                        fail_indent = "         " if is_last else "   │     "
+                        for check in failing_checks:
+                            if check.details_url:
+                                lines.append(f"{fail_indent}• {check.name}: {check.details_url}")
+                            else:
+                                lines.append(f"{fail_indent}• {check.name}")
                 elif pr.pr_checks == "pending":
                     lines.append(f"{indent}⏳ Checks: pending")
                 elif pr.pr_checks == "skipped":
