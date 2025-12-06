@@ -12,12 +12,10 @@ from ..config import QenConfig, QenConfigError
 from ..git_utils import (
     GitError,
     RepoStatus,
-    find_meta_repo,
     get_current_branch,
     get_repo_status,
     git_fetch,
 )
-from ..project import ProjectNotFoundError, find_project_root
 from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_from_pyproject
 
 
@@ -240,7 +238,7 @@ def show_project_status(
     """Show status for current or specified project.
 
     Args:
-        project_name: Project name (None = use current project)
+        project_name: Project name (None = use current project from config)
         fetch: If True, fetch before showing status
         verbose: If True, show detailed file lists
         meta_only: If True, only show meta repository
@@ -250,30 +248,39 @@ def show_project_status(
         StatusError: If status cannot be retrieved
         click.ClickException: For user-facing errors
     """
-    # Find project directory
-    if project_name:
-        # Load project from config
-        config = QenConfig()
-        try:
-            project_config = config.read_project_config(project_name)
-            meta_path = Path(config.read_main_config()["meta_path"])
-            project_dir = meta_path / project_config["folder"]
-        except QenConfigError as e:
-            raise click.ClickException(
-                f"Project '{project_name}' not found in qen configuration: {e}"
-            ) from e
-    else:
-        # Use current directory
-        try:
-            project_dir = find_project_root()
-        except ProjectNotFoundError as e:
-            raise click.ClickException(str(e)) from e
+    # Load configuration
+    config = QenConfig()
 
-        # Find meta repo
-        try:
-            meta_path = find_meta_repo(project_dir)
-        except Exception as e:
-            raise click.ClickException(f"Cannot find meta repository: {e}") from e
+    if not config.main_config_exists():
+        raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
+
+    try:
+        main_config = config.read_main_config()
+    except QenConfigError as e:
+        raise click.ClickException(f"Error reading configuration: {e}") from e
+
+    # Determine which project to use
+    if project_name:
+        # Use specified project
+        target_project: str = project_name
+    else:
+        # Use current project from config
+        target_project_raw = main_config.get("current_project")
+        if not target_project_raw:
+            raise click.ClickException(
+                "No active project. Create a project with 'qen init <project-name>' first."
+            )
+        target_project = str(target_project_raw)
+
+    # Get project directory from config
+    try:
+        project_config = config.read_project_config(target_project)
+        meta_path = Path(main_config["meta_path"])
+        project_dir = meta_path / project_config["folder"]
+    except QenConfigError as e:
+        raise click.ClickException(
+            f"Project '{target_project}' not found in qen configuration: {e}"
+        ) from e
 
     # Verify project directory exists
     if not project_dir.exists():
