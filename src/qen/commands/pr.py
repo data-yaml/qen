@@ -140,13 +140,35 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         checks = pr_data.get("statusCheckRollup", [])
         pr_checks = None
         if checks:
+            # Count check states for better reporting
             check_states = [c.get("state", "").upper() for c in checks]
-            if "FAILURE" in check_states or "ERROR" in check_states:
+
+            # Determine overall check status with priority:
+            # 1. If any failing/error -> failing
+            # 2. If any pending/in_progress -> pending
+            # 3. If all success -> passing
+            # 4. If mix of success/skipped/neutral -> passing (skipped don't block)
+            # 5. Otherwise -> unknown
+
+            has_failure = any(s in ("FAILURE", "ERROR") for s in check_states)
+            has_pending = any(
+                s in ("PENDING", "IN_PROGRESS", "QUEUED", "WAITING") for s in check_states
+            )
+
+            # Filter out skipped/neutral/cancelled - they don't affect status
+            active_states = [
+                s for s in check_states if s not in ("SKIPPED", "NEUTRAL", "CANCELLED", "STALE")
+            ]
+
+            if has_failure:
                 pr_checks = "failing"
-            elif "PENDING" in check_states or "IN_PROGRESS" in check_states:
+            elif has_pending:
                 pr_checks = "pending"
-            elif all(s == "SUCCESS" for s in check_states):
+            elif active_states and all(s == "SUCCESS" for s in active_states):
                 pr_checks = "passing"
+            elif not active_states and check_states:
+                # All checks are skipped/neutral/cancelled
+                pr_checks = "skipped"
             else:
                 pr_checks = "unknown"
 
@@ -242,6 +264,8 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
             lines.append("   ✗ Checks: failing")
         elif pr.pr_checks == "pending":
             lines.append("   ⏳ Checks: pending")
+        elif pr.pr_checks == "skipped":
+            lines.append("   ⊝ Checks: skipped")
         else:
             lines.append(f"   ❓ Checks: {pr.pr_checks}")
 
@@ -376,6 +400,8 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
                     lines.append(f"{indent}✗ Checks: failing")
                 elif pr.pr_checks == "pending":
                     lines.append(f"{indent}⏳ Checks: pending")
+                elif pr.pr_checks == "skipped":
+                    lines.append(f"{indent}⊝ Checks: skipped")
 
             # Mergeable status
             if pr.pr_mergeable:
@@ -598,13 +624,22 @@ def pr_stack_command(
     Raises:
         click.Abort: If no PRs found or other errors
     """
-    # Get all PR info using existing command
-    pr_infos = pr_status_command(
-        project_name=project_name,
-        verbose=False,  # Don't show status output
-        config_dir=config_dir,
-        storage=storage,
-    )
+    # Get all PR info silently (suppress pr_status_command output)
+    import io
+    import sys
+
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+
+    try:
+        pr_infos = pr_status_command(
+            project_name=project_name,
+            verbose=False,
+            config_dir=config_dir,
+            storage=storage,
+        )
+    finally:
+        sys.stdout = old_stdout
 
     # Check if we have any PRs
     prs_with_pr = [pr for pr in pr_infos if pr.has_pr]
