@@ -189,6 +189,70 @@ class TestGetPrInfoForBranch:
 
     @patch("qen.commands.pr.get_current_branch")
     @patch("qen.commands.pr.is_git_repo")
+    def test_pr_with_skipped_checks(
+        self, mock_is_git: Mock, mock_get_branch: Mock, tmp_path: Path
+    ) -> None:
+        """Test PR with all skipped checks."""
+        mock_is_git.return_value = True
+        mock_get_branch.return_value = "feature-branch"
+
+        pr_data = {
+            "number": 999,
+            "title": "Skip checks",
+            "state": "OPEN",
+            "baseRefName": "main",
+            "url": "https://github.com/org/repo/pull/999",
+            "statusCheckRollup": [{"state": "SKIPPED"}, {"state": "SKIPPED"}],
+            "mergeable": "MERGEABLE",
+            "author": {"login": "testuser"},
+            "createdAt": "2025-01-04T10:00:00Z",
+            "updatedAt": "2025-01-04T12:00:00Z",
+        }
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0, stdout=json.dumps(pr_data), stderr="")
+
+            pr_info = get_pr_info_for_branch(
+                tmp_path, "feature-branch", "https://github.com/org/repo"
+            )
+
+        assert pr_info.has_pr is True
+        assert pr_info.pr_checks == "skipped"
+
+    @patch("qen.commands.pr.get_current_branch")
+    @patch("qen.commands.pr.is_git_repo")
+    def test_pr_with_mixed_success_and_skipped(
+        self, mock_is_git: Mock, mock_get_branch: Mock, tmp_path: Path
+    ) -> None:
+        """Test PR with mix of SUCCESS and SKIPPED checks (should be passing)."""
+        mock_is_git.return_value = True
+        mock_get_branch.return_value = "feature-branch"
+
+        pr_data = {
+            "number": 888,
+            "title": "Mixed checks",
+            "state": "OPEN",
+            "baseRefName": "main",
+            "url": "https://github.com/org/repo/pull/888",
+            "statusCheckRollup": [{"state": "SUCCESS"}, {"state": "SKIPPED"}, {"state": "SUCCESS"}],
+            "mergeable": "MERGEABLE",
+            "author": {"login": "testuser"},
+            "createdAt": "2025-01-04T10:00:00Z",
+            "updatedAt": "2025-01-04T12:00:00Z",
+        }
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0, stdout=json.dumps(pr_data), stderr="")
+
+            pr_info = get_pr_info_for_branch(
+                tmp_path, "feature-branch", "https://github.com/org/repo"
+            )
+
+        assert pr_info.has_pr is True
+        assert pr_info.pr_checks == "passing"
+
+    @patch("qen.commands.pr.get_current_branch")
+    @patch("qen.commands.pr.is_git_repo")
     def test_gh_command_timeout(
         self, mock_is_git: Mock, mock_get_branch: Mock, tmp_path: Path
     ) -> None:
