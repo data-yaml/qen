@@ -146,6 +146,15 @@ scripts/                    # Build and version management scripts
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
 - Project manifest: `proj/YYYY-MM-DD-project/pyproject.toml` (with `[tool.qen]`)
 
+### CRITICAL: QEN Always Uses Stored Config State
+
+- **QEN commands ALWAYS operate on the CURRENT CONFIG as stored in XDG directories**
+- Commands DO NOT infer state from your current working directory
+- Commands DO NOT scan your filesystem to discover projects
+- The config files are the single source of truth for all project metadata
+- Example: `qen status` operates on repos listed in the project config, not repos you happen to be in
+- Example: `qen sh` changes to the PROJECT FOLDER as stored in config, not your current directory
+
 ## Code Style and Standards
 
 ### Type Checking
