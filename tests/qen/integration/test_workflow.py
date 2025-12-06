@@ -12,6 +12,7 @@ from pathlib import Path
 
 from qen.commands.add import add_repository
 from qen.pyproject_utils import read_pyproject
+
 from tests.helpers.qenvy_test import QenvyTest
 
 # Note: Some tests are placeholders that will be implemented
@@ -158,8 +159,8 @@ class TestRepositoryManagement:
             storage=test_storage,
         )
 
-        # Verify: Repository was cloned
-        cloned_path = project_dir / "repos" / "child_repo"
+        # Verify: Repository was cloned (new structure: repos/{branch}/{repo})
+        cloned_path = project_dir / "repos" / "main" / "child_repo"
         assert cloned_path.exists()
         assert (cloned_path / ".git").exists()
 
@@ -279,9 +280,9 @@ class TestRepositoryManagement:
             storage=test_storage,
         )
 
-        # Verify: Both repositories were cloned
-        assert (project_dir / "repos" / "child1").exists()
-        assert (project_dir / "repos" / "child2").exists()
+        # Verify: Both repositories were cloned (new structure: repos/{branch}/{repo})
+        assert (project_dir / "repos" / "main" / "child1").exists()
+        assert (project_dir / "repos" / "main" / "child2").exists()
 
         # Verify: pyproject.toml has both entries
         result = read_pyproject(project_dir)
@@ -461,7 +462,7 @@ class TestMetaTomlUpdates:
         assert "path" in repo_entry
         assert repo_entry["url"] == str(child_repo)
         assert repo_entry["branch"] == "main"
-        assert repo_entry["path"] == "repos/child_repo"
+        assert repo_entry["path"] == "repos/main/child_repo"
 
     def test_remove_repo_updates_meta_toml(
         self,

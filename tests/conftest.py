@@ -20,9 +20,9 @@ def temp_git_repo(tmp_path: Path) -> Path:
     repo_dir = tmp_path / "test_repo"
     repo_dir.mkdir()
 
-    # Initialize git repo
+    # Initialize git repo with main as default branch
     subprocess.run(
-        ["git", "init"],
+        ["git", "init", "-b", "main"],
         cwd=repo_dir,
         check=True,
         capture_output=True,
@@ -118,9 +118,9 @@ def child_repo(tmp_path: Path) -> Path:
     child_dir = tmp_path / "child_repo"
     child_dir.mkdir()
 
-    # Initialize git repo
+    # Initialize git repo with main as default branch
     subprocess.run(
-        ["git", "init"],
+        ["git", "init", "-b", "main"],
         cwd=child_dir,
         check=True,
         capture_output=True,
