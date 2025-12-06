@@ -4,9 +4,11 @@ This module provides functions for:
 - Discovering meta repositories by searching upward from the current directory
 - Parsing git remote URLs to extract organization names
 - Validating git repository structure
+- Getting repository status (branch, changes, sync status)
 """
 
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -33,6 +35,91 @@ class AmbiguousOrgError(GitError):
     """Raised when multiple organizations are detected in git remotes."""
 
     pass
+
+
+@dataclass
+class SyncStatus:
+    """Sync status with remote repository."""
+
+    has_upstream: bool
+    ahead: int = 0
+    behind: int = 0
+
+    def is_up_to_date(self) -> bool:
+        """Check if local and remote are in sync."""
+        return self.has_upstream and self.ahead == 0 and self.behind == 0
+
+    def is_diverged(self) -> bool:
+        """Check if local and remote have diverged."""
+        return self.has_upstream and self.ahead > 0 and self.behind > 0
+
+    def description(self) -> str:
+        """Get human-readable description of sync status."""
+        if not self.has_upstream:
+            return "no remote"
+        if self.is_up_to_date():
+            return "up-to-date"
+        if self.is_diverged():
+            commit_word_ahead = "commit" if self.ahead == 1 else "commits"
+            commit_word_behind = "commit" if self.behind == 1 else "commits"
+            return f"diverged (ahead {self.ahead} {commit_word_ahead}, behind {self.behind} {commit_word_behind})"
+        if self.ahead > 0:
+            commit_word = "commit" if self.ahead == 1 else "commits"
+            return f"ahead {self.ahead} {commit_word}"
+        if self.behind > 0:
+            commit_word = "commit" if self.behind == 1 else "commits"
+            return f"behind {self.behind} {commit_word}"
+        return "up-to-date"
+
+
+@dataclass
+class RepoStatus:
+    """Status information for a git repository."""
+
+    exists: bool
+    branch: str | None = None
+    modified: list[str] | None = None
+    staged: list[str] | None = None
+    untracked: list[str] | None = None
+    sync: SyncStatus | None = None
+
+    def __post_init__(self) -> None:
+        """Initialize default values for lists."""
+        if self.modified is None:
+            self.modified = []
+        if self.staged is None:
+            self.staged = []
+        if self.untracked is None:
+            self.untracked = []
+
+    def is_clean(self) -> bool:
+        """Check if repository has no uncommitted changes."""
+        return (
+            self.exists
+            and len(self.modified or []) == 0
+            and len(self.staged or []) == 0
+            and len(self.untracked or []) == 0
+        )
+
+    def status_description(self) -> str:
+        """Get human-readable description of status."""
+        if not self.exists:
+            return "not cloned"
+
+        if self.is_clean():
+            return "clean"
+
+        parts = []
+        if self.modified:
+            parts.append(f"{len(self.modified)} modified")
+        if self.staged:
+            parts.append(f"{len(self.staged)} staged")
+        if self.untracked:
+            parts.append(f"{len(self.untracked)} untracked")
+
+        if len(parts) == 1:
+            return parts[0]
+        return f"mixed ({', '.join(parts)})"
 
 
 def run_git_command(args: list[str], cwd: Path | None = None) -> str:
@@ -331,3 +418,121 @@ def branch_exists(path: Path, branch_name: str) -> bool:
         return True
     except GitError:
         return False
+
+
+def get_sync_status(path: Path, fetch: bool = False) -> SyncStatus:
+    """Get sync status with remote repository.
+
+    Args:
+        path: Path to git repository
+        fetch: If True, run git fetch before checking status
+
+    Returns:
+        SyncStatus object with ahead/behind counts
+
+    Raises:
+        NotAGitRepoError: If not a git repository
+    """
+    if not is_git_repo(path):
+        raise NotAGitRepoError(f"Not a git repository: {path}")
+
+    # Optionally fetch before checking status
+    if fetch:
+        try:
+            run_git_command(["fetch"], cwd=path)
+        except GitError:
+            # Ignore fetch errors (e.g., no network)
+            pass
+
+    try:
+        # Get upstream branch
+        run_git_command(["rev-parse", "--abbrev-ref", "@{upstream}"], cwd=path)
+
+        # Count commits ahead/behind
+        counts = run_git_command(
+            ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cwd=path
+        )
+        ahead_str, behind_str = counts.split()
+        return SyncStatus(has_upstream=True, ahead=int(ahead_str), behind=int(behind_str))
+    except GitError:
+        # No upstream configured
+        return SyncStatus(has_upstream=False)
+
+
+def get_repo_status(path: Path, fetch: bool = False) -> RepoStatus:
+    """Get comprehensive status for a repository.
+
+    Args:
+        path: Path to git repository
+        fetch: If True, run git fetch before checking sync status
+
+    Returns:
+        RepoStatus object with all status information
+
+    Raises:
+        GitError: If git commands fail
+    """
+    # Check if directory exists
+    if not path.exists():
+        return RepoStatus(exists=False)
+
+    # Check if it's a git repository
+    if not is_git_repo(path):
+        return RepoStatus(exists=False)
+
+    # Get current branch
+    branch = get_current_branch(path)
+
+    # Check for changes using porcelain format
+    porcelain = run_git_command(["status", "--porcelain=v1"], cwd=path)
+
+    modified: list[str] = []
+    staged: list[str] = []
+    untracked: list[str] = []
+
+    for line in porcelain.splitlines():
+        if len(line) < 4:
+            continue
+
+        status_code = line[:2]
+        file_path = line[3:]
+
+        # Staged changes (index)
+        if status_code[0] not in (" ", "?"):
+            staged.append(file_path)
+
+        # Unstaged changes (working tree)
+        if status_code[1] not in (" ", "?"):
+            modified.append(file_path)
+
+        # Untracked files
+        if status_code == "??":
+            untracked.append(file_path)
+
+    # Get sync status with remote
+    sync_status = get_sync_status(path, fetch=fetch)
+
+    return RepoStatus(
+        exists=True,
+        branch=branch,
+        modified=modified,
+        staged=staged,
+        untracked=untracked,
+        sync=sync_status,
+    )
+
+
+def git_fetch(path: Path) -> None:
+    """Run git fetch on a repository.
+
+    Args:
+        path: Path to git repository
+
+    Raises:
+        NotAGitRepoError: If not a git repository
+        GitError: If fetch fails
+    """
+    if not is_git_repo(path):
+        raise NotAGitRepoError(f"Not a git repository: {path}")
+
+    run_git_command(["fetch"], cwd=path)

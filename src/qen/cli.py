@@ -9,6 +9,7 @@ from . import __version__
 from .commands.add import add_repository
 from .commands.init import init_project, init_qen
 from .commands.pull import pull_all_repositories
+from .commands.status import status_command
 
 
 @click.group()
@@ -141,6 +142,10 @@ def pull(fetch_only: bool, verbose: bool) -> None:
         fetch_only=fetch_only,
         verbose=verbose,
     )
+
+
+# Register the status command
+main.add_command(status_command)
 
 
 if __name__ == "__main__":

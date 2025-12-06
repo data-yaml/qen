@@ -4,6 +4,7 @@ This module provides functions for managing the [tool.qen.repos] section
 in pyproject.toml files, which tracks sub-repositories in a qen project.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,26 @@ class PyProjectUpdateError(Exception):
     """Raised when updating pyproject.toml fails."""
 
     pass
+
+
+@dataclass
+class RepoConfig:
+    """Configuration for a repository in pyproject.toml."""
+
+    url: str
+    branch: str
+    path: str
+
+    def local_path(self, project_dir: Path) -> Path:
+        """Get absolute path to repository.
+
+        Args:
+            project_dir: Path to project directory
+
+        Returns:
+            Absolute path to repository
+        """
+        return project_dir / self.path
 
 
 def read_pyproject(project_dir: Path) -> dict[str, Any]:
@@ -45,6 +66,57 @@ def read_pyproject(project_dir: Path) -> dict[str, Any]:
         return handler.read(pyproject_path)
     except Exception as e:
         raise PyProjectUpdateError(f"Failed to read pyproject.toml: {e}") from e
+
+
+def load_repos_from_pyproject(project_dir: Path) -> list[RepoConfig]:
+    """Load repository configurations from pyproject.toml.
+
+    Args:
+        project_dir: Path to project directory
+
+    Returns:
+        List of RepoConfig objects
+
+    Raises:
+        PyProjectNotFoundError: If pyproject.toml does not exist
+        PyProjectUpdateError: If parsing fails
+    """
+    try:
+        config = read_pyproject(project_dir)
+    except PyProjectNotFoundError:
+        raise
+    except PyProjectUpdateError:
+        raise
+
+    # Navigate to [tool.qen.repos]
+    if "tool" not in config:
+        return []
+    if "qen" not in config["tool"]:
+        return []
+    if "repos" not in config["tool"]["qen"]:
+        return []
+
+    repos_data = config["tool"]["qen"]["repos"]
+    if not isinstance(repos_data, list):
+        return []
+
+    # Convert to RepoConfig objects
+    repos: list[RepoConfig] = []
+    for repo in repos_data:
+        if not isinstance(repo, dict):
+            continue
+
+        url = repo.get("url")
+        branch = repo.get("branch", "main")
+        path = repo.get("path")
+
+        if not url or not path:
+            # Skip invalid entries
+            continue
+
+        repos.append(RepoConfig(url=url, branch=branch, path=path))
+
+    return repos
 
 
 def repo_exists_in_pyproject(project_dir: Path, url: str, branch: str) -> bool:
