@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Testing and coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Claude Code project-specific instructions
+CLAUDE.md

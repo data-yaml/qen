@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Shim script for running Poe the Poet tasks
+# Usage: ./poe <task> [args...]
+
+set -e
+
+# Prefer uv if available (modern Python package manager)
+if command -v uv &> /dev/null; then
+    exec uv run poe "$@"
+# Fall back to activated virtual environment
+elif [ -n "$VIRTUAL_ENV" ]; then
+    exec poe "$@"
+# Last resort: try global python installation
+elif command -v python &> /dev/null; then
+    echo "Warning: Not in a virtual environment and uv not found. Using global python..."
+    exec python -m poe "$@"
+else
+    echo "Error: No suitable Python environment found (tried uv, venv, and global python)"
+    exit 1
+fi
