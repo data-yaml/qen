@@ -57,9 +57,13 @@ test-fast = "pytest tests/ -x"
 typecheck = "mypy src/"
 
 [tool.poe.tasks.version]
-help = "Show current version, or bump it with --bump [major|minor|patch]"
+help = "Show current version, or bump with --bump. Use --tag for release or --dev for dev release"
 script = "scripts.version:main"
-args = [{name = "bump", options = ["--bump", "-b"], type = "string"}]
+args = [
+    {name = "bump", options = ["--bump", "-b"], type = "string"},
+    {name = "tag", options = ["--tag", "-t"], type = "boolean", default = false},
+    {name = "dev", options = ["--dev", "-d"], type = "boolean", default = false}
+]
 
 [tool.poe.tasks.lint]
 sequence = [

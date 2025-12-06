@@ -114,6 +114,12 @@ poe typecheck
 
 # Lint and format
 poe lint
+
+# Version management
+poe version                    # Show current version
+poe version -b patch           # Bump patch version (commit only)
+poe version -b minor --tag     # Bump minor, create release tag v0.X.0, push
+poe version -b major --dev     # Bump major, create dev tag v1.0.0-dev, push
 ```
 
 ### Project Structure

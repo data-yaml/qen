@@ -76,12 +76,14 @@ def set_version(new_version: str) -> None:
     pyproject_path.write_text(new_content)
 
 
-def main(bump: str | None = None) -> None:
+def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
     """Main entry point for version management.
 
     Args:
         bump: Optional version part to bump ("major", "minor", or "patch").
               If None, just display the current version.
+        tag: If True, create and push a git tag for the version.
+        dev: If True, create a dev tag (e.g., v0.1.2-dev) instead of release tag.
     """
     current_version = get_version()
 
@@ -127,6 +129,30 @@ def main(bump: str | None = None) -> None:
         except subprocess.CalledProcessError as e:
             print(f"Error committing changes: {e.stderr.decode()}", file=sys.stderr)
             sys.exit(1)
+
+        # Create and push tag if requested
+        if tag or dev:
+            tag_suffix = "-dev" if dev else ""
+            tag_name = f"v{new_version}{tag_suffix}"
+            tag_msg = f"Development release {tag_name}" if dev else f"Release {tag_name}"
+
+            print(f"Creating tag {tag_name}...")
+            try:
+                subprocess.run(
+                    ["git", "tag", "-a", tag_name, "-m", tag_msg],
+                    check=True,
+                    capture_output=True
+                )
+                print(f"Pushing tag {tag_name}...")
+                subprocess.run(
+                    ["git", "push", "origin", tag_name],
+                    check=True,
+                    capture_output=True
+                )
+                print(f"Tagged and pushed: {tag_name}")
+            except subprocess.CalledProcessError as e:
+                print(f"Error creating/pushing tag: {e.stderr.decode()}", file=sys.stderr)
+                sys.exit(1)
 
 
 if __name__ == "__main__":
