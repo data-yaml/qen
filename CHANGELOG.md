@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Implement `qen pr status` command for enumerating and retrieving PR information across all repositories
+- Implement `qen pr stack` command for identifying and displaying stacked PRs across repositories
+- Implement `qen pr restack` command for updating stacked PRs to be based on latest versions of their base branches
 
 ## [0.1.4] - 2024-12-05
 
