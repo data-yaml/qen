@@ -55,6 +55,7 @@ class PrInfo:
     pr_updated_at: str | None = None
     pr_commits: int | None = None
     pr_files_changed: int | None = None
+    pr_file_paths: list[str] | None = None
     error: str | None = None
 
 
@@ -183,6 +184,17 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         files_data = pr_data.get("files", [])
         pr_files_changed = len(files_data) if isinstance(files_data, list) else None
 
+        # Extract file paths
+        pr_file_paths = None
+        if isinstance(files_data, list):
+            paths = [
+                f.get("path")
+                for f in files_data
+                if isinstance(f, dict) and "path" in f and f.get("path")
+            ]
+            # Filter out None values and ensure we have strings
+            pr_file_paths = [p for p in paths if isinstance(p, str)]
+
         return PrInfo(
             repo_path=str(repo_path.name),
             repo_url=url,
@@ -200,6 +212,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             pr_updated_at=pr_data.get("updatedAt"),
             pr_commits=pr_commits,
             pr_files_changed=pr_files_changed,
+            pr_file_paths=pr_file_paths,
         )
 
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
@@ -410,6 +423,11 @@ def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False)
                     lines.append(f"{indent}✓ Mergeable")
                 elif pr.pr_mergeable == "conflicting":
                     lines.append(f"{indent}✗ Has conflicts")
+                    # In verbose mode, show which files are changed (may be conflicting)
+                    if verbose and pr.pr_file_paths:
+                        lines.append(f"{indent}   📄 Changed files:")
+                        for file_path in pr.pr_file_paths:
+                            lines.append(f"{indent}      • {file_path}")
 
             # Verbose information
             if verbose:
