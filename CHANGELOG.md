@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2024-12-05
+
+### Added
+
+- Implement `qen pull` command with GitHub PR/issue integration via gh CLI
+- Implement `qen status` command for comprehensive multi-repo git status tracking
+- Implement `qen config` command for interactive configuration management
+- Implement `qen commit` command for committing changes across multiple repos
+- Implement `qen push` command for pushing changes across multiple repos
+- Add specifications for `qen pull` and `qen push` commands
+
+## [0.1.3] - 2024-12-05
+
+Re-released 0.1.2 to fix CI.
+
 ## [0.1.2] - 2024-12-05
 
 ### Added

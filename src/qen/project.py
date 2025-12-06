@@ -6,6 +6,7 @@ within a meta repository. It handles:
 - Branch creation
 - Stub file generation (README.md, meta.toml)
 - .gitignore management
+- Project context discovery
 """
 
 from datetime import UTC, datetime
@@ -16,6 +17,12 @@ from .git_utils import create_branch, run_git_command
 
 class ProjectError(Exception):
     """Base exception for project-related errors."""
+
+    pass
+
+
+class ProjectNotFoundError(ProjectError):
+    """Raised when project cannot be found in current context."""
 
     pass
 
@@ -56,6 +63,49 @@ def generate_folder_path(project_name: str, date: datetime | None = None) -> str
 
     date_prefix = date.strftime("%Y-%m-%d")
     return f"proj/{date_prefix}-{project_name}"
+
+
+def find_project_root(start_path: Path | None = None) -> Path:
+    """Find project root directory by searching for pyproject.toml with [tool.qen].
+
+    Searches current directory and parent directories for a pyproject.toml file
+    that contains a [tool.qen] section.
+
+    Args:
+        start_path: Starting directory (default: current working directory)
+
+    Returns:
+        Path to project root directory
+
+    Raises:
+        ProjectNotFoundError: If no project root can be found
+    """
+    if start_path is None:
+        start_path = Path.cwd()
+
+    # Ensure start_path is absolute
+    start_path = start_path.resolve()
+
+    # Search upward for pyproject.toml with [tool.qen]
+    current = start_path
+    for directory in [current] + list(current.parents):
+        pyproject_path = directory / "pyproject.toml"
+        if pyproject_path.exists():
+            try:
+                # Check if it has [tool.qen] section
+                from qenvy.formats import TOMLHandler
+
+                handler = TOMLHandler()
+                config = handler.read(pyproject_path)
+                if "tool" in config and "qen" in config["tool"]:
+                    return directory
+            except Exception:
+                # Skip if we can't read the file
+                continue
+
+    raise ProjectNotFoundError(
+        "Not in a qen project directory. Run 'qen init <project>' to create a project."
+    )
 
 
 def create_project_structure(

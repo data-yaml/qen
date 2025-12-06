@@ -7,7 +7,12 @@ import click
 
 from . import __version__
 from .commands.add import add_repository
+from .commands.commit import commit_command
+from .commands.config import config_command
 from .commands.init import init_project, init_qen
+from .commands.pull import pull_all_repositories
+from .commands.push import push_command
+from .commands.status import status_command
 
 
 @click.group()
@@ -102,6 +107,51 @@ def add(repo: str, branch: str | None, path: str | None, verbose: bool) -> None:
         $ qen add myorg/myrepo --path repos/custom-name
     """
     add_repository(repo, branch, path, verbose)
+
+
+@main.command("pull")
+@click.option(
+    "--fetch-only",
+    is_flag=True,
+    help="Fetch only, don't merge (git fetch instead of git pull)",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
+def pull(fetch_only: bool, verbose: bool) -> None:
+    """Pull or fetch all repositories in the current project.
+
+    Retrieves current state and synchronizes all sub-repositories.
+    Updates local repositories with remote changes and captures metadata
+    about each repository's state.
+
+    By default, performs git pull (fetch + merge) on all repositories.
+    Use --fetch-only to only fetch remote changes without merging.
+
+    Examples:
+
+    \b
+        # Pull all repositories (fetch + merge)
+        $ qen pull
+
+    \b
+        # Fetch only, don't merge
+        $ qen pull --fetch-only
+
+    \b
+        # Verbose output
+        $ qen pull -v
+    """
+    pull_all_repositories(
+        project_name=None,  # Use current project from config
+        fetch_only=fetch_only,
+        verbose=verbose,
+    )
+
+
+# Register commands
+main.add_command(config_command)
+main.add_command(commit_command)
+main.add_command(push_command)
+main.add_command(status_command)
 
 
 if __name__ == "__main__":

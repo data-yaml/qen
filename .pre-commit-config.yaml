@@ -17,29 +17,16 @@ repos:
       - id: mixed-line-ending
 
   # Python linting and formatting (runs on pre-commit)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.15
-    hooks:
-      # Run the linter
-      - id: ruff
-        args: [--fix]
-        stages: [pre-commit]
-      # Run the formatter
-      - id: ruff-format
-        stages: [pre-commit]
-
-  # Local hooks for type checking and testing
   - repo: local
     hooks:
-      # Type checking (runs on pre-commit)
-      - id: mypy
-        name: mypy
-        entry: mypy
+      # Run lint via poe task for consistency with CI
+      - id: lint
+        name: lint (ruff + mypy)
+        entry: uv run poe lint
         language: system
-        args: [src/]
-        types: [python]
         pass_filenames: false
         stages: [pre-commit]
+        types: [python]
 
       # Run tests (runs on pre-push)
       - id: pytest

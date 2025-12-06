@@ -172,9 +172,9 @@ def add_repository(
         click.echo(f"Error cloning repository: {e}", err=True)
         raise click.Abort() from e
 
-    # 7. Update pyproject.toml
+    # 7. Add initial metadata to pyproject.toml
     if verbose:
-        click.echo("Updating pyproject.toml...")
+        click.echo("Adding initial metadata to pyproject.toml...")
 
     try:
         add_repo_to_pyproject(project_dir, url, branch, path)
@@ -195,8 +195,38 @@ def add_repository(
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
-    # 8. Success message
-    click.echo(f"Added repository: {url}")
+    # 8. Initialize metadata and detect PR/issue associations via pull
+    if verbose:
+        click.echo("Initializing repository metadata...")
+
+    try:
+        # Import here to avoid circular dependency
+        # Read the repo entry we just added from pyproject.toml
+        from ..pyproject_utils import read_pyproject
+        from .pull import check_gh_installed, pull_repository
+
+        pyproject = read_pyproject(project_dir)
+        repos = pyproject.get("tool", {}).get("qen", {}).get("repos", {})
+        repo_entry = repos.get(repo_name, {})
+
+        # Call pull_repository to update metadata and detect PR/issue info
+        gh_available = check_gh_installed()
+        pull_repository(
+            repo_entry=repo_entry,
+            project_dir=project_dir,
+            fetch_only=False,
+            gh_available=gh_available,
+            verbose=verbose,
+        )
+    except Exception as e:
+        # Non-fatal: repository is added but metadata might be incomplete
+        click.echo(f"Warning: Could not initialize metadata: {e}", err=True)
+        if verbose:
+            click.echo("Repository was added successfully but metadata may be incomplete.")
+
+    # 9. Success message
+    click.echo()
+    click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")
     click.echo(f"  Path: {clone_path}")
     click.echo()

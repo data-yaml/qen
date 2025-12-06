@@ -68,17 +68,9 @@ jobs:
         run: |
           uv pip install --system -e ".[dev]"
 
-      - name: Run ruff check
+      - name: Run lint
         run: |
-          uv run ruff check .
-
-      - name: Run ruff format check
-        run: |
-          uv run ruff format --check .
-
-      - name: Run mypy
-        run: |
-          uv run mypy src/
+          uv run poe lint
 
   build:
     name: Build
