@@ -578,6 +578,68 @@ def pr_status_command(
     return pr_infos
 
 
+def pr_stack_command(
+    project_name: str | None = None,
+    verbose: bool = False,
+    config_dir: Path | str | None = None,
+    storage: QenvyBase | None = None,
+) -> dict[str, list[PrInfo]]:
+    """Identify and display stacked PRs across all repositories.
+
+    Args:
+        project_name: Name of project (if None, use current project from config)
+        verbose: Enable verbose output
+        config_dir: Override config directory (for testing)
+        storage: Override storage backend (for testing)
+
+    Returns:
+        Dictionary of stacks (root branch -> list of PRs)
+
+    Raises:
+        click.Abort: If no PRs found or other errors
+    """
+    # Get all PR info using existing command
+    pr_infos = pr_status_command(
+        project_name=project_name,
+        verbose=False,  # Don't show status output
+        config_dir=config_dir,
+        storage=storage,
+    )
+
+    # Check if we have any PRs
+    prs_with_pr = [pr for pr in pr_infos if pr.has_pr]
+    if not prs_with_pr:
+        click.echo("Error: No PRs found in project.", err=True)
+        click.echo("Create PRs first, then identify stacks.", err=True)
+        raise click.Abort()
+
+    # Identify stacks
+    stacks = identify_stacks(pr_infos)
+
+    if not stacks:
+        click.echo("No stacks found.")
+        click.echo(
+            "\nStacks are identified when a PR's base branch is another feature branch.",
+            err=False,
+        )
+        return {}
+
+    # Display stacks
+    click.echo("\nStacked PRs in project:")
+    click.echo(format_stack_display(stacks, verbose=verbose))
+
+    # Display summary
+    summary = get_stack_summary(stacks)
+    click.echo("\nSummary:")
+    click.echo(
+        f"  {summary['total_stacks']} {'stack' if summary['total_stacks'] == 1 else 'stacks'} found"
+    )
+    click.echo(f"  {summary['total_prs_in_stacks']} PRs in stacks")
+    click.echo(f"  Maximum stack depth: {summary['max_depth']}")
+
+    return stacks
+
+
 @click.group(name="pr")
 def pr_command() -> None:
     """Manage pull requests across repositories.
@@ -609,3 +671,26 @@ def pr_status(verbose: bool) -> None:
         $ qen pr status -v
     """
     pr_status_command(verbose=verbose)
+
+
+@pr_command.command("stack")
+@click.option("-v", "--verbose", is_flag=True, help="Show detailed stack information")
+def pr_stack(verbose: bool) -> None:
+    """Show stacked PRs across all repositories.
+
+    Identifies PR stacks by analyzing base branches. A PR is considered
+    "stacked" if its base branch is another feature branch (not main/master/develop).
+
+    Requires GitHub CLI (gh) to be installed and authenticated.
+
+    Examples:
+
+    \b
+        # Show all stacked PRs
+        $ qen pr stack
+
+    \b
+        # Show detailed stack information
+        $ qen pr stack -v
+    """
+    pr_stack_command(verbose=verbose)

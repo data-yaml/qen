@@ -958,3 +958,141 @@ class TestGetStackSummary:
         assert summary["total_stacks"] == 2
         assert summary["total_prs_in_stacks"] == 3
         assert summary["max_depth"] == 2
+
+
+class TestPrStackCommand:
+    """Test qen pr stack command."""
+
+    @patch("qen.commands.pr.pr_status_command")
+    def test_stack_no_prs(self, mock_pr_status: Mock) -> None:
+        """Test error when no PRs in project."""
+        runner = CliRunner()
+
+        # Mock pr_status_command to return no PRs
+        mock_pr_status.return_value = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="main",
+                has_pr=False,
+            )
+        ]
+
+        result = runner.invoke(main, ["pr", "stack"])
+
+        assert result.exit_code != 0
+        assert "No PRs found" in result.output
+
+    @patch("qen.commands.pr.pr_status_command")
+    def test_stack_no_stacks_found(self, mock_pr_status: Mock) -> None:
+        """Test when PRs exist but no stacks."""
+        runner = CliRunner()
+
+        # Mock pr_status_command to return PRs all targeting main
+        mock_pr_status.return_value = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo2",
+                repo_url="https://github.com/org/repo2",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_base="main",
+            ),
+        ]
+
+        result = runner.invoke(main, ["pr", "stack"])
+
+        assert result.exit_code == 0
+        assert "No stacks found" in result.output
+
+    @patch("qen.commands.pr.pr_status_command")
+    def test_stack_display(self, mock_pr_status: Mock) -> None:
+        """Test stack display output."""
+        runner = CliRunner()
+
+        # Mock pr_status_command to return a stack
+        mock_pr_status.return_value = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_title="First PR",
+                pr_base="main",
+                pr_commits=5,
+                pr_files_changed=10,
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_title="Second PR",
+                pr_base="feature-1",
+                pr_commits=3,
+                pr_files_changed=7,
+            ),
+        ]
+
+        result = runner.invoke(main, ["pr", "stack"])
+
+        assert result.exit_code == 0
+        assert "Stacked PRs in project" in result.output
+        assert "Stack rooted at: feature-1" in result.output
+        assert "PR #1: First PR" in result.output
+        assert "PR #2: Second PR" in result.output
+        assert "5 commits" in result.output
+        assert "10 files" in result.output
+        assert "Summary:" in result.output
+        assert "1 stack found" in result.output
+        assert "2 PRs in stacks" in result.output
+        assert "Maximum stack depth: 2" in result.output
+
+    @patch("qen.commands.pr.pr_status_command")
+    def test_stack_verbose(self, mock_pr_status: Mock) -> None:
+        """Test verbose stack output."""
+        runner = CliRunner()
+
+        # Mock pr_status_command to return a stack
+        mock_pr_status.return_value = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_title="First PR",
+                pr_base="main",
+                pr_author="testuser",
+                pr_url="https://github.com/org/repo1/pull/1",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_title="Second PR",
+                pr_base="feature-1",
+                pr_author="testuser2",
+                pr_url="https://github.com/org/repo1/pull/2",
+            ),
+        ]
+
+        result = runner.invoke(main, ["pr", "stack", "-v"])
+
+        assert result.exit_code == 0
+        assert "testuser" in result.output
+        assert "testuser2" in result.output
+        assert "https://github.com/org/repo1/pull/1" in result.output
+        assert "https://github.com/org/repo1/pull/2" in result.output
