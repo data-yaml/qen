@@ -266,6 +266,156 @@ def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
+def identify_stacks(pr_infos: list[PrInfo]) -> dict[str, list[PrInfo]]:
+    """Identify PR stacks from a list of PrInfo objects.
+
+    A PR is considered "stacked" if its base branch is another feature branch
+    (not a main branch like main/master/develop).
+
+    Args:
+        pr_infos: List of PrInfo objects to analyze
+
+    Returns:
+        Dictionary mapping root branch name (the one targeting main) to
+        list of PRs in that stack, ordered from root to leaves
+    """
+    # Main branch names to identify non-stacked PRs
+    main_branches = {"main", "master", "develop", "dev"}
+
+    # Build branch -> PrInfo lookup for PRs
+    branch_to_pr: dict[str, PrInfo] = {}
+    for pr_info in pr_infos:
+        if pr_info.has_pr and pr_info.branch:
+            branch_to_pr[pr_info.branch] = pr_info
+
+    # Build parent-child relationships
+    # child_branch -> parent_branch
+    parent_map: dict[str, str] = {}
+    for pr_info in pr_infos:
+        if pr_info.has_pr and pr_info.pr_base and pr_info.branch:
+            # Only consider it stacked if base is NOT a main branch
+            # and the base branch has a PR
+            if pr_info.pr_base not in main_branches and pr_info.pr_base in branch_to_pr:
+                parent_map[pr_info.branch] = pr_info.pr_base
+
+    # Find stack roots (PRs that target main branches)
+    stacks: dict[str, list[PrInfo]] = {}
+    for pr_info in pr_infos:
+        if pr_info.has_pr and pr_info.pr_base and pr_info.branch:
+            # Root of stack: targets a main branch AND has children
+            if pr_info.pr_base in main_branches:
+                # Check if this branch has children (is anyone's parent?)
+                has_children = any(parent == pr_info.branch for parent in parent_map.values())
+                if has_children:
+                    stacks[pr_info.branch] = [pr_info]
+
+    # Build stacks recursively
+    def add_children(parent_branch: str, stack: list[PrInfo]) -> None:
+        """Recursively add children to the stack."""
+        for child_branch, parent in parent_map.items():
+            if parent == parent_branch:
+                child_pr = branch_to_pr.get(child_branch)
+                if child_pr:
+                    stack.append(child_pr)
+                    # Recurse to find grandchildren
+                    add_children(child_branch, stack)
+
+    # Add all children to their stacks
+    for root_branch, stack in stacks.items():
+        add_children(root_branch, stack)
+
+    return stacks
+
+
+def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False) -> str:
+    """Format stack information for display.
+
+    Args:
+        stacks: Dictionary of stacks (root branch -> list of PRs)
+        verbose: Include additional details
+
+    Returns:
+        Formatted string showing tree structure
+    """
+    if not stacks:
+        return "No stacks found."
+
+    lines = []
+    for root_branch, prs in stacks.items():
+        lines.append(f"\n🌳 Stack rooted at: {root_branch}")
+
+        for i, pr in enumerate(prs):
+            is_last = i == len(prs) - 1
+            prefix = "   └─" if is_last else "   ├─"
+
+            # PR title and number
+            if pr.pr_number and pr.pr_title:
+                lines.append(f"{prefix} PR #{pr.pr_number}: {pr.pr_title}")
+
+            # Stats: commits and files
+            stats = []
+            if pr.pr_commits is not None:
+                stats.append(f"{pr.pr_commits} commits")
+            if pr.pr_files_changed is not None:
+                stats.append(f"{pr.pr_files_changed} files")
+            if stats:
+                indent = "      " if is_last else "   │  "
+                lines.append(f"{indent}📊 {', '.join(stats)}")
+
+            # Base branch
+            if pr.pr_base:
+                indent = "      " if is_last else "   │  "
+                lines.append(f"{indent}🎯 Base: {pr.pr_base}")
+
+            # Check status
+            if pr.pr_checks:
+                indent = "      " if is_last else "   │  "
+                if pr.pr_checks == "passing":
+                    lines.append(f"{indent}✓ Checks: passing")
+                elif pr.pr_checks == "failing":
+                    lines.append(f"{indent}✗ Checks: failing")
+                elif pr.pr_checks == "pending":
+                    lines.append(f"{indent}⏳ Checks: pending")
+
+            # Mergeable status
+            if pr.pr_mergeable:
+                indent = "      " if is_last else "   │  "
+                if pr.pr_mergeable == "mergeable":
+                    lines.append(f"{indent}✓ Mergeable")
+                elif pr.pr_mergeable == "conflicting":
+                    lines.append(f"{indent}✗ Has conflicts")
+
+            # Verbose information
+            if verbose:
+                indent = "      " if is_last else "   │  "
+                if pr.pr_author:
+                    lines.append(f"{indent}👤 Author: {pr.pr_author}")
+                if pr.pr_url:
+                    lines.append(f"{indent}🔗 URL: {pr.pr_url}")
+
+    return "\n".join(lines)
+
+
+def get_stack_summary(stacks: dict[str, list[PrInfo]]) -> dict[str, int]:
+    """Get summary statistics for stacks.
+
+    Args:
+        stacks: Dictionary of stacks (root branch -> list of PRs)
+
+    Returns:
+        Dictionary with summary statistics
+    """
+    total_stacks = len(stacks)
+    total_prs_in_stacks = sum(len(prs) for prs in stacks.values())
+    max_depth = max((len(prs) for prs in stacks.values()), default=0)
+
+    return {
+        "total_stacks": total_stacks,
+        "total_prs_in_stacks": total_prs_in_stacks,
+        "max_depth": max_depth,
+    }
+
+
 def pr_status_command(
     project_name: str | None = None,
     verbose: bool = False,

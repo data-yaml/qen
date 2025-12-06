@@ -654,3 +654,307 @@ class TestPrStatusCommandFunction:
         assert len(result) == 1
         assert result[0].has_pr is False
         assert "not found on disk" in result[0].error
+
+
+class TestIdentifyStacks:
+    """Test stack identification logic."""
+
+    def test_no_stacks_all_on_main(self) -> None:
+        """Test when all PRs target main (no stacks)."""
+        from qen.commands.pr import identify_stacks
+
+        pr_infos = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo2",
+                repo_url="https://github.com/org/repo2",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_base="main",
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        assert len(stacks) == 0
+
+    def test_simple_stack_two_prs(self) -> None:
+        """Test simple stack: PR2 -> PR1 -> main."""
+        from qen.commands.pr import identify_stacks
+
+        pr_infos = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_title="First PR",
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_title="Second PR",
+                pr_base="feature-1",
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        assert len(stacks) == 1
+        assert "feature-1" in stacks
+        assert len(stacks["feature-1"]) == 2
+        assert stacks["feature-1"][0].pr_number == 1
+        assert stacks["feature-1"][1].pr_number == 2
+
+    def test_multiple_stacks(self) -> None:
+        """Test multiple independent stacks."""
+        from qen.commands.pr import identify_stacks
+
+        pr_infos = [
+            # Stack 1: feature-1 -> feature-2
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_base="feature-1",
+            ),
+            # Stack 2: feature-3 -> feature-4
+            PrInfo(
+                repo_path="repo2",
+                repo_url="https://github.com/org/repo2",
+                branch="feature-3",
+                has_pr=True,
+                pr_number=3,
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo2",
+                repo_url="https://github.com/org/repo2",
+                branch="feature-4",
+                has_pr=True,
+                pr_number=4,
+                pr_base="feature-3",
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        assert len(stacks) == 2
+        assert "feature-1" in stacks
+        assert "feature-3" in stacks
+        assert len(stacks["feature-1"]) == 2
+        assert len(stacks["feature-3"]) == 2
+
+    def test_deep_stack(self) -> None:
+        """Test stack with 4+ levels."""
+        from qen.commands.pr import identify_stacks
+
+        pr_infos = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-1",
+                has_pr=True,
+                pr_number=1,
+                pr_base="main",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_base="feature-1",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-3",
+                has_pr=True,
+                pr_number=3,
+                pr_base="feature-2",
+            ),
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-4",
+                has_pr=True,
+                pr_number=4,
+                pr_base="feature-3",
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        assert len(stacks) == 1
+        assert "feature-1" in stacks
+        assert len(stacks["feature-1"]) == 4
+        # Verify order: parent before children
+        assert stacks["feature-1"][0].pr_number == 1
+        assert stacks["feature-1"][1].pr_number == 2
+        assert stacks["feature-1"][2].pr_number == 3
+        assert stacks["feature-1"][3].pr_number == 4
+
+    def test_no_prs(self) -> None:
+        """Test when no PRs exist."""
+        from qen.commands.pr import identify_stacks
+
+        pr_infos = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="main",
+                has_pr=False,
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        assert len(stacks) == 0
+
+    def test_base_branch_without_pr(self) -> None:
+        """Test when base branch exists but has no PR."""
+        from qen.commands.pr import identify_stacks
+
+        # feature-2 targets feature-1, but feature-1 has no PR
+        pr_infos = [
+            PrInfo(
+                repo_path="repo1",
+                repo_url="https://github.com/org/repo1",
+                branch="feature-2",
+                has_pr=True,
+                pr_number=2,
+                pr_base="feature-1",
+            ),
+        ]
+
+        stacks = identify_stacks(pr_infos)
+        # Should not create a stack since feature-1 doesn't have a PR
+        assert len(stacks) == 0
+
+
+class TestFormatStackDisplay:
+    """Test stack display formatting."""
+
+    def test_format_empty_stacks(self) -> None:
+        """Test formatting when no stacks exist."""
+        from qen.commands.pr import format_stack_display
+
+        output = format_stack_display({})
+        assert "No stacks found" in output
+
+    def test_format_simple_stack(self) -> None:
+        """Test formatting a simple stack."""
+        from qen.commands.pr import format_stack_display
+
+        stacks = {
+            "feature-1": [
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-1",
+                    has_pr=True,
+                    pr_number=1,
+                    pr_title="First PR",
+                    pr_base="main",
+                    pr_commits=5,
+                    pr_files_changed=10,
+                    pr_checks="passing",
+                    pr_mergeable="mergeable",
+                ),
+                PrInfo(
+                    repo_path="repo1",
+                    repo_url="https://github.com/org/repo1",
+                    branch="feature-2",
+                    has_pr=True,
+                    pr_number=2,
+                    pr_title="Second PR",
+                    pr_base="feature-1",
+                    pr_commits=3,
+                    pr_files_changed=7,
+                    pr_checks="pending",
+                    pr_mergeable="mergeable",
+                ),
+            ]
+        }
+
+        output = format_stack_display(stacks)
+        assert "Stack rooted at: feature-1" in output
+        assert "PR #1: First PR" in output
+        assert "PR #2: Second PR" in output
+        assert "5 commits" in output
+        assert "10 files" in output
+        assert "3 commits" in output
+        assert "7 files" in output
+        assert "Checks: passing" in output
+        assert "Checks: pending" in output
+
+
+class TestGetStackSummary:
+    """Test stack summary statistics."""
+
+    def test_summary_empty(self) -> None:
+        """Test summary for no stacks."""
+        from qen.commands.pr import get_stack_summary
+
+        summary = get_stack_summary({})
+        assert summary["total_stacks"] == 0
+        assert summary["total_prs_in_stacks"] == 0
+        assert summary["max_depth"] == 0
+
+    def test_summary_multiple_stacks(self) -> None:
+        """Test summary for multiple stacks."""
+        from qen.commands.pr import get_stack_summary
+
+        pr1 = PrInfo(
+            repo_path="repo1",
+            repo_url="https://github.com/org/repo1",
+            branch="feature-1",
+            has_pr=True,
+            pr_number=1,
+            pr_base="main",
+        )
+        pr2 = PrInfo(
+            repo_path="repo1",
+            repo_url="https://github.com/org/repo1",
+            branch="feature-2",
+            has_pr=True,
+            pr_number=2,
+            pr_base="feature-1",
+        )
+        pr3 = PrInfo(
+            repo_path="repo2",
+            repo_url="https://github.com/org/repo2",
+            branch="feature-3",
+            has_pr=True,
+            pr_number=3,
+            pr_base="main",
+        )
+
+        stacks = {
+            "feature-1": [pr1, pr2],  # depth 2
+            "feature-3": [pr3],  # depth 1
+        }
+
+        summary = get_stack_summary(stacks)
+        assert summary["total_stacks"] == 2
+        assert summary["total_prs_in_stacks"] == 3
+        assert summary["max_depth"] == 2
