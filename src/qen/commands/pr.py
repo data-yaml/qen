@@ -149,7 +149,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             # 2. If any pending/in_progress -> pending
             # 3. If all success -> passing
             # 4. If mix of success/skipped/neutral -> passing (skipped don't block)
-            # 5. Otherwise -> unknown
+            # 5. Otherwise -> unknown (should never happen, log for debugging)
 
             has_failure = any(s in ("FAILURE", "ERROR") for s in check_states)
             has_pending = any(
@@ -171,7 +171,18 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                 # All checks are skipped/neutral/cancelled
                 pr_checks = "skipped"
             else:
-                pr_checks = "unknown"
+                # This should never happen - log the states we're seeing
+
+                unique_states = set(check_states)
+                click.echo(
+                    f"WARNING: Encountered unknown check states: {unique_states}",
+                    err=True,
+                )
+                click.echo(
+                    f"  PR #{pr_data.get('number')} in {repo_path.name}: {check_states}",
+                    err=True,
+                )
+                pr_checks = f"unknown ({', '.join(sorted(unique_states))})"
 
         # Extract author login
         author_data = pr_data.get("author", {})
