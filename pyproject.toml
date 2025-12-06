@@ -95,6 +95,11 @@ addopts = [
 filterwarnings = [
     "error",
 ]
+markers = [
+    "integration: marks tests as integration tests (slow, requires network)",
+    "requires_gh: marks tests that require GitHub CLI",
+    "requires_test_repo: marks tests that need test repository access",
+]
 
 [tool.coverage.run]
 source = ["src"]

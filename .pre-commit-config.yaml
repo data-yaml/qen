@@ -33,7 +33,7 @@ repos:
         name: pytest
         entry: pytest
         language: system
-        args: [tests/, -v]
+        args: [tests/, -v, -m, "not integration"]
         pass_filenames: false
         stages: [pre-push]
         always_run: true
