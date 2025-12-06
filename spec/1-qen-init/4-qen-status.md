@@ -23,7 +23,7 @@ Show git status across all repositories in the current project. Provides a unifi
 
 **Output format:**
 
-```
+```log
 Project: my-project (2025-12-05-my-project)
 Branch: 2025-12-05-my-project
 
@@ -58,7 +58,7 @@ Sub-repositories:
 2. **Comprehensive view**: Shows meta repo + all sub-repos in single view
 3. **Git status semantics**: Mimics `git status --short` information hierarchy
 4. **Skip missing repos**: Warn but don't error if a repo isn't cloned yet
-5. **Fetch before status**: Optionally run `git fetch` to get accurate sync status (flag: `--fetch`)
+5. **Fetch before status**: Optionally run `qen pull` to get accurate sync status (flag: `--pull`)
 6. **Hierarchical display**: Meta repo first, then sub-repos in order from pyproject.toml
 7. **File details**: Show modified file list for repos with changes (optional with `--verbose`)
 
@@ -208,10 +208,10 @@ def load_repos_from_pyproject(project_dir: Path) -> list[RepoConfig]:
 
 ## Error Conditions
 
-- Current project not set: "No current project. Run 'qen init <project>' or use --project flag."
+- Current project not set: "No current project. Run 'qen init _project_' or use --project flag."
 - Project config not found: "Project '<name>' not found in qen configuration."
 - Not in meta repo: "Must be run from within meta repository or project directory."
-- No pyproject.toml: "No pyproject.toml found in project directory. Initialize with 'qen init <project>'."
+- No pyproject.toml: "No pyproject.toml found in project directory. Initialize with 'qen init _project_'."
 - Git command failure: "Git command failed: <error message>"
 
 ## Examples
