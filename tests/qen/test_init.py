@@ -17,14 +17,7 @@ import pytest
 
 from qen.commands.init import init_project, init_qen
 from qen.config import ProjectAlreadyExistsError, QenConfig, QenConfigError
-from qen.git_utils import (
-    AmbiguousOrgError,
-    GitError,
-    MetaRepoNotFoundError,
-    NotAGitRepoError,
-)
 from tests.helpers.qenvy_test import QenvyTest
-
 
 # ==============================================================================
 # Test init_qen Function (Tooling Initialization)

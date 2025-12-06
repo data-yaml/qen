@@ -96,7 +96,9 @@ def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
     click.echo("You can now create projects with: qen init <project-name>")
 
 
-def init_project(project_name: str, verbose: bool = False, storage: QenvyBase | None = None) -> None:
+def init_project(
+    project_name: str, verbose: bool = False, storage: QenvyBase | None = None
+) -> None:
     """Create a new project in the meta repository.
 
     Behavior:

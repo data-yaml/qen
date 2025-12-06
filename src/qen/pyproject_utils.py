@@ -88,9 +88,7 @@ def repo_exists_in_pyproject(project_dir: Path, url: str, branch: str) -> bool:
     return False
 
 
-def add_repo_to_pyproject(
-    project_dir: Path, url: str, branch: str, path: str
-) -> None:
+def add_repo_to_pyproject(project_dir: Path, url: str, branch: str, path: str) -> None:
     """Add a repository entry to pyproject.toml.
 
     Updates the [[tool.qen.repos]] section with a new repository.

@@ -11,7 +11,6 @@ import subprocess
 from pathlib import Path
 
 from qen.commands.add import add_repository
-from qen.config import QenConfig
 from qen.pyproject_utils import read_pyproject
 from tests.helpers.qenvy_test import QenvyTest
 
@@ -114,11 +113,14 @@ class TestRepositoryManagement:
         )
 
         # Initialize qen config with in-memory storage
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         # Create a project
         project_name = "integration-test"
@@ -133,12 +135,15 @@ class TestRepositoryManagement:
         pyproject = project_dir / "pyproject.toml"
         pyproject.write_text('[tool.qen]\ncreated = "2025-12-05T10:00:00Z"\n')
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name
@@ -225,11 +230,14 @@ class TestRepositoryManagement:
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "multi-repo-test"
         branch = "2025-12-05-multi-repo-test"
@@ -241,12 +249,15 @@ class TestRepositoryManagement:
         pyproject = project_dir / "pyproject.toml"
         pyproject.write_text('[tool.qen]\ncreated = "2025-12-05T10:00:00Z"\n')
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name
@@ -393,11 +404,14 @@ class TestMetaTomlUpdates:
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "toml-update-test"
         branch = "2025-12-05-toml-update-test"
@@ -409,12 +423,15 @@ class TestMetaTomlUpdates:
         pyproject = project_dir / "pyproject.toml"
         pyproject.write_text('[tool.qen]\ncreated = "2025-12-05T10:00:00Z"\n')
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name

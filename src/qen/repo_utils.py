@@ -80,12 +80,12 @@ def parse_repo_url(repo: str, org: str | None = None) -> dict[str, str]:
     if "/" in repo:
         parts = repo.split("/")
         if len(parts) != 2:
-            raise RepoUrlParseError(
-                f"Invalid org/repo format: {repo}. Expected exactly one slash."
-            )
+            raise RepoUrlParseError(f"Invalid org/repo format: {repo}. Expected exactly one slash.")
         org_part, repo_part = parts
         if not org_part or not repo_part:
-            raise RepoUrlParseError(f"Invalid org/repo format: {repo}. Both parts must be non-empty.")
+            raise RepoUrlParseError(
+                f"Invalid org/repo format: {repo}. Both parts must be non-empty."
+            )
 
         # Assume GitHub for org/repo format
         url = f"https://github.com/{org_part}/{repo_part}"

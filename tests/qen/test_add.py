@@ -1,13 +1,11 @@
 """Tests for qen add command and related utilities."""
 
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from qen.commands.add import add_repository
-from qen.config import QenConfig
 from qen.git_utils import GitError
 from qen.pyproject_utils import (
     PyProjectNotFoundError,
@@ -22,7 +20,6 @@ from qen.repo_utils import (
     parse_repo_url,
 )
 from tests.helpers.qenvy_test import QenvyTest
-
 
 # ==============================================================================
 # Test URL Parsing
@@ -106,7 +103,10 @@ class TestRepoPath:
         """Test inferring repository path with branch organization."""
         assert infer_repo_path("myrepo", "main") == "repos/main/myrepo"
         assert infer_repo_path("another-repo", "feature-x") == "repos/feature-x/another-repo"
-        assert infer_repo_path("deployment", "feature/add-support") == "repos/feature/add-support/deployment"
+        assert (
+            infer_repo_path("deployment", "feature/add-support")
+            == "repos/feature/add-support/deployment"
+        )
 
         # Test that branch is required
         with pytest.raises(ValueError):
@@ -305,7 +305,9 @@ path = "repos/repo1"
 """)
 
         assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "main") is True
-        assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "develop") is False
+        assert (
+            repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "develop") is False
+        )
         assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo2", "main") is False
 
     def test_repo_exists_no_pyproject(self, tmp_path: Path) -> None:
@@ -423,11 +425,14 @@ class TestAddCommand:
         )
 
         # Initialize qen with in-memory storage
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         # Create a project
         project_name = "test-project"
@@ -447,12 +452,15 @@ created = "2025-12-05T10:00:00Z"
 """)
 
         # Create project config
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         # Update current project
         main_config = test_storage.read_profile("main")
@@ -500,11 +508,14 @@ created = "2025-12-05T10:00:00Z"
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "test-project"
         branch = "2025-12-05-test-project"
@@ -521,12 +532,15 @@ created = "2025-12-05T10:00:00Z"
 created = "2025-12-05T10:00:00Z"
 """)
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name
@@ -572,11 +586,14 @@ created = "2025-12-05T10:00:00Z"
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "test-project"
         branch = "2025-12-05-test-project"
@@ -593,12 +610,15 @@ created = "2025-12-05T10:00:00Z"
 created = "2025-12-05T10:00:00Z"
 """)
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name
@@ -645,11 +665,14 @@ created = "2025-12-05T10:00:00Z"
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "test-project"
         branch = "2025-12-05-test-project"
@@ -666,12 +689,15 @@ created = "2025-12-05T10:00:00Z"
 created = "2025-12-05T10:00:00Z"
 """)
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name
@@ -795,11 +821,14 @@ created = "2025-12-05T10:00:00Z"
             capture_output=True,
         )
 
-        test_storage.write_profile("main", {
-            "meta_path": str(meta_repo),
-            "org": "testorg",
-            "current_project": None,
-        })
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
 
         project_name = "test-project"
         branch = "feature-branch"  # Project branch matches meta branch
@@ -816,12 +845,15 @@ created = "2025-12-05T10:00:00Z"
 created = "2025-12-05T10:00:00Z"
 """)
 
-        test_storage.write_profile(project_name, {
-            "name": project_name,
-            "branch": branch,
-            "folder": folder,
-            "created": "2025-12-05T10:00:00Z",
-        })
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-05T10:00:00Z",
+            },
+        )
 
         main_config = test_storage.read_profile("main")
         main_config["current_project"] = project_name

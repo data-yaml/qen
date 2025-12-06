@@ -84,9 +84,7 @@ class TestConfigPaths:
         assert project_path == Path("/tmp/qen-test/test-project/config.toml")
         assert "test-project" in str(project_path)
 
-    def test_get_project_config_path_special_chars(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_get_project_config_path_special_chars(self, test_storage: QenvyTest) -> None:
         """Test getting project path with special characters in name."""
         config = QenConfig(storage=test_storage)
         project_path = config.get_project_config_path("my-project_123")
@@ -139,9 +137,7 @@ class TestMainConfig:
         assert stored["org"] == "testorg"
         assert "current_project" not in stored  # Should not be present when None
 
-    def test_write_main_config_with_current_project(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_write_main_config_with_current_project(self, test_storage: QenvyTest) -> None:
         """Test writing main config with current_project set."""
         config = QenConfig(storage=test_storage)
         config.write_main_config("/tmp/meta", "testorg", "my-project")
@@ -186,9 +182,7 @@ class TestMainConfig:
 
         assert "Failed to read main config" in str(exc_info.value)
 
-    def test_write_main_config_error_handling(
-        self, test_storage: QenvyTest, monkeypatch
-    ) -> None:
+    def test_write_main_config_error_handling(self, test_storage: QenvyTest, monkeypatch) -> None:
         """Test that write errors are wrapped in QenConfigError."""
         config = QenConfig(storage=test_storage)
 
@@ -237,9 +231,7 @@ class TestCurrentProjectUpdate:
         data = config.read_main_config()
         assert "current_project" not in data
 
-    def test_update_current_project_already_none(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_update_current_project_already_none(self, test_storage: QenvyTest) -> None:
         """Test setting current_project to None when already None."""
         config = QenConfig(storage=test_storage)
         config.write_main_config("/tmp/meta", "testorg")
@@ -249,9 +241,7 @@ class TestCurrentProjectUpdate:
         data = config.read_main_config()
         assert "current_project" not in data
 
-    def test_update_current_project_no_main_config(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_update_current_project_no_main_config(self, test_storage: QenvyTest) -> None:
         """Test updating current_project when main config doesn't exist."""
         config = QenConfig(storage=test_storage)
 
@@ -303,23 +293,17 @@ class TestProjectConfig:
         created_time = datetime.fromisoformat(stored["created"])
         assert before <= created_time <= after
 
-    def test_write_project_config_with_created(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_write_project_config_with_created(self, test_storage: QenvyTest) -> None:
         """Test writing project config with explicit created timestamp."""
         config = QenConfig(storage=test_storage)
         custom_time = "2024-01-15T10:30:00+00:00"
 
-        config.write_project_config(
-            "test-project", "main", "projects/test", created=custom_time
-        )
+        config.write_project_config("test-project", "main", "projects/test", created=custom_time)
 
         stored = test_storage.read_profile("test-project")
         assert stored["created"] == custom_time
 
-    def test_write_project_config_already_exists(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_write_project_config_already_exists(self, test_storage: QenvyTest) -> None:
         """Test that writing existing project raises ProjectAlreadyExistsError."""
         config = QenConfig(storage=test_storage)
 
@@ -334,9 +318,7 @@ class TestProjectConfig:
         assert "test-project" in exc_info.value.config_path
         assert "already exists" in str(exc_info.value)
 
-    def test_write_project_config_multiple_projects(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_write_project_config_multiple_projects(self, test_storage: QenvyTest) -> None:
         """Test writing multiple project configs."""
         config = QenConfig(storage=test_storage)
 
@@ -370,9 +352,7 @@ class TestProjectConfig:
         assert "Failed to read project config" in str(exc_info.value)
         assert "nonexistent" in str(exc_info.value)
 
-    def test_write_project_config_special_chars(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_write_project_config_special_chars(self, test_storage: QenvyTest) -> None:
         """Test writing project config with special characters in values."""
         config = QenConfig(storage=test_storage)
 
@@ -456,9 +436,7 @@ class TestDeleteProjectConfig:
 
         assert not config.project_config_exists("test-project")
 
-    def test_delete_project_config_not_exists(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_delete_project_config_not_exists(self, test_storage: QenvyTest) -> None:
         """Test deleting a non-existent project config raises error."""
         config = QenConfig(storage=test_storage)
 
@@ -619,9 +597,7 @@ class TestExceptionTypes:
         assert "already exists" in str(error)
         assert "/path/to/config" in str(error)
 
-    def test_project_already_exists_error_raised(
-        self, test_storage: QenvyTest
-    ) -> None:
+    def test_project_already_exists_error_raised(self, test_storage: QenvyTest) -> None:
         """Test ProjectAlreadyExistsError is raised with correct attributes."""
         config = QenConfig(storage=test_storage)
         config.write_project_config("test-project", "main", "projects/test")

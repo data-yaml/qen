@@ -71,7 +71,7 @@ def set_version(new_version: str) -> None:
         f'version = "{new_version}"',
         content,
         count=1,
-        flags=re.MULTILINE
+        flags=re.MULTILINE,
     )
 
     pyproject_path.write_text(new_content)
@@ -93,7 +93,7 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
         if bump not in ("major", "minor", "patch"):
             print(
                 f"Error: Invalid bump type '{bump}'. Must be 'major', 'minor', or 'patch'",
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -113,16 +113,10 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
         print("Committing version bump...")
         try:
             subprocess.run(
-                ["git", "add", "pyproject.toml", "uv.lock"],
-                check=True,
-                capture_output=True
+                ["git", "add", "pyproject.toml", "uv.lock"], check=True, capture_output=True
             )
             commit_msg = f"chore: bump version to {new_version}"
-            subprocess.run(
-                ["git", "commit", "-m", commit_msg],
-                check=True,
-                capture_output=True
-            )
+            subprocess.run(["git", "commit", "-m", commit_msg], check=True, capture_output=True)
             print(f"Committed: {commit_msg}")
             print("(Not pushed - use --tag or --dev to create a release)")
         except subprocess.CalledProcessError as e:
@@ -145,26 +139,16 @@ def main(bump: str | None = None, tag: bool = False, dev: bool = False) -> None:
         try:
             # Create tag
             subprocess.run(
-                ["git", "tag", "-a", tag_name, "-m", tag_msg],
-                check=True,
-                capture_output=True
+                ["git", "tag", "-a", tag_name, "-m", tag_msg], check=True, capture_output=True
             )
 
             # Push commits first
             print("Pushing commits...")
-            subprocess.run(
-                ["git", "push"],
-                check=True,
-                capture_output=True
-            )
+            subprocess.run(["git", "push"], check=True, capture_output=True)
 
             # Push tag
             print(f"Pushing tag {tag_name}...")
-            subprocess.run(
-                ["git", "push", "origin", tag_name],
-                check=True,
-                capture_output=True
-            )
+            subprocess.run(["git", "push", "origin", tag_name], check=True, capture_output=True)
             print(f"Released: {tag_name}")
         except subprocess.CalledProcessError as e:
             print(f"Error creating/pushing release: {e.stderr.decode()}", file=sys.stderr)
@@ -184,7 +168,7 @@ if __name__ == "__main__":
         nargs="?",
         default="patch",
         choices=["major", "minor", "patch"],
-        help="Version part to bump (default: patch)"
+        help="Version part to bump (default: patch)",
     )
 
     args = parser.parse_args()

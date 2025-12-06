@@ -68,11 +68,14 @@ def test_config(test_storage: QenvyTest, tmp_path: Path) -> tuple[QenvyTest, Pat
     meta_repo.mkdir()
 
     # Initialize with test data
-    test_storage.write_profile("main", {
-        "meta_path": str(meta_repo),
-        "org": "testorg",
-        "current_project": None,
-    })
+    test_storage.write_profile(
+        "main",
+        {
+            "meta_path": str(meta_repo),
+            "org": "testorg",
+            "current_project": None,
+        },
+    )
 
     return test_storage, meta_repo
 

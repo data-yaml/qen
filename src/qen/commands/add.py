@@ -183,6 +183,7 @@ def add_repository(
         # Clean up the cloned repository
         if clone_path.exists():
             import shutil
+
             shutil.rmtree(clone_path)
         raise click.Abort() from e
     except PyProjectUpdateError as e:
@@ -190,6 +191,7 @@ def add_repository(
         # Clean up the cloned repository
         if clone_path.exists():
             import shutil
+
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 

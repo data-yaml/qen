@@ -7,7 +7,6 @@ This eliminates the need to manipulate XDG_CONFIG_HOME or clear platformdirs cac
 """
 
 from pathlib import Path
-from typing import Any
 
 from qenvy.base import QenvyBase
 from qenvy.exceptions import ProfileNotFoundError
@@ -90,6 +89,7 @@ class QenvyTest(QenvyBase):
 
         # Return deep copy to prevent mutations
         import copy
+
         return copy.deepcopy(self._profiles[profile])
 
     def _write_profile_raw(self, profile: str, config: ProfileConfig) -> None:
@@ -100,6 +100,7 @@ class QenvyTest(QenvyBase):
             config: Configuration to write
         """
         import copy
+
         self._profiles[profile] = copy.deepcopy(config)
 
     def _delete_profile_raw(self, profile: str) -> None:
