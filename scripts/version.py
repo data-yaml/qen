@@ -2,6 +2,7 @@
 """Version management script for pyproject.toml."""
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -99,6 +100,33 @@ def main(bump: str | None = None) -> None:
         new_version = bump_version(current_version, bump)
         set_version(new_version)
         print(f"{current_version} -> {new_version}")
+
+        # Update uv.lock
+        print("Updating uv.lock...")
+        try:
+            subprocess.run(["uv", "lock"], check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error updating uv.lock: {e.stderr.decode()}", file=sys.stderr)
+            sys.exit(1)
+
+        # Commit the changes
+        print("Committing version bump...")
+        try:
+            subprocess.run(
+                ["git", "add", "pyproject.toml", "uv.lock"],
+                check=True,
+                capture_output=True
+            )
+            commit_msg = f"chore: bump version to {new_version}"
+            subprocess.run(
+                ["git", "commit", "-m", commit_msg],
+                check=True,
+                capture_output=True
+            )
+            print(f"Committed: {commit_msg}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error committing changes: {e.stderr.decode()}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
