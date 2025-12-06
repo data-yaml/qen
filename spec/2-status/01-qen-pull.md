@@ -17,8 +17,8 @@ qen pull --fetch-only       # Fetch only, don't merge (git fetch)
 
 ### What It Does
 
-1. **Locates current project** - Finds the project root from current directory
-2. **Discovers all sub-repositories** - Scans `repos/` directory for git repositories
+1. **Locates current project** - Uses default project from qen config
+2. **Discovers all sub-repositories** - Reads `pyproject.toml` to find repos in `[tool.qen.repos]`
 3. **Fetches remote state** - Retrieves latest information from each remote
 4. **Updates local branches** - Pulls changes into current branch (unless `--fetch-only`)
 5. **Updates PR/issue metadata** - Writes PR/issue associations to `pyproject.toml` if detected
@@ -162,6 +162,5 @@ github_cli = "gh"                        # Path to GitHub CLI (default: "gh")
 
 ## Related Specifications
 
-- [../1-qen-init/4-qen-status.md](../1-qen-init/4-qen-status.md) - Status display using this metadata
-- [../1-qen-init/5-qen-sync.md](../1-qen-init/5-qen-sync.md) - Push operations using this metadata
-- Future: `qen pr` - PR management using this metadata
+- [4-qen-status.md](../1-qen-init/4-qen-status.md) - Status display using this metadata
+- [5-qen-sync.md](../1-qen-init/5-qen-sync.md) - Push operations using this metadata
