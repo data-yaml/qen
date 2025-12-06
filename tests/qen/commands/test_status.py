@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
+
 from qen.cli import main
 from qen.commands.status import (
     ProjectStatus,

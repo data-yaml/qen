@@ -14,6 +14,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+
 from qen.commands.config import (
     config_command,
     count_repositories,
@@ -25,7 +26,6 @@ from qen.commands.config import (
     switch_project,
 )
 from qen.config import QenConfig
-
 from tests.helpers.qenvy_test import QenvyTest
 
 

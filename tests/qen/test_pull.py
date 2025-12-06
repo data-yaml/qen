@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from qen.commands.pull import (
     check_gh_installed,
     check_repo_status,
@@ -20,7 +21,6 @@ from qen.commands.pull import (
     update_pyproject_metadata,
 )
 from qen.pyproject_utils import PyProjectUpdateError, read_pyproject
-
 from tests.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================

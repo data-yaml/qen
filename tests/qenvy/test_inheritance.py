@@ -11,6 +11,7 @@ Tests inheritance features including:
 from pathlib import Path
 
 import pytest
+
 from qenvy.exceptions import CircularInheritanceError, ProfileNotFoundError
 from qenvy.storage import QenvyConfig
 
