@@ -9,7 +9,6 @@ Add a repository to the current project by:
 from pathlib import Path
 
 import click
-
 from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError

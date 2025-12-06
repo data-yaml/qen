@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import click
-
 from qenvy.base import QenvyBase
 
 from ..config import ProjectAlreadyExistsError, QenConfig, QenConfigError

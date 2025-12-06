@@ -4,7 +4,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from qen.commands.add import add_repository
 from qen.git_utils import GitError
 from qen.pyproject_utils import (
@@ -19,6 +18,7 @@ from qen.repo_utils import (
     infer_repo_path,
     parse_repo_url,
 )
+
 from tests.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
@@ -219,7 +219,8 @@ class TestPyProjectUpdates:
     def test_read_pyproject(self, tmp_path: Path) -> None:
         """Test reading pyproject.toml."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
 
@@ -227,7 +228,8 @@ created = "2025-12-05T10:00:00Z"
 url = "https://github.com/org/repo"
 branch = "main"
 path = "repos/repo"
-""")
+"""
+        )
 
         result = read_pyproject(tmp_path)
         assert "tool" in result
@@ -265,10 +267,12 @@ path = "repos/repo"
     def test_add_multiple_repos(self, tmp_path: Path) -> None:
         """Test adding multiple repositories."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         # Add first repo
         add_repo_to_pyproject(
@@ -294,7 +298,8 @@ created = "2025-12-05T10:00:00Z"
     def test_repo_exists_in_pyproject(self, tmp_path: Path) -> None:
         """Test checking if repository exists in pyproject.toml."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
 
@@ -302,7 +307,8 @@ created = "2025-12-05T10:00:00Z"
 url = "https://github.com/org/repo1"
 branch = "main"
 path = "repos/repo1"
-""")
+"""
+        )
 
         assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo1", "main") is True
         assert (
@@ -327,10 +333,12 @@ path = "repos/repo1"
     def test_add_same_repo_different_branches(self, tmp_path: Path) -> None:
         """Test adding same repository with different branches."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         # Add first branch
         add_repo_to_pyproject(
@@ -362,7 +370,8 @@ created = "2025-12-05T10:00:00Z"
     def test_prevent_duplicate_url_branch(self, tmp_path: Path) -> None:
         """Test that duplicate (url, branch) combination is detected."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
 
@@ -370,7 +379,8 @@ created = "2025-12-05T10:00:00Z"
 url = "https://github.com/org/repo"
 branch = "main"
 path = "repos/repo"
-""")
+"""
+        )
 
         # Same URL with same branch should be detected as duplicate
         assert repo_exists_in_pyproject(tmp_path, "https://github.com/org/repo", "main") is True
@@ -446,10 +456,12 @@ class TestAddCommand:
         (project_dir / "README.md").write_text("# Test Project\n")
 
         pyproject = project_dir / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         # Create project config
         test_storage.write_profile(
@@ -527,10 +539,12 @@ created = "2025-12-05T10:00:00Z"
         (project_dir / "README.md").write_text("# Test Project\n")
 
         pyproject = project_dir / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         test_storage.write_profile(
             project_name,
@@ -605,10 +619,12 @@ created = "2025-12-05T10:00:00Z"
         (project_dir / "README.md").write_text("# Test Project\n")
 
         pyproject = project_dir / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         test_storage.write_profile(
             project_name,
@@ -684,10 +700,12 @@ created = "2025-12-05T10:00:00Z"
         (project_dir / "README.md").write_text("# Test Project\n")
 
         pyproject = project_dir / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         test_storage.write_profile(
             project_name,
@@ -840,10 +858,12 @@ created = "2025-12-05T10:00:00Z"
         (project_dir / "README.md").write_text("# Test Project\n")
 
         pyproject = project_dir / "pyproject.toml"
-        pyproject.write_text("""
+        pyproject.write_text(
+            """
 [tool.qen]
 created = "2025-12-05T10:00:00Z"
-""")
+"""
+        )
 
         test_storage.write_profile(
             project_name,
