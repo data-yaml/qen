@@ -4,19 +4,29 @@ This module defines TypedDict schemas that match GitHub's API response format,
 ensuring type safety and contract validation for GitHub PR and check run data.
 """
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 
 class CheckRun(TypedDict):
     """GitHub CheckRun schema from statusCheckRollup.
 
     Represents a single GitHub check run within a pull request's status checks.
+    Note: conclusion is only present when status is COMPLETED.
     """
 
     __typename: str
     status: Literal["COMPLETED", "IN_PROGRESS", "QUEUED", "WAITING", "PENDING"]
-    conclusion: Literal[
-        "SUCCESS", "FAILURE", "NEUTRAL", "CANCELLED", "SKIPPED", "TIMED_OUT", "ACTION_REQUIRED", ""
+    conclusion: NotRequired[
+        Literal[
+            "SUCCESS",
+            "FAILURE",
+            "NEUTRAL",
+            "CANCELLED",
+            "SKIPPED",
+            "TIMED_OUT",
+            "ACTION_REQUIRED",
+            "",
+        ]
     ]
     name: str
     detailsUrl: str
@@ -29,8 +39,8 @@ class Author(TypedDict):
     """GitHub PR author information."""
 
     login: str
-    avatarUrl: str | None
-    url: str | None
+    avatarUrl: NotRequired[str | None]
+    url: NotRequired[str | None]
 
 
 class PrData(TypedDict):
