@@ -56,13 +56,14 @@ def get_integration_test_config() -> IntegrationTestConfig:
     Returns:
         A configuration dictionary with test repository details.
     """
-    # Prefer environment variables, fallback to default values
+    # Use local test repository created by setup_test_repo.py
+    local_repo = os.path.join(tempfile.gettempdir(), "qen-test-repo")
+
+    # Prefer environment variables, fallback to local test repo
     return {
-        "test_repo_url": os.environ.get(
-            "QEN_TEST_REPO_URL", "https://github.com/qen-test-org/integration-test-repo.git"
-        ),
-        "test_org": os.environ.get("QEN_TEST_ORG", "qen-test-org"),
-        "test_repo": os.environ.get("QEN_TEST_REPO", "integration-test-repo"),
+        "test_repo_url": os.environ.get("QEN_TEST_REPO_URL", local_repo),
+        "test_org": os.environ.get("QEN_TEST_ORG", "quiltdata"),
+        "test_repo": os.environ.get("QEN_TEST_REPO", "qen-test-repo"),
     }
 
 
@@ -75,9 +76,18 @@ def has_test_repo_access() -> bool:
         bool: True if repository is accessible, False otherwise.
     """
     config = get_integration_test_config()
+    test_repo_path = config["test_repo_url"]
+
+    # For local repos, just check if directory exists
+    if not test_repo_path.startswith("http"):
+        from pathlib import Path
+
+        return Path(test_repo_path).exists()
+
+    # For remote repos, check with git ls-remote
     try:
         result = subprocess.run(
-            ["git", "ls-remote", config["test_repo_url"]],
+            ["git", "ls-remote", test_repo_path],
             capture_output=True,
             text=True,
             timeout=10,
@@ -99,21 +109,44 @@ def test_repo_url() -> str:
 
 
 @pytest.fixture
-def clone_test_repo(test_repo_url: str) -> str:
+def clone_test_repo(test_repo_url: str):
     """
     Clone the test repository to a temporary location.
 
-    Args:
-        test_repo_url: URL of the test repository.
+    For local repos, creates a copy. For remote repos, clones them.
 
-    Returns:
-        str: Path to the cloned repository.
+    Args:
+        test_repo_url: URL or path of the test repository.
+
+    Yields:
+        Path: Path object to the cloned/copied repository.
     """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        subprocess.run(
-            ["git", "clone", test_repo_url, temp_dir], check=True, capture_output=True, text=True
-        )
-        yield temp_dir
+    import shutil
+    from pathlib import Path
+
+    if not test_repo_url.startswith("http"):
+        # Local repo - create a copy
+        source_path = Path(test_repo_url)
+        if not source_path.exists():
+            pytest.skip(
+                f"Test repository not found at {test_repo_url}. Run './poe setup-test-repo' first."
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_path = Path(temp_dir) / "repo"
+            shutil.copytree(source_path, dest_path)
+            yield dest_path
+    else:
+        # Remote repo - clone it
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_path = Path(temp_dir) / "repo"
+            subprocess.run(
+                ["git", "clone", test_repo_url, str(dest_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            yield dest_path
 
 
 @pytest.fixture(scope="session")
