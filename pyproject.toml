@@ -46,6 +46,8 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.8.0",
     "pre-commit>=4.0.0",
+    "requests>=2.31.0",
+    "typing-extensions>=4.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,10 +55,14 @@ packages = ["src/qen", "src/qenvy"]
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
+setup-test-repo = { script = "scripts.setup_test_repo:main", help = "Create local test repository for integration tests" }
+clean-test-repo = { script = "scripts.clean_test_repo:main", help = "Remove local test repository" }
 test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -v" }], help = "Run tests (auto-installs hooks)" }
+test-integration = { sequence = ["setup-test-repo", { cmd = "pytest tests/integration -v" }], help = "Run integration tests (creates test repo first)" }
 test-cov = "pytest tests/ --cov=src --cov-report=term --cov-report=html"
 test-fast = "pytest tests/ -x"
 typecheck = "mypy src/"
+clean = { sequence = ["clean-test-repo"], help = "Clean up test artifacts" }
 claude = { shell = "ln -sf AGENTS.md CLAUDE.md", help = "Create CLAUDE.md symlink to AGENTS.md" }
 
 [tool.poe.tasks.version]
