@@ -8,11 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2024-12-06
+
 ### Added
 
 - Implement `qen pr status` command for enumerating and retrieving PR information across all repositories
 - Implement `qen pr stack` command for identifying and displaying stacked PRs across repositories
 - Implement `qen pr restack` command for updating stacked PRs to be based on latest versions of their base branches
+- Add offline integration testing infrastructure with local test repository support
+- Add `./poe setup-test-repo` and `./poe clean-test-repo` tasks for test repository management
+- Add `./poe test-integration` task to run integration tests with auto-setup
+
+### Fixed
+
+- Improve TypedDict schemas with NotRequired fields for better type safety
+- Add mock gh CLI support to enable offline integration testing
+
+### Development
+
+- Add local test repository scripts that create git repos with mock PR data
+- Add comprehensive mocking infrastructure for GitHub CLI in integration tests
+- Update integration test fixtures to support both local and remote test repositories
 
 ## [0.1.4] - 2024-12-05
 
@@ -50,5 +66,9 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/data-yaml/qen/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/data-yaml/qen/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/data-yaml/qen/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/data-yaml/qen/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/data-yaml/qen/releases/tag/v0.1.1
