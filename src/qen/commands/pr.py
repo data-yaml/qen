@@ -432,6 +432,36 @@ def identify_stacks(pr_infos: list[PrInfo]) -> dict[str, list[PrInfo]]:
     return stacks
 
 
+def identify_stacks_from_repo(repo_path: Path) -> dict[str, list[PrInfo]]:
+    """Identify PR stacks from a single repository.
+
+    Args:
+        repo_path: Path to repository
+
+    Returns:
+        Dictionary mapping root branch name to list of PRs in that stack
+    """
+    if not is_git_repo(repo_path):
+        return {}
+
+    # Get current branch
+    try:
+        current_branch = get_current_branch(repo_path)
+    except GitError:
+        return {}
+
+    # Get PR info for current branch
+    # Note: We need the repo URL, but for stack detection we can use a placeholder
+    # since we're only analyzing branch relationships within this repo
+    pr_info = get_pr_info_for_branch(repo_path, current_branch, "")
+
+    if not pr_info.has_pr:
+        return {}
+
+    # Use identify_stacks to detect stacks
+    return identify_stacks([pr_info])
+
+
 def format_stack_display(stacks: dict[str, list[PrInfo]], verbose: bool = False) -> str:
     """Format stack information for display.
 
