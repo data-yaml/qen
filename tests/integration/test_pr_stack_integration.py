@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-# TODO: Import actual functions from qen modules
-# from qen.git_utils import identify_stacks_from_repo
-# from qen.pr_utils import setup_pr_stack
+from qen.commands.pr import identify_stacks_from_repo
 
 
 # Placeholder for type-safe PR stack representation
@@ -50,18 +49,7 @@ def setup_pr_stack(repo_path: str, stack_config: list[PRStackEntry]) -> dict[str
     raise NotImplementedError("PR stack setup not yet implemented")
 
 
-def identify_stacks_from_repo() -> list[list[str]]:
-    """
-    TODO: Implement stack detection logic.
-
-    This function should:
-    1. Detect PR stacks in the current repository
-    2. Return a list of lists, where each inner list represents a PR stack
-
-    Returns:
-        List of PR stacks, where each stack is a list of PR branch names
-    """
-    raise NotImplementedError("PR stack identification not yet implemented")
+# Note: identify_stacks_from_repo is now imported from qen.commands.pr
 
 
 @pytest.mark.integration
@@ -84,13 +72,13 @@ def test_real_pr_stack_detection() -> None:
     ]
 
     # TODO: Replace with actual repository setup
-    test_repo_path = "/tmp/qen-test-repo"
+    test_repo_path = Path("/tmp/qen-test-repo")
 
     # Create PR stack
-    _pr_stack_details = setup_pr_stack(test_repo_path, stack_config)
+    _pr_stack_details = setup_pr_stack(str(test_repo_path), stack_config)
 
     # Identify stacks
-    detected_stacks = identify_stacks_from_repo()
+    detected_stacks = identify_stacks_from_repo(test_repo_path)
 
     # Verify stack detection
     assert len(detected_stacks) == 1, "Should detect one PR stack"
@@ -124,13 +112,13 @@ def test_multiple_independent_stacks() -> None:
     ]
 
     # TODO: Replace with actual repository setup
-    test_repo_path = "/tmp/qen-test-repo-multiple-stacks"
+    test_repo_path = Path("/tmp/qen-test-repo-multiple-stacks")
 
     # Create PR stacks
-    _pr_stack_details = setup_pr_stack(test_repo_path, stack1_config + stack2_config)
+    _pr_stack_details = setup_pr_stack(str(test_repo_path), stack1_config + stack2_config)
 
     # Identify stacks
-    detected_stacks = identify_stacks_from_repo()
+    detected_stacks = identify_stacks_from_repo(test_repo_path)
 
     # Verify multiple stack detection
     assert len(detected_stacks) == 2, "Should detect two independent PR stacks"
@@ -167,13 +155,13 @@ def test_stack_with_merge_conflicts() -> None:
     ]
 
     # TODO: Replace with actual repository setup
-    test_repo_path = "/tmp/qen-test-repo-conflicts"
+    test_repo_path = Path("/tmp/qen-test-repo-conflicts")
 
     # Create PR stack with conflicts
-    _pr_stack_details = setup_pr_stack(test_repo_path, stack_config)
+    _pr_stack_details = setup_pr_stack(str(test_repo_path), stack_config)
 
     # Identify stacks
-    detected_stacks = identify_stacks_from_repo()
+    detected_stacks = identify_stacks_from_repo(test_repo_path)
 
     # Verify stack detection with conflicts
     assert len(detected_stacks) == 1, "Should detect one PR stack"
@@ -202,13 +190,13 @@ def test_stack_where_base_is_merged() -> None:
     ]
 
     # TODO: Replace with actual repository setup
-    test_repo_path = "/tmp/qen-test-repo-merged-base"
+    test_repo_path = Path("/tmp/qen-test-repo-merged-base")
 
     # Create PR stack with merged base
-    _pr_stack_details = setup_pr_stack(test_repo_path, stack_config)
+    _pr_stack_details = setup_pr_stack(str(test_repo_path), stack_config)
 
     # Identify stacks
-    detected_stacks = identify_stacks_from_repo()
+    detected_stacks = identify_stacks_from_repo(test_repo_path)
 
     # Verify stack detection with merged base
     assert len(detected_stacks) == 1, "Should detect one PR stack"

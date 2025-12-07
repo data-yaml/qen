@@ -6,10 +6,6 @@ from typing import Any
 
 import pytest
 
-# TODO: Import necessary modules for GitHub API interaction
-# from qen.github import PRRestackCommand  # Hypothetical import
-# from qen.github.models import PullRequest, Repository
-
 
 @pytest.mark.integration
 def test_real_pr_restack(
@@ -171,27 +167,3 @@ def create_child_pr(repository: Any, parent: Any) -> Any:
         The created child pull request
     """
     raise NotImplementedError("Child PR creation not implemented")
-
-
-def pr_restack_command(
-    repository: Any,
-    pr_number: int,
-    *,
-    user: Any | None = None,
-    dry_run: bool = False,
-    raise_on_conflict: bool = True,
-) -> Any:
-    """
-    Perform PR restacking operation.
-
-    Args:
-        repository: The repository containing the PR
-        pr_number: The number of the PR to restack
-        user: Optional user performing the operation
-        dry_run: Whether to perform a dry run
-        raise_on_conflict: Whether to raise an error on conflicts
-
-    Returns:
-        Result of the restack operation
-    """
-    raise NotImplementedError("PR restack command not implemented")
