@@ -15,9 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `qen pr status` command for enumerating and retrieving PR information across all repositories
 - Implement `qen pr stack` command for identifying and displaying stacked PRs across repositories
 - Implement `qen pr restack` command for updating stacked PRs to be based on latest versions of their base branches
-- Add offline integration testing infrastructure with local test repository support
-- Add `./poe setup-test-repo` and `./poe clean-test-repo` tasks for test repository management
-- Add `./poe test-integration` task to run integration tests with auto-setup
 
 ### Fixed
 
