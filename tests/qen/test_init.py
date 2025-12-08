@@ -431,7 +431,7 @@ class TestInitProjectFunction:
         # Check README.md
         readme_content = (project_dir / "README.md").read_text()
         assert project_name in readme_content
-        assert "qen clone" in readme_content
+        assert "qen init" in readme_content
 
         # Check pyproject.toml
         pyproject_content = (project_dir / "pyproject.toml").read_text()
