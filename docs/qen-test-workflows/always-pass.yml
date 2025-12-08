@@ -1,0 +1,13 @@
+name: Always Pass
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - 'test-*'
+
+jobs:
+  pass:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "✓ Check passed"

@@ -1,0 +1,15 @@
+name: Slow Check
+on:
+  pull_request:
+  push:
+
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulate long-running check
+        run: |
+          echo "Starting slow check..."
+          sleep 35
+          echo "✓ Slow check completed"

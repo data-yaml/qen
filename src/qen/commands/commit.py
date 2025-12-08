@@ -361,15 +361,23 @@ def commit_interactive(
 
     results: list[tuple[str, CommitResult]] = []
 
-    click.echo(f"Committing project: {project_name} (interactive mode)\n")
-
+    # Check if any repositories have changes before starting interactive mode
+    repos_with_changes = []
     for repo_config in repos:
         repo_path = project_dir / repo_config.path
-        repo_name = repo_config.path
+        if has_uncommitted_changes(repo_path):
+            repos_with_changes.append(repo_config)
 
-        # Check if repo has changes
-        if not has_uncommitted_changes(repo_path):
-            continue
+    if not repos_with_changes:
+        click.echo(f"Project: {project_name}")
+        click.echo("\nNo repositories have uncommitted changes.")
+        return {"committed": 0, "clean": len(repos), "skipped": 0, "failed": 0, "total_files": 0}
+
+    click.echo(f"Committing project: {project_name} (interactive mode)\n")
+
+    for repo_config in repos_with_changes:
+        repo_path = project_dir / repo_config.path
+        repo_name = repo_config.path
 
         click.echo(f"\n📦 {repo_name} ({repo_config.branch})")
 
@@ -486,9 +494,9 @@ def commit_project(
     Raises:
         click.ClickException: If commit fails
     """
-    # Validate arguments
-    if not interactive and not message:
-        raise click.ClickException("Commit message required (use -m or --interactive)")
+    # Default to interactive mode if no message provided
+    if not message and not interactive:
+        interactive = True
 
     # Load configuration
     config = QenConfig()

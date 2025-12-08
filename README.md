@@ -57,14 +57,36 @@ The repository will be:
 - Added to `pyproject.toml` in the `[[tool.qen.repos]]` section
 - Tracked with its URL, branch, and local path
 
-### 4. Next steps
+### 4. Work with pull requests
 
 ```bash
-# Check status across all repos (planned)
+# Show PR status for all repositories
+qen pr status
+
+# Show detailed PR information
+qen pr status -v
+
+# Identify and display stacked PRs
+qen pr stack
+
+# Update stacked PRs (rebase child PRs on parent PRs)
+qen pr restack
+
+# Preview restack changes without making them
+qen pr restack --dry-run
+```
+
+### 5. Check git status
+
+```bash
+# Show git status across all repos
 qen status
 
-# Sync changes across repos (planned)
-qen sync
+# Show detailed status with verbose output
+qen status -v
+
+# Fetch latest changes before showing status
+qen status --fetch
 ```
 
 ## Current Status
@@ -74,11 +96,15 @@ qen sync
 - `qen init` - Initialize qen configuration
 - `qen init <project>` - Create new project with branch, directory structure, and configuration
 - `qen add` - Add sub-repositories to current project with flexible URL formats
+- `qen status` - Show git status across all sub-repos
+- `qen pr status` - Show PR status for all repositories
+- `qen pr stack` - Identify and display stacked PRs
+- `qen pr restack` - Update stacked PRs to latest base branches
 
 **Planned:**
 
-- `qen status` - Show git status across all sub-repos
 - `qen sync` - Push and pull sub-repos
+- Additional PR management features
 
 ## Philosophy
 

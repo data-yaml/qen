@@ -1,6 +1,6 @@
 [project]
 name = "qen"
-version = "0.1.4"
+version = "0.1.5"
 description = "A tiny, extensible tool for organizing multi-repository development work"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -46,6 +46,8 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.8.0",
     "pre-commit>=4.0.0",
+    "requests>=2.31.0",
+    "typing-extensions>=4.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,9 +55,12 @@ packages = ["src/qen", "src/qenvy"]
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
-test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -v" }], help = "Run tests (auto-installs hooks)" }
-test-cov = "pytest tests/ --cov=src --cov-report=term --cov-report=html"
-test-fast = "pytest tests/ -x"
+test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
+test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
+test-integration = { script = "scripts.integration_test:main", help = "Run integration tests (auto-detects gh token)", use_exec = true }
+test-all = { cmd = "pytest tests/ -v", help = "Run all tests (unit + integration)" }
+test-cov = "pytest tests/ -m 'not integration' --cov=src --cov-report=term --cov-report=html"
+test-fast = "pytest tests/ -m 'not integration' -x"
 typecheck = "mypy src/"
 claude = { shell = "ln -sf AGENTS.md CLAUDE.md", help = "Create CLAUDE.md symlink to AGENTS.md" }
 
@@ -95,6 +100,11 @@ addopts = [
 filterwarnings = [
     "error",
 ]
+markers = [
+    "integration: marks tests as integration tests (slow, requires network, uses real GitHub API - NO MOCKS)",
+    "requires_gh: marks tests that require GitHub CLI",
+    "requires_test_repo: marks tests that need test repository access",
+]
 
 [tool.coverage.run]
 source = ["src"]
@@ -130,7 +140,7 @@ select = [
     "I",   # isort
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "UP",  # pyupgrade",
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)

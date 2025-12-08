@@ -1,0 +1,18 @@
+name: Always Fail on Failing Branches
+on:
+  pull_request:
+  push:
+
+jobs:
+  conditional-fail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check branch name
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          if [[ "$BRANCH" == *"-failing-"* ]]; then
+            echo "✗ This branch is meant to fail"
+            exit 1
+          fi
+          echo "✓ This branch is not a failing test"
