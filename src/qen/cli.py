@@ -36,7 +36,8 @@ def main() -> None:
     is_flag=True,
     help="Enable verbose output",
 )
-def init(project_name: str | None, verbose: bool) -> None:
+@click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts (e.g., PR creation)")
+def init(project_name: str | None, verbose: bool, yes: bool) -> None:
     """Initialize qen tooling or create a new project.
 
     Two modes:
@@ -59,13 +60,17 @@ def init(project_name: str | None, verbose: bool) -> None:
         # Create a new project
         $ qen init my-project
 
+    \b
+        # Create a new project without PR creation prompt
+        $ qen init my-project --yes
+
     """
     if project_name is None:
         # Mode 1: Initialize qen tooling
         init_qen(verbose=verbose)
     else:
         # Mode 2: Create new project
-        init_project(project_name, verbose=verbose)
+        init_project(project_name, verbose=verbose, yes=yes)
 
 
 @main.command("add")
@@ -74,7 +79,10 @@ def init(project_name: str | None, verbose: bool) -> None:
 @click.option("--path", "-p", help="Local path (default: repos/<name>)")
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
 @click.option("--force", is_flag=True, help="Force re-add if repository exists")
-def add(repo: str, branch: str | None, path: str | None, verbose: bool, force: bool) -> None:
+@click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts")
+def add(
+    repo: str, branch: str | None, path: str | None, verbose: bool, force: bool, yes: bool
+) -> None:
     """Add a repository to the current project.
 
     REPO can be specified in three formats:
@@ -109,7 +117,7 @@ def add(repo: str, branch: str | None, path: str | None, verbose: bool, force: b
         # Add with custom path
         $ qen add myorg/myrepo --path repos/custom-name
     """
-    add_repository(repo, branch, path, verbose, force)
+    add_repository(repo, branch, path, verbose, force, yes)
 
 
 @main.command("pull")

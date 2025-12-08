@@ -84,6 +84,7 @@ def add_repository(
     path: str | None = None,
     verbose: bool = False,
     force: bool = False,
+    yes: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
 ) -> None:
@@ -95,6 +96,7 @@ def add_repository(
         path: Local path for repository (default: repos/<name>)
         verbose: Enable verbose output
         force: Force re-add even if repository exists (removes and re-clones)
+        yes: Auto-confirm prompts (create local branch without asking)
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
 
@@ -205,7 +207,7 @@ def add_repository(
         click.echo(f"Cloning to: {clone_path}")
 
     try:
-        clone_repository(url, clone_path, branch, verbose)
+        clone_repository(url, clone_path, branch, verbose, yes=yes)
     except GitError as e:
         click.echo(f"Error cloning repository: {e}", err=True)
         raise click.Abort() from e

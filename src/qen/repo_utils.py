@@ -144,8 +144,33 @@ def infer_repo_path(
     return f"repos/{branch}/{repo_name}"
 
 
+def check_remote_branch_exists(repo_path: Path, branch: str) -> bool:
+    """Check if a branch exists on the remote repository.
+
+    Args:
+        repo_path: Path to local git repository
+        branch: Branch name to check
+
+    Returns:
+        True if remote branch exists, False otherwise
+    """
+    try:
+        result = run_git_command(
+            ["ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
+            cwd=repo_path,
+        )
+        # If output is non-empty, remote branch exists
+        return bool(result.strip())
+    except GitError:
+        return False
+
+
 def clone_repository(
-    url: str, dest_path: Path, branch: str | None = None, verbose: bool = False
+    url: str,
+    dest_path: Path,
+    branch: str | None = None,
+    verbose: bool = False,
+    yes: bool = False,
 ) -> None:
     """Clone a git repository to a destination path.
 
@@ -154,6 +179,7 @@ def clone_repository(
         dest_path: Destination path for the clone
         branch: Optional branch to checkout after cloning
         verbose: Enable verbose output
+        yes: Auto-confirm prompts (create local branch without asking)
 
     Raises:
         GitError: If clone fails or destination already exists
@@ -174,28 +200,42 @@ def clone_repository(
 
     # Checkout specific branch if requested
     if branch and branch != "main" and branch != "master":
-        try:
-            # Try to checkout the branch if it exists locally
-            run_git_command(["checkout", branch], cwd=dest_path)
-        except GitError:
-            # If branch doesn't exist locally, try to track remote branch
+        # Check if remote branch exists
+        remote_branch_exists = check_remote_branch_exists(dest_path, branch)
+
+        if remote_branch_exists:
+            # Remote branch exists - checkout with tracking
             try:
-                run_git_command(["checkout", "-b", branch, f"origin/{branch}"], cwd=dest_path)
+                # First try to checkout the branch if it already exists locally
+                run_git_command(["checkout", branch], cwd=dest_path)
             except GitError:
-                # If remote branch doesn't exist either, create a new local branch
-                # This is expected when adding a repo to a new project branch
+                # If it doesn't exist locally, create it from remote
+                try:
+                    run_git_command(["checkout", "-b", branch, f"origin/{branch}"], cwd=dest_path)
+                except GitError as e:
+                    raise GitError(f"Failed to checkout remote branch '{branch}': {e}") from e
+        else:
+            # Remote branch does NOT exist - prompt user
+            if not yes:
+                import click
+
+                if not click.confirm(
+                    f"Branch '{branch}' does not exist on remote '{url}'. Create local branch?",
+                    default=False,
+                ):
+                    raise GitError(f"Branch '{branch}' does not exist on remote")
+
+            # Create local-only branch (user confirmed or --yes)
+            try:
+                # First try to checkout if it already exists
+                run_git_command(["checkout", branch], cwd=dest_path)
+            except GitError:
+                # If it doesn't exist, create it
                 try:
                     run_git_command(["checkout", "-b", branch], cwd=dest_path)
-                except GitError as e:
-                    raise GitError(f"Failed to create branch '{branch}': {e}") from e
+                    if verbose:
+                        import click
 
-    # Set up upstream tracking for the branch
-    # This is necessary for git pull to work without specifying remote/branch
-    if branch:
-        try:
-            run_git_command(["branch", f"--set-upstream-to=origin/{branch}", branch], cwd=dest_path)
-        except GitError:
-            # If remote branch doesn't exist (common for project-specific branches),
-            # we can't set upstream tracking yet. User will need to push first.
-            # This is expected and not an error.
-            pass
+                        click.echo(f"Created local-only branch '{branch}' (not on remote)")
+                except GitError as e:
+                    raise GitError(f"Failed to create local branch '{branch}': {e}") from e

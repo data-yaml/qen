@@ -97,7 +97,7 @@ def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
 
 
 def init_project(
-    project_name: str, verbose: bool = False, storage: QenvyBase | None = None
+    project_name: str, verbose: bool = False, yes: bool = False, storage: QenvyBase | None = None
 ) -> None:
     """Create a new project in the meta repository.
 
@@ -110,10 +110,12 @@ def init_project(
        - repos/ (gitignored)
     4. Create project config
     5. Update main config: set current_project
+    6. Prompt to create PR (unless --yes is specified)
 
     Args:
         project_name: Name of the project
         verbose: Enable verbose output
+        yes: Auto-confirm prompts (skip PR creation prompt)
         storage: Optional storage backend for testing
 
     Raises:
@@ -194,6 +196,85 @@ def init_project(
     click.echo(f"  Branch: {branch_name}")
     click.echo(f"  Directory: {meta_path / folder_path}")
     click.echo(f"  Config: {config.get_project_config_path(project_name)}")
+    click.echo()
+
+    # Prompt to create PR unless --yes was specified
+    if not yes:
+        # Check if gh CLI is available
+        import subprocess
+
+        try:
+            subprocess.run(
+                ["gh", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+            gh_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            gh_available = False
+
+        if gh_available:
+            create_pr = click.confirm("Would you like to create a pull request for this project?")
+            if create_pr:
+                try:
+                    # Get the base branch (typically main or master)
+                    result = subprocess.run(
+                        ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+                        cwd=meta_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if result.returncode == 0:
+                        # Extract base branch from refs/remotes/origin/HEAD
+                        base_branch = result.stdout.strip().split("/")[-1]
+                    else:
+                        # Fallback to main
+                        base_branch = "main"
+
+                    if verbose:
+                        click.echo(f"Creating PR with base branch: {base_branch}")
+
+                    # Create PR with gh CLI
+                    pr_title = f"Project: {project_name}"
+                    pr_body = (
+                        f"Initialize project {project_name}\n\n"
+                        f"This PR creates the project structure for {project_name}."
+                    )
+
+                    result = subprocess.run(
+                        [
+                            "gh",
+                            "pr",
+                            "create",
+                            "--base",
+                            base_branch,
+                            "--head",
+                            branch_name,
+                            "--title",
+                            pr_title,
+                            "--body",
+                            pr_body,
+                        ],
+                        cwd=meta_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+
+                    pr_url = result.stdout.strip()
+                    click.echo(f"\n✓ Pull request created: {pr_url}")
+                except subprocess.CalledProcessError as e:
+                    click.echo(f"\nWarning: Failed to create PR: {e.stderr}", err=True)
+                    if verbose:
+                        click.echo(f"Error details: {e}", err=True)
+                except Exception as e:
+                    click.echo(f"\nWarning: Failed to create PR: {e}", err=True)
+        else:
+            if verbose:
+                click.echo("gh CLI not available, skipping PR creation prompt")
+
     click.echo()
     click.echo("Next steps:")
     click.echo(f"  cd {meta_path / folder_path}")

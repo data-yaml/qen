@@ -16,6 +16,7 @@ from qen.pyproject_utils import (
 )
 from qen.repo_utils import (
     RepoUrlParseError,
+    check_remote_branch_exists,
     clone_repository,
     infer_repo_path,
     parse_repo_url,
@@ -119,6 +120,53 @@ class TestRepoPath:
 # ==============================================================================
 
 
+class TestCheckRemoteBranch:
+    """Tests for check_remote_branch_exists function."""
+
+    def test_check_remote_branch_exists_true(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists returns True for existing branch."""
+        # Create a test branch in child_repo
+        subprocess.run(
+            ["git", "checkout", "-b", "test-branch"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Go back to main
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if test-branch exists on remote
+        assert check_remote_branch_exists(dest, "test-branch") is True
+
+    def test_check_remote_branch_exists_false(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists returns False for non-existent branch."""
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if non-existent branch exists on remote
+        assert check_remote_branch_exists(dest, "nonexistent-branch") is False
+
+    def test_check_remote_branch_main(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists works for main branch."""
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if main exists on remote
+        assert check_remote_branch_exists(dest, "main") is True
+
+
 class TestRepoCloning:
     """Tests for clone_repository function."""
 
@@ -172,11 +220,11 @@ class TestRepoCloning:
         assert dest.exists()
         assert (dest / "develop.txt").exists()
 
-    def test_clone_with_nonexistent_branch(self, child_repo: Path, tmp_path: Path) -> None:
-        """Test cloning with a branch that doesn't exist remotely creates it."""
-        # Clone with a branch that doesn't exist in the repo
+    def test_clone_with_nonexistent_branch_yes_flag(self, child_repo: Path, tmp_path: Path) -> None:
+        """Test cloning with a branch that doesn't exist remotely with --yes flag."""
+        # Clone with a branch that doesn't exist in the repo, auto-confirm with yes=True
         dest = tmp_path / "cloned"
-        clone_repository(str(child_repo), dest, branch="new-feature")
+        clone_repository(str(child_repo), dest, branch="new-feature", yes=True)
 
         assert dest.exists()
         assert (dest / ".git").exists()
@@ -191,6 +239,21 @@ class TestRepoCloning:
             check=True,
         )
         assert result.stdout.strip() == "new-feature"
+
+    def test_clone_with_nonexistent_branch_no_yes_flag(
+        self, child_repo: Path, tmp_path: Path, mocker
+    ) -> None:
+        """Test cloning with a branch that doesn't exist remotely without --yes flag raises error."""
+        # Mock click.confirm to return False (user declines)
+        mock_confirm = mocker.patch("click.confirm", return_value=False)
+
+        # Clone with a branch that doesn't exist in the repo should raise error
+        dest = tmp_path / "cloned"
+        with pytest.raises(GitError, match="does not exist on remote"):
+            clone_repository(str(child_repo), dest, branch="new-feature", yes=False)
+
+        # Verify confirm was called
+        mock_confirm.assert_called_once()
 
     def test_clone_fails_if_dest_exists(self, child_repo: Path, tmp_path: Path) -> None:
         """Test that cloning fails if destination exists."""
