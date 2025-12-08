@@ -6,6 +6,7 @@ Add a repository to the current project by:
 3. Updating pyproject.toml with the repository entry
 """
 
+import shutil
 from pathlib import Path
 
 import click
@@ -18,6 +19,7 @@ from ..pyproject_utils import (
     PyProjectNotFoundError,
     PyProjectUpdateError,
     add_repo_to_pyproject,
+    remove_repo_from_pyproject,
     repo_exists_in_pyproject,
 )
 from ..repo_utils import (
@@ -46,11 +48,42 @@ class RepositoryAlreadyExistsError(AddCommandError):
     pass
 
 
+def remove_existing_repo(project_dir: Path, url: str, branch: str, verbose: bool = False) -> None:
+    """Remove existing repository from both config and filesystem.
+
+    Args:
+        project_dir: Path to project directory
+        url: Repository URL to remove
+        branch: Branch to remove
+        verbose: Enable verbose output
+
+    Raises:
+        PyProjectUpdateError: If removal from pyproject.toml fails
+    """
+    # Get the stored path from config and remove entry
+    repo_path_str = remove_repo_from_pyproject(project_dir, url, branch)
+
+    if repo_path_str:
+        # Convert relative path to absolute
+        repo_path = project_dir / repo_path_str
+
+        # Remove clone directory if it exists
+        if repo_path.exists():
+            if verbose:
+                click.echo(f"Removing existing clone at {repo_path}")
+            shutil.rmtree(repo_path)
+        elif verbose:
+            click.echo(f"Clone directory not found: {repo_path} (already removed)")
+    elif verbose:
+        click.echo("Repository entry not found in pyproject.toml (already removed)")
+
+
 def add_repository(
     repo: str,
     branch: str | None = None,
     path: str | None = None,
     verbose: bool = False,
+    force: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
 ) -> None:
@@ -61,6 +94,7 @@ def add_repository(
         branch: Branch to track (default: current meta repo branch)
         path: Local path for repository (default: repos/<name>)
         verbose: Enable verbose output
+        force: Force re-add even if repository exists (removes and re-clones)
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
 
@@ -148,16 +182,20 @@ def add_repository(
     # 5. Check if repository already exists in pyproject.toml
     try:
         if repo_exists_in_pyproject(project_dir, url, branch):
-            click.echo(
-                f"Error: Repository already exists in project: {url} (branch: {branch})",
-                err=True,
-            )
-            raise click.Abort()
+            if not force:
+                # Existing behavior - block and abort
+                click.echo(
+                    f"Error: Repository already exists in project: {url} (branch: {branch})",
+                    err=True,
+                )
+                raise click.Abort()
+            else:
+                # New behavior - remove existing entry and re-add
+                if verbose:
+                    click.echo("Repository exists. Removing and re-adding with --force...")
+                remove_existing_repo(project_dir, url, branch, verbose)
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort() from e
-    except PyProjectUpdateError as e:
-        click.echo(f"Error checking repository: {e}", err=True)
         raise click.Abort() from e
 
     # 6. Clone the repository
