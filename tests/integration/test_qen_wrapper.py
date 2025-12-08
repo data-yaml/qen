@@ -25,6 +25,7 @@ def test_qen_wrapper_generation(
     real_test_repo: Path,
     unique_prefix: str,
     cleanup_branches: list[str],
+    temp_config_dir: Path,
 ) -> None:
     """Test that qen init generates working wrapper script - REAL GITHUB API.
 
@@ -38,15 +39,25 @@ def test_qen_wrapper_generation(
         real_test_repo: Path to cloned qen-test repository
         unique_prefix: Unique prefix for test branches
         cleanup_branches: List to track branches for cleanup
+        temp_config_dir: Temporary config directory to avoid polluting user config
     """
     # Generate project name with unique prefix
     project_name = f"{unique_prefix}-wrapper-test"
 
-    # Create project using --meta flag (REAL command, NO MOCKS)
+    # Create project using --config-dir and --meta flags (REAL command, NO MOCKS)
+    # IMPORTANT: --config-dir isolates test config from user's actual config
     # IMPORTANT: --meta flag specifies qen-test as meta repo
-    # This avoids touching the user's actual qen configuration
     result = subprocess.run(
-        ["qen", "--meta", str(real_test_repo), "init", project_name, "--yes"],
+        [
+            "qen",
+            "--config-dir",
+            str(temp_config_dir),
+            "--meta",
+            str(real_test_repo),
+            "init",
+            project_name,
+            "--yes",
+        ],
         capture_output=True,
         text=True,
     )
