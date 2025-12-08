@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: Removed all mocks from integration tests - now use real GitHub API only
+- Integration tests now require `GITHUB_TOKEN` and use <https://github.com/data-yaml/qen-test>
+- Integration tests are no longer run in CI (too expensive, require write access to external repo)
+- CI now only runs fast unit tests to prevent production bugs caused by mock drift
+
+### Development
+
+- Implement NO MOCKS integration testing strategy to prevent mock/API drift bugs
+- Add comprehensive integration testing documentation in [docs/INTEGRATION_TESTING.md](docs/INTEGRATION_TESTING.md)
+- Add migration guide in [docs/MIGRATION_NO_MOCKS.md](docs/MIGRATION_NO_MOCKS.md) documenting lessons learned
+- Document qen-test repository workflows in [docs/qen-test-workflows/](docs/qen-test-workflows/)
+- Add specification for integration testing strategy in [spec/2-status/06-integration-testing.md](spec/2-status/06-integration-testing.md)
+- Add specification for qen-test repository in [spec/2-status/07-repo-qen-test.md](spec/2-status/07-repo-qen-test.md)
+- Update AGENTS.md with testing philosophy and NO MOCKS requirement
+
 ## [0.1.5] - 2024-12-06
 
 ### Added
@@ -19,12 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Improve TypedDict schemas with NotRequired fields for better type safety
-- Add mock gh CLI support to enable offline integration testing
 
 ### Development
 
-- Add local test repository scripts that create git repos with mock PR data
-- Add comprehensive mocking infrastructure for GitHub CLI in integration tests
+- Add local test repository scripts that create git repos with mock PR data (deprecated in favor of NO MOCKS strategy)
+- Add comprehensive mocking infrastructure for GitHub CLI in integration tests (deprecated - removed in next release)
 - Update integration test fixtures to support both local and remote test repositories
 
 ## [0.1.4] - 2024-12-05
