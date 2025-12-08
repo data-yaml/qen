@@ -139,7 +139,18 @@ def test_pr_status_passing_checks(real_test_repo, unique_prefix, cleanup_branche
 # Requires GITHUB_TOKEN environment variable
 export GITHUB_TOKEN="ghp_..."
 ./poe test-integration
+
+# Or use gh CLI token
+GITHUB_TOKEN=$(gh auth token) ./poe test-integration
 ```
+
+#### IMPORTANT: Integration tests are NOT run in CI
+
+- They create real PRs on data-yaml/qen-test
+- They require write permissions to external repo
+- They're expensive (API rate limits, 2+ min runtime)
+- Run them manually when changing GitHub API integration code
+- CI only runs fast unit tests
 
 ### Test Repository: data-yaml/qen-test
 
