@@ -32,8 +32,8 @@ uvx qen init my-project
 
 This uses the previously-discovered `meta` repository to create a project-specific:
 
-- **Git branch**: `YYYY-MM-DD-my-project`
-- **Project directory**: `proj/YYYY-MM-DD-my-project/`
+- **Git branch**: `YYMMDD-my-project` (format: `YYMMDD-snake-case-name`, e.g., `251203-readme-bootstrap`)
+- **Project directory**: `proj/YYMMDD-my-project/`
 - **Project files**:
   - `README.md` - Project documentation stub
   - `pyproject.toml` - Repository configuration with `[tool.qen]` section
@@ -46,7 +46,7 @@ This uses the previously-discovered `meta` repository to create a project-specif
 Each project includes a `./qen` executable wrapper that automatically runs qen commands in that project's context:
 
 ```bash
-cd proj/YYYY-MM-DD-my-project/
+cd proj/YYMMDD-my-project/
 ./qen status      # Works without specifying --proj
 ./qen add myrepo  # Automatically uses this project
 ./qen pr status   # Check PR status for this project

@@ -305,15 +305,15 @@ scripts/                    # Build and version management scripts
 
 **Project Structure:**
 
-- Each project creates a dated git branch: `YYYY-MM-DD-project-name`
-- Project directory: `proj/YYYY-MM-DD-project-name/`
+- Each project creates a dated git branch: `YYMMDD-project-name`
+- Project directory: `proj/YYMMDD-project-name/`
 - Contains: `README.md`, `pyproject.toml`, `repos/` (gitignored sub-repos)
 
 **Configuration Locations:**
 
 - Global: `$XDG_CONFIG_HOME/qen/config.toml`
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
-- Project manifest: `proj/YYYY-MM-DD-project/pyproject.toml` (with `[tool.qen]`)
+- Project manifest: `proj/YYMMDD-project/pyproject.toml` (with `[tool.qen]`)
 
 **Project pyproject.toml Schema:**
 
