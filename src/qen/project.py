@@ -9,8 +9,10 @@ within a meta repository. It handles:
 - Project context discovery
 """
 
+import importlib.resources
 from datetime import UTC, datetime
 from pathlib import Path
+from string import Template
 
 from .git_utils import create_branch, run_git_command
 
@@ -108,15 +110,88 @@ def find_project_root(start_path: Path | None = None) -> Path:
     )
 
 
+def get_template_path(template_name: str) -> Path:
+    """Get the path to a template file.
+
+    Templates are stored in ./proj directory at repository root.
+    Tries to locate the template in the installed package first,
+    then falls back to the development source tree.
+
+    Args:
+        template_name: Name of the template file (e.g., 'README.md')
+
+    Returns:
+        Path to the template file
+
+    Raises:
+        ProjectError: If template file cannot be found
+    """
+    # Try installed package location first (Python 3.9+)
+    try:
+        # importlib.resources.files() returns a Traversable
+        package_files = importlib.resources.files("qen")
+        # Templates are in proj/ directory at repo root, which is ../../proj from qen package
+        template_path = package_files / ".." / ".." / "proj" / template_name
+        # Check if the template exists by trying to read it
+        if hasattr(template_path, "is_file") and template_path.is_file():
+            return Path(str(template_path))
+    except (TypeError, AttributeError, FileNotFoundError):
+        pass
+
+    # Fall back to development location
+    # Find repo root by going up from src/qen/project.py
+    repo_root = Path(__file__).parent.parent.parent
+    template_path = repo_root / "proj" / template_name
+
+    if template_path.exists():
+        return template_path
+
+    raise ProjectError(
+        f"Template file not found: {template_name}. "
+        f"Expected at: {template_path}. "
+        "This indicates a packaging error - templates must be included in distribution."
+    )
+
+
+def render_template(template_path: Path, **variables: str | None) -> str:
+    """Render a template file with the given variables.
+
+    Uses string.Template for safe variable substitution.
+
+    Args:
+        template_path: Path to template file
+        **variables: Variables to substitute in the template
+
+    Returns:
+        Rendered template content
+
+    Raises:
+        ProjectError: If template rendering fails
+    """
+    try:
+        template_content = template_path.read_text()
+        template = Template(template_content)
+        return template.safe_substitute(**variables)
+    except FileNotFoundError:
+        raise ProjectError(f"Template file not found: {template_path}") from None
+    except Exception as e:
+        raise ProjectError(f"Failed to render template {template_path.name}: {e}") from e
+
+
 def create_project_structure(
-    meta_path: Path, project_name: str, branch_name: str, folder_path: str
+    meta_path: Path,
+    project_name: str,
+    branch_name: str,
+    folder_path: str,
+    github_org: str | None = None,
 ) -> None:
     """Create project directory structure in meta repository.
 
     Creates:
     - proj/YYYY-MM-DD-<project-name>/
-    - proj/YYYY-MM-DD-<project-name>/README.md (stub)
-    - proj/YYYY-MM-DD-<project-name>/pyproject.toml ([tool.qen] configuration)
+    - proj/YYYY-MM-DD-<project-name>/README.md (from template)
+    - proj/YYYY-MM-DD-<project-name>/pyproject.toml (from template)
+    - proj/YYYY-MM-DD-<project-name>/.gitignore (from template)
     - proj/YYYY-MM-DD-<project-name>/repos/ (directory)
 
     Args:
@@ -124,6 +199,7 @@ def create_project_structure(
         project_name: Name of the project
         branch_name: Git branch name
         folder_path: Project folder path (relative to meta repo)
+        github_org: GitHub organization (default: 'your-org')
 
     Raises:
         ProjectError: If directory creation fails
@@ -137,56 +213,43 @@ def create_project_structure(
     except Exception as e:
         raise ProjectError(f"Failed to create project directory: {e}") from e
 
-    # Create README.md stub
+    # Prepare template variables
+    now = datetime.now(UTC)
+    template_vars = {
+        "project_name": project_name,
+        "date": now.strftime("%Y-%m-%d"),
+        "timestamp": now.isoformat(),
+        "branch_name": branch_name,
+        "folder_path": folder_path,
+        "github_org": github_org or "your-org",
+    }
+
+    # Render and write README.md
+    readme_template = get_template_path("README.md")
+    readme_content = render_template(readme_template, **template_vars)
     readme_path = project_dir / "README.md"
-    readme_content = f"""# {project_name}
-
-Project created on {datetime.now(UTC).strftime("%Y-%m-%d")}
-
-## Overview
-
-(Add project description here)
-
-## Repositories
-
-See `pyproject.toml` ([tool.qen] section) for the list of repositories in this project.
-
-## Getting Started
-
-```bash
-# Clone all repositories
-qen clone
-
-# Pull latest changes
-qen pull
-
-# Check status
-qen status
-```
-"""
     try:
         readme_path.write_text(readme_content)
     except Exception as e:
         raise ProjectError(f"Failed to create README.md: {e}") from e
 
-    # Create pyproject.toml stub
+    # Render and write pyproject.toml
+    pyproject_template = get_template_path("pyproject.toml")
+    pyproject_content = render_template(pyproject_template, **template_vars)
     pyproject_path = project_dir / "pyproject.toml"
-    pyproject_content = f"""# qen proj configuration
-# Add repositories using: qen add <repo-url>
-
-[tool.qen]
-created = "{datetime.now(UTC).isoformat()}"
-
-# Example repository:
-# [[tool.qen.repos]]
-# url = "https://github.com/org/repo"
-# branch = "main"
-# path = "repos/repo"
-"""
     try:
         pyproject_path.write_text(pyproject_content)
     except Exception as e:
         raise ProjectError(f"Failed to create pyproject.toml: {e}") from e
+
+    # Render and write .gitignore
+    gitignore_template = get_template_path(".gitignore")
+    gitignore_content = render_template(gitignore_template, **template_vars)
+    gitignore_path = project_dir / ".gitignore"
+    try:
+        gitignore_path.write_text(gitignore_content)
+    except Exception as e:
+        raise ProjectError(f"Failed to create .gitignore: {e}") from e
 
     # Create repos/ directory
     repos_dir = project_dir / "repos"
@@ -194,42 +257,6 @@ created = "{datetime.now(UTC).isoformat()}"
         repos_dir.mkdir(exist_ok=False)
     except Exception as e:
         raise ProjectError(f"Failed to create repos/ directory: {e}") from e
-
-
-def add_gitignore_entry(meta_path: Path, folder_path: str) -> None:
-    """Add repos/ directory to .gitignore in project folder.
-
-    Args:
-        meta_path: Path to meta repository
-        folder_path: Project folder path (relative to meta repo)
-
-    Raises:
-        ProjectError: If .gitignore update fails
-    """
-    project_dir = meta_path / folder_path
-    gitignore_path = project_dir / ".gitignore"
-
-    # Entry to add (relative to project directory)
-    entry = "repos/\n"
-
-    try:
-        # Read existing .gitignore if it exists
-        if gitignore_path.exists():
-            content = gitignore_path.read_text()
-            # Check if entry already exists
-            if "repos/" in content:
-                return  # Already exists
-            # Append to existing content
-            if not content.endswith("\n"):
-                content += "\n"
-            content += entry
-        else:
-            # Create new .gitignore
-            content = entry
-
-        gitignore_path.write_text(content)
-    except Exception as e:
-        raise ProjectError(f"Failed to update .gitignore: {e}") from e
 
 
 def stage_project_files(meta_path: Path, folder_path: str) -> None:
@@ -271,22 +298,23 @@ def create_project(
     meta_path: Path,
     project_name: str,
     date: datetime | None = None,
+    github_org: str | None = None,
 ) -> tuple[str, str]:
     """Create a new project in the meta repository.
 
     This function:
     1. Creates a new branch with date prefix
     2. Creates project directory structure
-    3. Creates stub files (README.md, pyproject.toml)
+    3. Creates stub files from templates (README.md, pyproject.toml, .gitignore)
     4. Creates repos/ directory
-    5. Adds .gitignore entry for repos/
-    6. Stages files for commit
-    7. Commits the changes
+    5. Stages files for commit
+    6. Commits the changes
 
     Args:
         meta_path: Path to meta repository
         project_name: Name of the project
         date: Date to use for prefixes (default: current date)
+        github_org: GitHub organization for templates (default: 'your-org')
 
     Returns:
         Tuple of (branch_name, folder_path)
@@ -309,16 +337,10 @@ def create_project(
 
     # Create project structure
     try:
-        create_project_structure(meta_path, project_name, branch_name, folder_path)
+        create_project_structure(meta_path, project_name, branch_name, folder_path, github_org)
     except Exception as e:
         # Try to cleanup: switch back to previous branch
         # (but don't fail if this cleanup fails)
-        raise e
-
-    # Add .gitignore entry
-    try:
-        add_gitignore_entry(meta_path, folder_path)
-    except Exception as e:
         raise e
 
     # Stage files
