@@ -132,6 +132,30 @@ uvx qen pr restack
 uvx qen pr restack --dry-run
 ```
 
+### 7. Generate Editor Workspaces
+
+Create editor workspace files that span all repositories in your project:
+
+```bash
+# Generate workspace files for all supported editors
+uvx qen workspace
+
+# Generate only VS Code workspace
+uvx qen workspace --editor vscode
+
+# Generate only Sublime Text workspace
+uvx qen workspace --editor sublime
+
+# Open the generated workspace
+code workspaces/vscode.code-workspace
+```
+
+Workspace files are created in the `workspaces/` directory and include:
+- Project root folder
+- All sub-repositories
+- PR numbers in folder names (when available)
+- Sensible file exclusions (.git, __pycache__, etc.)
+
 ## Requirements
 
 - Python 3.12 or higher
