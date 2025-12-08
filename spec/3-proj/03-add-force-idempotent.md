@@ -499,3 +499,252 @@ Potential improvements for future versions:
 **Approved by:** User
 **Date:** 2025-12-07
 **Implementation Status:** Ready for implementation
+
+---
+
+## Appendix A: Remote Branch Tracking Bug
+
+### NEW Problem
+
+**Current Behavior (WRONG):**
+
+When `qen add` clones a repository with a specific branch, it creates a LOCAL-ONLY branch if the remote branch doesn't exist. This causes:
+
+```bash
+$ qen add deployment --branch 2025-12-05-benchling-stacked
+✓ Added repository: https://github.com/quiltdata/deployment
+  Branch: 2025-12-05-benchling-stacked
+
+$ cd repos/2025-12-05-benchling-stacked/deployment
+$ git pull
+There is no tracking information for the current branch.
+```
+
+**Root Cause:**
+
+In `src/qen/repo_utils.py:176-201`, the code silently creates a local branch when the remote doesn't exist:
+
+```python
+# Lines 176-191 - Creates local branch without tracking
+if branch and branch != "main" and branch != "master":
+    try:
+        run_git_command(["checkout", branch], cwd=dest_path)
+    except GitError:
+        try:
+            run_git_command(["checkout", "-b", branch, f"origin/{branch}"], cwd=dest_path)
+        except GitError:
+            # ❌ BUG: Silently creates local-only branch
+            run_git_command(["checkout", "-b", branch], cwd=dest_path)
+```
+
+### Correct Behavior
+
+**QEN should ALWAYS use remote branches with tracking:**
+
+1. **Check if remote branch exists** using `git ls-remote`
+2. **If remote branch exists**: Checkout with tracking (`git checkout -b branch origin/branch`)
+3. **If remote branch does NOT exist**:
+   - Prompt user: "Branch 'X' does not exist on remote. Create local branch? [y/N]"
+   - If `--yes` flag: Auto-create without prompt
+   - If user declines: Abort with error
+
+### Implementation
+
+**File:** `src/qen/repo_utils.py:147-202`
+
+**Updated `clone_repository()` function:**
+
+```python
+def clone_repository(
+    url: str,
+    dest_path: Path,
+    branch: str | None = None,
+    verbose: bool = False,
+    yes: bool = False,  # NEW: Auto-confirm prompts
+) -> None:
+    """Clone a git repository to a destination path.
+
+    Args:
+        url: Git clone URL
+        dest_path: Destination path for the clone
+        branch: Optional branch to checkout after cloning
+        verbose: Enable verbose output
+        yes: Auto-confirm prompts (create local branch without asking)
+
+    Raises:
+        GitError: If clone fails or destination already exists
+    """
+    # Check if destination already exists
+    if dest_path.exists():
+        raise GitError(f"Destination already exists: {dest_path}")
+
+    # Ensure parent directory exists
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Clone the repository
+    clone_args = ["clone", url, str(dest_path)]
+    if not verbose:
+        clone_args.append("--quiet")
+
+    run_git_command(clone_args)
+
+    # Checkout specific branch if requested
+    if branch and branch != "main" and branch != "master":
+        # Check if remote branch exists
+        remote_branch_exists = check_remote_branch_exists(dest_path, branch)
+
+        if remote_branch_exists:
+            # Remote branch exists - checkout with tracking
+            try:
+                run_git_command(["checkout", "-b", branch, f"origin/{branch}"], cwd=dest_path)
+            except GitError as e:
+                raise GitError(f"Failed to checkout remote branch '{branch}': {e}") from e
+        else:
+            # Remote branch does NOT exist - prompt user
+            if not yes:
+                import click
+                if not click.confirm(
+                    f"Branch '{branch}' does not exist on remote '{url}'. "
+                    f"Create local branch?",
+                    default=False
+                ):
+                    raise GitError(f"Branch '{branch}' does not exist on remote")
+
+            # Create local-only branch (user confirmed or --yes)
+            try:
+                run_git_command(["checkout", "-b", branch], cwd=dest_path)
+                if verbose:
+                    import click
+                    click.echo(f"Created local-only branch '{branch}' (not on remote)")
+            except GitError as e:
+                raise GitError(f"Failed to create local branch '{branch}': {e}") from e
+
+
+def check_remote_branch_exists(repo_path: Path, branch: str) -> bool:
+    """Check if a branch exists on the remote repository.
+
+    Args:
+        repo_path: Path to local git repository
+        branch: Branch name to check
+
+    Returns:
+        True if remote branch exists, False otherwise
+    """
+    try:
+        result = run_git_command(
+            ["ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
+            cwd=repo_path,
+            capture_output=True
+        )
+        # If output is non-empty, remote branch exists
+        return bool(result.stdout.strip())
+    except GitError:
+        return False
+```
+
+### Updated Call Sites
+
+**File:** `src/qen/commands/add.py`
+
+Update `add_repository()` to accept and pass `yes` parameter:
+
+```python
+def add_repository(
+    repo: str,
+    branch: str | None = None,
+    path: str | None = None,
+    verbose: bool = False,
+    force: bool = False,
+    yes: bool = False,  # NEW
+    config_dir: Path | str | None = None,
+    storage: QenvyBase | None = None,
+) -> None:
+    """Add a repository to the current project."""
+    # ... existing code ...
+
+    # Clone the repository
+    clone_repository(url, clone_dest, branch, verbose, yes=yes)  # Pass yes flag
+```
+
+**File:** `src/qen/cli.py`
+
+Add `--yes` flag to `qen add` command:
+
+```python
+@main.command("add")
+@click.argument("repo")
+@click.option("--branch", "-b", help="Branch to track (default: main)")
+@click.option("--path", "-p", help="Local path (default: repos/<name>)")
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
+@click.option("--force", is_flag=True, help="Force re-add if repository exists")
+@click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts")  # NEW
+def add(repo: str, branch: str | None, path: str | None, verbose: bool, force: bool, yes: bool) -> None:
+    """Add a repository to the current project."""
+    add_repository(repo, branch, path, verbose, force, yes)
+```
+
+### Phase Success Criteria
+
+After implementation:
+
+#### **Scenario 1: Remote branch exists**
+
+```bash
+$ qen add deployment --branch feature-123
+✓ Added repository: https://github.com/quiltdata/deployment
+  Branch: feature-123 (tracking origin/feature-123)
+
+$ cd repos/feature-123/deployment
+$ git pull  # ✅ Works! Has tracking info
+```
+
+#### **Scenario 2: Remote branch does NOT exist (interactive)**
+
+```bash
+$ qen add deployment --branch new-feature
+Branch 'new-feature' does not exist on remote 'https://github.com/quiltdata/deployment'.
+Create local branch? [y/N]: y
+✓ Added repository: https://github.com/quiltdata/deployment
+  Branch: new-feature (local only - push to create remote)
+```
+
+#### **Scenario 3: Remote branch does NOT exist (auto-confirm)**
+
+```bash
+$ qen add deployment --branch new-feature --yes
+✓ Added repository: https://github.com/quiltdata/deployment
+  Branch: new-feature (local only - push to create remote)
+```
+
+#### **Scenario 4: Remote branch does NOT exist (user declines)**
+
+```bash
+$ qen add deployment --branch new-feature
+Branch 'new-feature' does not exist on remote 'https://github.com/quiltdata/deployment'.
+Create local branch? [y/N]: n
+Error: Branch 'new-feature' does not exist on remote
+Aborted!
+```
+
+### Testing
+
+**Unit Tests** (`tests/unit/qen/test_repo_utils.py`):
+
+- `test_check_remote_branch_exists_true` - Remote branch exists
+- `test_check_remote_branch_exists_false` - Remote branch doesn't exist
+- `test_clone_with_remote_branch` - Checkout remote branch with tracking
+- `test_clone_with_nonexistent_branch_prompt_yes` - User confirms local branch
+- `test_clone_with_nonexistent_branch_prompt_no` - User declines, operation aborts
+- `test_clone_with_nonexistent_branch_yes_flag` - Auto-confirm with --yes
+
+**Integration Tests** (`tests/integration/test_add_branches.py`):
+
+- Test adding repo with existing remote branch
+- Test adding repo with non-existent branch (using --yes flag in tests)
+- Verify tracking info is set correctly
+
+### Related Issues
+
+- Fixes issue where `git pull` fails after `qen add` due to missing tracking info
+- Aligns with QEN philosophy: "Always work with remote branches, never local-only"
+- Prevents confusion when branches diverge without user awareness
