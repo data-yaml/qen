@@ -8,7 +8,7 @@ Make the `meta` repository easier to use by leveraging QEN's existing capabiliti
 
 **What QEN Already Does:**
 
-- Creates dated project folders: `proj/YYYY-MM-DD-project-name/`
+- Creates dated project folders: `proj/YYMMDD-project-name/`
 - Manages multiple repos per project via `pyproject.toml`
 - Tracks git status across all repos: `qen status`
 - Manages stacked PRs: `qen pr stack`, `qen pr restack`
@@ -171,7 +171,7 @@ qen migrate 2025-12-01-speed-week
 ```markdown
 # project-name
 
-Project created on YYYY-MM-DD
+Project created on (date)
 
 ## Overview
 

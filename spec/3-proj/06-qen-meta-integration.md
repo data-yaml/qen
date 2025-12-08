@@ -22,7 +22,7 @@ The meta repository provides a convention-based approach for managing multi-repo
 
 **Meta approach**: Manually run `git checkout -b <project-id>`
 
-**QEN improvement**: `uvx qen init my-project` automatically creates the dated branch (`YYYY-MM-DD-my-project`) and switches to it
+**QEN improvement**: `uvx qen init my-project` automatically creates the dated branch (`YYMMDD-my-project`) and switches to it
 
 **Benefit**: Enforces consistent naming, eliminates typos, no manual date formatting
 
@@ -30,7 +30,7 @@ The meta repository provides a convention-based approach for managing multi-repo
 
 **Meta approach**: Manually `mkdir -p proj/<project-id>` and `cd proj/<project-id>`
 
-**QEN improvement**: Automatically creates `proj/YYYY-MM-DD-my-project/` with proper structure
+**QEN improvement**: Automatically creates `proj/YYMMDD-my-project/` with proper structure
 
 **Benefit**: One command does everything, impossible to forget the directory or mistype the path
 
@@ -201,12 +201,12 @@ QEN could create meta-style documentation stubs:
 ```bash
 uvx qen init my-project --meta-template
 # Creates:
-# - proj/YYYY-MM-DD-my-project/README.md (with meta template)
-# - proj/YYYY-MM-DD-my-project/01-spec.md
-# - proj/YYYY-MM-DD-my-project/02-arch.md
-# - proj/YYYY-MM-DD-my-project/03-plan.md
-# - proj/YYYY-MM-DD-my-project/pyproject.toml
-# - proj/YYYY-MM-DD-my-project/repos/ (gitignored)
+# - proj/YYMMDD-my-project/README.md (with meta template)
+# - proj/YYMMDD-my-project/01-spec.md
+# - proj/YYMMDD-my-project/02-arch.md
+# - proj/YYMMDD-my-project/03-plan.md
+# - proj/YYMMDD-my-project/pyproject.toml
+# - proj/YYMMDD-my-project/repos/ (gitignored)
 ```
 
 ### 2. Documentation Commands

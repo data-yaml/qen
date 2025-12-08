@@ -100,10 +100,10 @@ repos/
 Make these variables available to templates:
 
 - `${project_name}` - Project name (e.g., "my-feature")
-- `${date}` - Creation date in YYYY-MM-DD format
+- `${date}` - Creation date in YYYY-MM-DD format (note: branch/folder use YYMMDD)
 - `${timestamp}` - ISO 8601 timestamp (full datetime)
-- `${branch_name}` - Git branch name (e.g., "2025-12-07-my-feature")
-- `${folder_path}` - Relative folder path (e.g., "proj/2025-12-07-my-feature")
+- `${branch_name}` - Git branch name (e.g., "251207-my-feature")
+- `${folder_path}` - Relative folder path (e.g., "proj/251207-my-feature")
 - `${github_org}` - GitHub organization from config
 
 ### 3. Update `src/qen/project.py`

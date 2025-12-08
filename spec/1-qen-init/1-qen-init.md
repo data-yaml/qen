@@ -24,8 +24,8 @@ current_project = null
 
 **Behavior:**
 1. ERROR if project config `$XDG_CONFIG_HOME/qen/<proj-name>.toml` already exists
-2. Create branch `YYYY-MM-DD-<proj-name>` in meta repo
-3. Create directory `proj/YYYY-MM-DD-<proj-name>/` with:
+2. Create branch `YYMMDD-<proj-name>` in meta repo
+3. Create directory `proj/YYMMDD-<proj-name>/` with:
    - `README.md` (stub)
    - `pyproject.toml` ([tool.qen] configuration)
    - `repos/` (gitignored)
@@ -35,8 +35,8 @@ current_project = null
 **Project config structure:**
 ```toml
 name = "proj-name"
-branch = "YYYY-MM-DD-proj-name"
-folder = "proj/YYYY-MM-DD-proj-name"
+branch = "YYMMDD-proj-name"
+folder = "proj/YYMMDD-proj-name"
 created = "2025-12-05T10:30:00Z"
 ```
 
@@ -55,7 +55,7 @@ created = "2025-12-05T10:30:00Z"
 ## Design Decisions
 
 1. **Fail fast:** Error on any unexpected condition (duplicate names, missing meta, ambiguous org)
-2. **Date prefixes:** Use `YYYY-MM-DD-` prefix for branches/folders to enable temporal sorting and prevent collisions
+2. **Date prefixes:** Use `YYMMDD-` prefix for branches/folders to enable temporal sorting and prevent collisions
 3. **Separate configs:** One file per project in qen config dir for future `qen use` command
 4. **Simple clones:** Use plain git clones in `repos/`, not gitmodules/worktrees
 5. **Use qenvy:** Leverage existing qenvy library for XDG-compliant config management
