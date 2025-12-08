@@ -73,7 +73,8 @@ def init(project_name: str | None, verbose: bool) -> None:
 @click.option("--branch", "-b", help="Branch to track (default: main)")
 @click.option("--path", "-p", help="Local path (default: repos/<name>)")
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
-def add(repo: str, branch: str | None, path: str | None, verbose: bool) -> None:
+@click.option("--force", is_flag=True, help="Force re-add if repository exists")
+def add(repo: str, branch: str | None, path: str | None, verbose: bool, force: bool) -> None:
     """Add a repository to the current project.
 
     REPO can be specified in three formats:
@@ -108,7 +109,7 @@ def add(repo: str, branch: str | None, path: str | None, verbose: bool) -> None:
         # Add with custom path
         $ qen add myorg/myrepo --path repos/custom-name
     """
-    add_repository(repo, branch, path, verbose)
+    add_repository(repo, branch, path, verbose, force)
 
 
 @main.command("pull")
