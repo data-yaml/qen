@@ -493,8 +493,8 @@ class TestCreateProject:
         mock_create_structure.assert_called_once()
         call_positional_args = mock_create_structure.call_args[0]
         # create_project_structure(meta_path, project_name, branch_name, folder_path, github_org)
-        assert call_positional_args[2] == "2024-01-15-test-project"  # branch_name
-        assert call_positional_args[3] == "proj/2024-01-15-test-project"  # folder_path
+        assert call_positional_args[2] == "240115-test-project"  # branch_name
+        assert call_positional_args[3] == "proj/240115-test-project"  # folder_path
 
 
 # ==============================================================================

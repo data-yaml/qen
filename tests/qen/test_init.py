@@ -476,7 +476,7 @@ class TestInitProjectFunction:
 
         # Verify: Branch and folder use today's date
         project_config = config.read_project_config(project_name)
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%y%m%d")
         assert project_config["branch"].startswith(today)
         assert project_config["folder"].startswith(f"proj/{today}")
 
