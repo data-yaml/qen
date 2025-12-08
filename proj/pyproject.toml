@@ -1,0 +1,17 @@
+# QEN Project Configuration
+# This manifest defines the project structure and repositories
+# Last updated: ${timestamp}
+
+[tool.qen]
+# Project configuration managed by QEN
+created = "${timestamp}"
+branch = "${branch_name}"
+
+# Example repository entry (uncomment and modify as needed)
+# [[tool.qen.repositories]]
+# name = "example-repo"            # A descriptive name for the repository
+# url = "https://github.com/${github_org}/example-repo"
+# path = "repos/example-repo"       # Relative path within the project's repos/ directory
+# branch = "main"                   # Optional: specific branch to checkout
+
+# Tip: Use `qen add` to easily add repositories to this manifest
