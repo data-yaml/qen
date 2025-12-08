@@ -6,6 +6,7 @@ Pushes local commits across all sub-repositories within a QEN project.
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -232,6 +233,7 @@ def push_project(
     allow_dirty: bool = False,
     specific_repo: str | None = None,
     verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Push all repositories in a project.
 
@@ -244,6 +246,7 @@ def push_project(
         allow_dirty: If True, allow push with uncommitted changes
         specific_repo: If set, only push this repository
         verbose: If True, show detailed output
+        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Raises:
         click.ClickException: If push fails
@@ -256,7 +259,12 @@ def push_project(
             return
 
     # Load configuration
-    config = QenConfig()
+    overrides = config_overrides or {}
+    config = QenConfig(
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
     if not config.main_config_exists():
         raise click.ClickException("qen is not initialized. Run 'qen init' first.")
@@ -522,7 +530,9 @@ def print_push_summary(
 @click.option("--repo", help="Push only specific repository")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed git output")
 @click.option("--project", help="Project name (default: current project)")
+@click.pass_context
 def push_command(
+    ctx: click.Context,
     dry_run: bool,
     allow_dirty: bool,
     force_with_lease: bool,
@@ -565,6 +575,7 @@ def push_command(
         $ qen push --repo repos/api
     """
     try:
+        overrides = ctx.obj.get("config_overrides", {})
         push_project(
             project_name=project,
             dry_run=dry_run,
@@ -574,6 +585,7 @@ def push_command(
             allow_dirty=allow_dirty,
             specific_repo=repo,
             verbose=verbose,
+            config_overrides=overrides,
         )
     except click.ClickException:
         raise

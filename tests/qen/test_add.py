@@ -11,10 +11,12 @@ from qen.pyproject_utils import (
     PyProjectNotFoundError,
     add_repo_to_pyproject,
     read_pyproject,
+    remove_repo_from_pyproject,
     repo_exists_in_pyproject,
 )
 from qen.repo_utils import (
     RepoUrlParseError,
+    check_remote_branch_exists,
     clone_repository,
     infer_repo_path,
     parse_repo_url,
@@ -118,6 +120,53 @@ class TestRepoPath:
 # ==============================================================================
 
 
+class TestCheckRemoteBranch:
+    """Tests for check_remote_branch_exists function."""
+
+    def test_check_remote_branch_exists_true(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists returns True for existing branch."""
+        # Create a test branch in child_repo
+        subprocess.run(
+            ["git", "checkout", "-b", "test-branch"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Go back to main
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=child_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if test-branch exists on remote
+        assert check_remote_branch_exists(dest, "test-branch") is True
+
+    def test_check_remote_branch_exists_false(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists returns False for non-existent branch."""
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if non-existent branch exists on remote
+        assert check_remote_branch_exists(dest, "nonexistent-branch") is False
+
+    def test_check_remote_branch_main(self, child_repo: Path) -> None:
+        """Test that check_remote_branch_exists works for main branch."""
+        # Clone the repo
+        dest = child_repo.parent / "cloned"
+        clone_repository(str(child_repo), dest)
+
+        # Check if main exists on remote
+        assert check_remote_branch_exists(dest, "main") is True
+
+
 class TestRepoCloning:
     """Tests for clone_repository function."""
 
@@ -171,11 +220,11 @@ class TestRepoCloning:
         assert dest.exists()
         assert (dest / "develop.txt").exists()
 
-    def test_clone_with_nonexistent_branch(self, child_repo: Path, tmp_path: Path) -> None:
-        """Test cloning with a branch that doesn't exist remotely creates it."""
-        # Clone with a branch that doesn't exist in the repo
+    def test_clone_with_nonexistent_branch_yes_flag(self, child_repo: Path, tmp_path: Path) -> None:
+        """Test cloning with a branch that doesn't exist remotely with --yes flag."""
+        # Clone with a branch that doesn't exist in the repo, auto-confirm with yes=True
         dest = tmp_path / "cloned"
-        clone_repository(str(child_repo), dest, branch="new-feature")
+        clone_repository(str(child_repo), dest, branch="new-feature", yes=True)
 
         assert dest.exists()
         assert (dest / ".git").exists()
@@ -190,6 +239,21 @@ class TestRepoCloning:
             check=True,
         )
         assert result.stdout.strip() == "new-feature"
+
+    def test_clone_with_nonexistent_branch_no_yes_flag(
+        self, child_repo: Path, tmp_path: Path, mocker
+    ) -> None:
+        """Test cloning with a branch that doesn't exist remotely without --yes flag raises error."""
+        # Mock click.confirm to return False (user declines)
+        mock_confirm = mocker.patch("click.confirm", return_value=False)
+
+        # Clone with a branch that doesn't exist in the repo should raise error
+        dest = tmp_path / "cloned"
+        with pytest.raises(GitError, match="does not exist on remote"):
+            clone_repository(str(child_repo), dest, branch="new-feature", yes=False)
+
+        # Verify confirm was called
+        mock_confirm.assert_called_once()
 
     def test_clone_fails_if_dest_exists(self, child_repo: Path, tmp_path: Path) -> None:
         """Test that cloning fails if destination exists."""
@@ -922,3 +986,280 @@ created = "2025-12-05T10:00:00Z"
         assert len(result["tool"]["qen"]["repos"]) == 1
         assert result["tool"]["qen"]["repos"][0]["branch"] == "feature-branch"
         assert result["tool"]["qen"]["repos"][0]["path"] == "repos/feature-branch/child_repo"
+
+
+# ==============================================================================
+# Test Repository Removal from pyproject.toml
+# ==============================================================================
+
+
+class TestRemoveRepoFromPyproject:
+    """Tests for removing repositories from pyproject.toml."""
+
+    def test_remove_existing_repo(self, tmp_path: Path) -> None:
+        """Test removing an existing repository."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup: Create pyproject.toml with two repos
+        pyproject_path = tmp_path / "pyproject.toml"
+        config = {
+            "tool": {
+                "qen": {
+                    "repos": [
+                        {
+                            "url": "https://github.com/org/repo1",
+                            "branch": "main",
+                            "path": "repos/main/repo1",
+                        },
+                        {
+                            "url": "https://github.com/org/repo2",
+                            "branch": "dev",
+                            "path": "repos/dev/repo2",
+                        },
+                    ]
+                }
+            }
+        }
+        handler = TOMLHandler()
+        handler.write(pyproject_path, config)
+
+        # Action: Remove one repo
+        removed_path = remove_repo_from_pyproject(tmp_path, "https://github.com/org/repo1", "main")
+
+        # Assert: Returns correct path and only remaining repo exists
+        assert removed_path == "repos/main/repo1"
+        updated_config = handler.read(pyproject_path)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1
+        assert repos[0]["url"] == "https://github.com/org/repo2"
+
+    def test_remove_nonexistent_repo(self, tmp_path: Path) -> None:
+        """Test removing a repo that doesn't exist."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup
+        pyproject_path = tmp_path / "pyproject.toml"
+        config = {
+            "tool": {
+                "qen": {
+                    "repos": [
+                        {
+                            "url": "https://github.com/org/repo1",
+                            "branch": "main",
+                            "path": "repos/main/repo1",
+                        }
+                    ]
+                }
+            }
+        }
+        handler = TOMLHandler()
+        handler.write(pyproject_path, config)
+
+        # Action: Try to remove different repo
+        removed_path = remove_repo_from_pyproject(tmp_path, "https://github.com/org/other", "main")
+
+        # Assert: Returns None, original repo unchanged
+        assert removed_path is None
+        updated_config = handler.read(pyproject_path)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1
+
+    def test_remove_repo_no_pyproject(self, tmp_path: Path) -> None:
+        """Test removing repo when pyproject.toml doesn't exist."""
+        # Action & Assert
+        with pytest.raises(PyProjectNotFoundError):
+            remove_repo_from_pyproject(tmp_path, "https://github.com/org/repo", "main")
+
+
+# ==============================================================================
+# Test --force Flag Integration
+# ==============================================================================
+
+
+class TestAddCommandForce:
+    """Integration tests for the --force flag."""
+
+    def test_add_duplicate_repository_fails_without_force(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test that adding duplicate repository fails WITHOUT --force flag."""
+        import click
+
+        # Setup: Create meta repo with project
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
+
+        project_name = "test-project"
+        branch = "2025-12-07-test-project"
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.qen]
+created = "2025-12-07T10:00:00Z"
+"""
+        )
+
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-07T10:00:00Z",
+            },
+        )
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # First add - should succeed
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            force=False,
+            storage=test_storage,
+        )
+
+        # Second add WITHOUT force - should fail
+        with pytest.raises(click.exceptions.Abort):
+            add_repository(
+                repo=str(child_repo),
+                branch="main",
+                path=None,
+                verbose=False,
+                force=False,
+                storage=test_storage,
+            )
+
+    def test_add_duplicate_repository_with_force(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test that adding duplicate repository succeeds WITH --force flag."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup: Create meta repo with project
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
+
+        project_name = "test-project"
+        branch = "2025-12-07-test-project"
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.qen]
+created = "2025-12-07T10:00:00Z"
+"""
+        )
+
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-07T10:00:00Z",
+            },
+        )
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # First add - should succeed
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            force=False,
+            storage=test_storage,
+        )
+
+        # Create a marker file in the clone to verify it gets removed
+        repos_dir = project_dir / "repos" / "main"
+        repos_dir.mkdir(parents=True, exist_ok=True)
+        repo_clone = repos_dir / "child_repo"
+        repo_clone.mkdir(exist_ok=True)
+        marker_file = repo_clone / "MARKER"
+        marker_file.write_text("original")
+
+        # Second add WITH force - should succeed and re-clone
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=True,
+            force=True,
+            storage=test_storage,
+        )
+
+        # Verify:
+        # 1. Marker file is gone (directory was removed and re-cloned)
+        assert not marker_file.exists(), "Marker file should be removed with --force"
+
+        # 2. Only one entry in pyproject.toml (not duplicated)
+        handler = TOMLHandler()
+        updated_config = handler.read(pyproject)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1, "Should have exactly one repo entry"
+        assert repos[0]["url"] == str(child_repo)
+        assert repos[0]["branch"] == "main"

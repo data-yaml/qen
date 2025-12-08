@@ -6,6 +6,7 @@ Add a repository to the current project by:
 3. Updating pyproject.toml with the repository entry
 """
 
+import shutil
 from pathlib import Path
 
 import click
@@ -18,6 +19,7 @@ from ..pyproject_utils import (
     PyProjectNotFoundError,
     PyProjectUpdateError,
     add_repo_to_pyproject,
+    remove_repo_from_pyproject,
     repo_exists_in_pyproject,
 )
 from ..repo_utils import (
@@ -46,13 +48,48 @@ class RepositoryAlreadyExistsError(AddCommandError):
     pass
 
 
+def remove_existing_repo(project_dir: Path, url: str, branch: str, verbose: bool = False) -> None:
+    """Remove existing repository from both config and filesystem.
+
+    Args:
+        project_dir: Path to project directory
+        url: Repository URL to remove
+        branch: Branch to remove
+        verbose: Enable verbose output
+
+    Raises:
+        PyProjectUpdateError: If removal from pyproject.toml fails
+    """
+    # Get the stored path from config and remove entry
+    repo_path_str = remove_repo_from_pyproject(project_dir, url, branch)
+
+    if repo_path_str:
+        # Convert relative path to absolute
+        repo_path = project_dir / repo_path_str
+
+        # Remove clone directory if it exists
+        if repo_path.exists():
+            if verbose:
+                click.echo(f"Removing existing clone at {repo_path}")
+            shutil.rmtree(repo_path)
+        elif verbose:
+            click.echo(f"Clone directory not found: {repo_path} (already removed)")
+    elif verbose:
+        click.echo("Repository entry not found in pyproject.toml (already removed)")
+
+
 def add_repository(
     repo: str,
     branch: str | None = None,
     path: str | None = None,
     verbose: bool = False,
+    force: bool = False,
+    yes: bool = False,
+    no_workspace: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> None:
     """Add a repository to the current project.
 
@@ -61,8 +98,13 @@ def add_repository(
         branch: Branch to track (default: current meta repo branch)
         path: Local path for repository (default: repos/<name>)
         verbose: Enable verbose output
+        force: Force re-add even if repository exists (removes and re-clones)
+        yes: Auto-confirm prompts (create local branch without asking)
+        no_workspace: Skip automatic workspace file regeneration
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
+        meta_path_override: Override meta repository path
+        current_project_override: Override current project name
 
     Raises:
         NoActiveProjectError: If no project is currently active
@@ -73,7 +115,12 @@ def add_repository(
         QenConfigError: If configuration cannot be read
     """
     # 1. Load configuration and get current project
-    config = QenConfig(config_dir=config_dir, storage=storage)
+    config = QenConfig(
+        config_dir=config_dir,
+        storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     if not config.main_config_exists():
         click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
@@ -148,16 +195,20 @@ def add_repository(
     # 5. Check if repository already exists in pyproject.toml
     try:
         if repo_exists_in_pyproject(project_dir, url, branch):
-            click.echo(
-                f"Error: Repository already exists in project: {url} (branch: {branch})",
-                err=True,
-            )
-            raise click.Abort()
+            if not force:
+                # Existing behavior - block and abort
+                click.echo(
+                    f"Error: Repository already exists in project: {url} (branch: {branch})",
+                    err=True,
+                )
+                raise click.Abort()
+            else:
+                # New behavior - remove existing entry and re-add
+                if verbose:
+                    click.echo("Repository exists. Removing and re-adding with --force...")
+                remove_existing_repo(project_dir, url, branch, verbose)
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
-        raise click.Abort() from e
-    except PyProjectUpdateError as e:
-        click.echo(f"Error checking repository: {e}", err=True)
         raise click.Abort() from e
 
     # 6. Clone the repository
@@ -166,8 +217,15 @@ def add_repository(
     if verbose:
         click.echo(f"Cloning to: {clone_path}")
 
+    # With --force, ensure clean slate by removing any existing directory
+    # This handles cases where directory exists but isn't in config
+    if force and clone_path.exists():
+        if verbose:
+            click.echo(f"Removing existing clone directory at {clone_path}")
+        shutil.rmtree(clone_path)
+
     try:
-        clone_repository(url, clone_path, branch, verbose)
+        clone_repository(url, clone_path, branch, verbose, yes=yes)
     except GitError as e:
         click.echo(f"Error cloning repository: {e}", err=True)
         raise click.Abort() from e
@@ -182,16 +240,12 @@ def add_repository(
         click.echo(f"Error: {e}", err=True)
         # Clean up the cloned repository
         if clone_path.exists():
-            import shutil
-
             shutil.rmtree(clone_path)
         raise click.Abort() from e
     except PyProjectUpdateError as e:
         click.echo(f"Error updating pyproject.toml: {e}", err=True)
         # Clean up the cloned repository
         if clone_path.exists():
-            import shutil
-
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
@@ -206,8 +260,22 @@ def add_repository(
         from .pull import check_gh_installed, pull_repository
 
         pyproject = read_pyproject(project_dir)
-        repos = pyproject.get("tool", {}).get("qen", {}).get("repos", {})
-        repo_entry = repos.get(repo_name, {})
+        repos = pyproject.get("tool", {}).get("qen", {}).get("repos", [])
+
+        # Find the repo entry we just added (repos is a list, not a dict)
+        repo_entry = None
+        for repo in repos:
+            if isinstance(repo, dict):
+                # Match by URL and branch since we just added it
+                if repo.get("url") == url and repo.get("branch") == branch:
+                    repo_entry = repo
+                    break
+
+        if not repo_entry:
+            if verbose:
+                click.echo("Warning: Could not find repo entry for metadata initialization")
+            # Skip metadata initialization if we can't find the entry
+            raise ValueError(f"Repository entry not found after add: {url}")
 
         # Call pull_repository to update metadata and detect PR/issue info
         gh_available = check_gh_installed()
@@ -224,12 +292,56 @@ def add_repository(
         if verbose:
             click.echo("Repository was added successfully but metadata may be incomplete.")
 
-    # 9. Success message
+    # 9. Regenerate workspace files (unless --no-workspace)
+    if not no_workspace:
+        if verbose:
+            click.echo("\nRegenerating workspace files...")
+        try:
+            from .workspace import create_workspace_files
+
+            # Get current project name for workspace generation
+            config = QenConfig(
+                config_dir=config_dir,
+                storage=storage,
+                meta_path_override=meta_path_override,
+                current_project_override=current_project_override,
+            )
+            main_config = config.read_main_config()
+            current_project = main_config.get("current_project", "project")
+
+            # Read all repos from pyproject.toml
+            from ..pyproject_utils import read_pyproject
+
+            pyproject = read_pyproject(project_dir)
+            repos = pyproject.get("tool", {}).get("qen", {}).get("repos", [])
+
+            # Regenerate workspace files
+            created_files = create_workspace_files(
+                project_dir, repos, current_project, editor="all", verbose=verbose
+            )
+
+            if verbose:
+                click.echo("Updated workspace files:")
+                for editor_name, file_path in created_files.items():
+                    rel_path = file_path.relative_to(project_dir)
+                    click.echo(f"  • {editor_name}: {rel_path}")
+        except Exception as e:
+            # Non-fatal: workspace regeneration is a convenience feature
+            click.echo(f"Warning: Could not regenerate workspace files: {e}", err=True)
+            if verbose:
+                click.echo("You can manually regenerate with: qen workspace")
+
+    # 10. Success message
     click.echo()
     click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")
     click.echo(f"  Path: {clone_path}")
+    if not no_workspace:
+        click.echo("  Workspace files: updated")
     click.echo()
     click.echo("Next steps:")
     click.echo("  - Review the cloned repository")
-    click.echo("  - Commit changes: git add pyproject.toml && git commit -m 'Add repository'")
+    click.echo(
+        f"  - Commit changes: git add pyproject.toml && "
+        f"git commit -m 'Add {repo_name} (branch: {branch})'"
+    )

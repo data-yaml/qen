@@ -32,15 +32,35 @@ class ProjectSummary:
     is_current: bool = False
 
 
-def get_current_project_name(config: QenConfig) -> str | None:
+def get_current_project_name(
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+) -> str | None:
     """Get the current project name from global config.
 
     Args:
-        config: QenConfig instance
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
 
     Returns:
         Current project name or None if not set
     """
+    # If current_project override provided, use it directly
+    if current_project is not None:
+        return current_project
+
+    # Use provided config or create one with overrides
+    if config is None:
+        config = QenConfig(
+            config_dir=config_dir,
+            meta_path_override=meta_path,
+            current_project_override=current_project,
+        )
+
     try:
         main_config = config.read_main_config()
         return main_config.get("current_project")
@@ -67,17 +87,33 @@ def count_repositories(project_config: dict[str, str], meta_path: Path) -> int:
         return 0
 
 
-def list_all_projects(config: QenConfig) -> list[ProjectSummary]:
+def list_all_projects(
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+) -> list[ProjectSummary]:
     """List all available projects.
 
     Args:
-        config: QenConfig instance
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
 
     Returns:
         List of ProjectSummary objects sorted by creation date (newest first)
     """
+    # Use provided config or create one with overrides
+    if config is None:
+        config = QenConfig(
+            config_dir=config_dir,
+            meta_path_override=meta_path,
+            current_project_override=current_project,
+        )
+
     project_names = config.list_projects()
-    current_project = get_current_project_name(config)
+    current_project_name = get_current_project_name(config, config_dir, meta_path, current_project)
 
     # Get meta_path for counting repositories
     try:
@@ -102,7 +138,7 @@ def list_all_projects(config: QenConfig) -> list[ProjectSummary]:
                     created=project_config["created"],
                     repository_count=repo_count,
                     path=project_path,
-                    is_current=(project_name == current_project),
+                    is_current=(project_name == current_project_name),
                 )
             )
         except (QenConfigError, KeyError):
@@ -113,18 +149,35 @@ def list_all_projects(config: QenConfig) -> list[ProjectSummary]:
     return sorted(projects, key=lambda p: p.created, reverse=True)
 
 
-def display_current_project(config: QenConfig, json_output: bool = False) -> None:
+def display_current_project(
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+    json_output: bool = False,
+) -> None:
     """Display current project configuration.
 
     Args:
-        config: QenConfig instance
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
         json_output: If True, output in JSON format
 
     Raises:
         click.ClickException: If display fails
     """
+    # Use provided config or create one with overrides
+    if config is None:
+        config = QenConfig(
+            config_dir=config_dir,
+            meta_path_override=meta_path,
+            current_project_override=current_project,
+        )
+
     # Get current project name
-    project_name = get_current_project_name(config)
+    project_name = get_current_project_name(config, config_dir, meta_path, current_project)
 
     if not project_name:
         if json_output:
@@ -134,7 +187,7 @@ def display_current_project(config: QenConfig, json_output: bool = False) -> Non
         # Show available projects
         click.echo("No current project set.\n")
 
-        projects = list_all_projects(config)
+        projects = list_all_projects(config, config_dir, meta_path, current_project)
         if projects:
             click.echo("Available projects (use 'qen config --list' to see all):")
             for project in projects[:5]:  # Show first 5
@@ -153,11 +206,11 @@ def display_current_project(config: QenConfig, json_output: bool = False) -> Non
     try:
         project_config = config.read_project_config(project_name)
         main_config = config.read_main_config()
-        meta_path = Path(main_config["meta_path"])
+        actual_meta_path = Path(main_config["meta_path"])
     except QenConfigError as e:
         raise click.ClickException(f"Error loading project configuration: {e}") from e
 
-    project_dir = meta_path / project_config["folder"]
+    project_dir = actual_meta_path / project_config["folder"]
 
     # Load repositories
     repos = []
@@ -187,7 +240,7 @@ def display_current_project(config: QenConfig, json_output: bool = False) -> Non
                 "name": project_config["name"],
                 "branch": project_config["branch"],
                 "folder": project_config["folder"],
-                "meta_path": str(meta_path),
+                "meta_path": str(actual_meta_path),
                 "created": project_config["created"],
                 "repositories": repos,
             },
@@ -201,7 +254,7 @@ def display_current_project(config: QenConfig, json_output: bool = False) -> Non
     click.echo(f"  Name:          {project_config['name']}")
     click.echo(f"  Branch:        {project_config['branch']}")
     click.echo(f"  Created:       {project_config['created']}")
-    click.echo(f"  Meta path:     {meta_path}")
+    click.echo(f"  Meta path:     {actual_meta_path}")
     click.echo(f"  Project path:  {project_dir}")
 
     if repos:
@@ -216,19 +269,27 @@ def display_current_project(config: QenConfig, json_output: bool = False) -> Non
 
 
 def display_project_list(
-    config: QenConfig, compact: bool = False, json_output: bool = False
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+    compact: bool = False,
+    json_output: bool = False,
 ) -> None:
     """Display list of all projects.
 
     Args:
-        config: QenConfig instance
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
         compact: If True, use compact format
         json_output: If True, output in JSON format
 
     Raises:
         click.ClickException: If display fails
     """
-    projects = list_all_projects(config)
+    projects = list_all_projects(config, config_dir, meta_path, current_project)
 
     if not projects:
         if json_output:
@@ -242,9 +303,11 @@ def display_project_list(
 
     # JSON output
     if json_output:
-        current_project = get_current_project_name(config)
+        current_project_name = get_current_project_name(
+            config, config_dir, meta_path, current_project
+        )
         output = {
-            "current_project": current_project,
+            "current_project": current_project_name,
             "projects": [
                 {
                     "name": p.name,
@@ -292,20 +355,37 @@ def display_project_list(
         click.echo("\n* = current project")
 
 
-def switch_project(config: QenConfig, project_name: str) -> None:
+def switch_project(
+    project_name: str,
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+) -> None:
     """Switch to a different project.
 
     Args:
-        config: QenConfig instance
         project_name: Name of project to switch to
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
 
     Raises:
         click.ClickException: If switch fails
     """
+    # Use provided config or create one with overrides
+    if config is None:
+        config = QenConfig(
+            config_dir=config_dir,
+            meta_path_override=meta_path,
+            current_project_override=current_project,
+        )
+
     # Verify project exists
     if not config.project_config_exists(project_name):
         # List available projects
-        projects = list_all_projects(config)
+        projects = list_all_projects(config, config_dir, meta_path, current_project)
         click.echo(f'Error: Project "{project_name}" not found.\n', err=True)
 
         if projects:
@@ -340,8 +420,8 @@ def switch_project(config: QenConfig, project_name: str) -> None:
     # Count repositories
     try:
         main_config = config.read_main_config()
-        meta_path = Path(main_config["meta_path"])
-        repo_count = count_repositories(project_config, meta_path)
+        actual_meta_path = Path(main_config["meta_path"])
+        repo_count = count_repositories(project_config, actual_meta_path)
         click.echo(f"  Repositories:  {repo_count}")
     except QenConfigError:
         pass  # Skip repo count if we can't determine it
@@ -349,16 +429,33 @@ def switch_project(config: QenConfig, project_name: str) -> None:
     click.echo("\nUse 'qen status' to see detailed status.")
 
 
-def display_global_config(config: QenConfig, json_output: bool = False) -> None:
+def display_global_config(
+    config: QenConfig | None = None,
+    config_dir: Path | None = None,
+    meta_path: Path | None = None,
+    current_project: str | None = None,
+    json_output: bool = False,
+) -> None:
     """Display global QEN configuration.
 
     Args:
-        config: QenConfig instance
+        config: Optional QenConfig instance (for backward compatibility)
+        config_dir: Optional config directory override
+        meta_path: Optional meta path override
+        current_project: Optional current project override
         json_output: If True, output in JSON format
 
     Raises:
         click.ClickException: If display fails
     """
+    # Use provided config or create one with overrides
+    if config is None:
+        config = QenConfig(
+            config_dir=config_dir,
+            meta_path_override=meta_path,
+            current_project_override=current_project,
+        )
+
     try:
         main_config = config.read_main_config()
     except QenConfigError as e:
@@ -488,10 +585,28 @@ def config_command(
         # JSON output
         $ qen config --json
     """
-    # Load configuration - use injected config if available (for testing)
+    # Extract injected config (for testing)
     config = ctx.obj.get("config") if ctx.obj else None
+
+    # If no injected config, create with overrides
     if config is None:
-        config = QenConfig()
+        overrides = ctx.obj.get("config_overrides", {}) if ctx.obj else {}
+        config = QenConfig(
+            config_dir=overrides.get("config_dir"),
+            meta_path_override=overrides.get("meta_path"),
+            current_project_override=overrides.get("current_project"),
+        )
+
+    # Extract overrides for passing to helper functions
+    config_dir = None
+    meta_path = None
+    current_project_override = None
+
+    if ctx.obj and "config_overrides" in ctx.obj:
+        overrides = ctx.obj["config_overrides"]
+        config_dir = overrides.get("config_dir")
+        meta_path = overrides.get("meta_path")
+        current_project_override = overrides.get("current_project")
 
     if not config.main_config_exists():
         click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
@@ -500,12 +615,25 @@ def config_command(
     try:
         # Global config view
         if show_global:
-            display_global_config(config, json_output=json_output)
+            display_global_config(
+                config=config,
+                config_dir=config_dir,
+                meta_path=meta_path,
+                current_project=current_project_override,
+                json_output=json_output,
+            )
             return
 
         # List all projects
         if list_projects:
-            display_project_list(config, compact=compact, json_output=json_output)
+            display_project_list(
+                config=config,
+                config_dir=config_dir,
+                meta_path=meta_path,
+                current_project=current_project_override,
+                compact=compact,
+                json_output=json_output,
+            )
             return
 
         # Switch to project
@@ -513,11 +641,23 @@ def config_command(
             if json_output:
                 click.echo("Error: Cannot combine project switch with --json", err=True)
                 raise click.Abort()
-            switch_project(config, project_name)
+            switch_project(
+                project_name,
+                config=config,
+                config_dir=config_dir,
+                meta_path=meta_path,
+                current_project=current_project_override,
+            )
             return
 
         # Show current project (default)
-        display_current_project(config, json_output=json_output)
+        display_current_project(
+            config=config,
+            config_dir=config_dir,
+            meta_path=meta_path,
+            current_project=current_project_override,
+            json_output=json_output,
+        )
 
     except click.ClickException:
         raise

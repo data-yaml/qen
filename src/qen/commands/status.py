@@ -5,6 +5,7 @@ Shows git status across all repositories (meta + sub-repos) in the current proje
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -144,10 +145,11 @@ def format_status_output(
             lines.append("Sub-repositories:")
             lines.append("")
 
-            for repo_config, repo_status in status.repo_statuses:
+            # Use enumerate to add 1-based indices
+            for idx, (repo_config, repo_status) in enumerate(status.repo_statuses, start=1):
                 # Extract repo name from URL for display
                 repo_display = f"{repo_config.path} ({repo_config.url})"
-                lines.append(f"  {repo_display}")
+                lines.append(f"  [{idx}] {repo_display}")
 
                 if not repo_status.exists:
                     lines.append("    Warning: Repository not cloned. Run 'qen add' to clone.")
@@ -209,20 +211,21 @@ def fetch_all_repos(project_dir: Path, meta_path: Path, verbose: bool = False) -
     except (PyProjectNotFoundError, Exception) as e:
         raise StatusError(f"Failed to load repositories: {e}") from e
 
-    for repo_config in repos:
+    # Use enumerate to show indices when fetching
+    for idx, repo_config in enumerate(repos, start=1):
         repo_path = repo_config.local_path(project_dir)
         if not repo_path.exists():
             if verbose:
-                click.echo(f"  - {repo_config.path} (not cloned)")
+                click.echo(f"  [{idx}] {repo_config.path} (not cloned)")
             continue
 
         try:
             git_fetch(repo_path)
             if verbose:
-                click.echo(f"  ✓ {repo_config.path}")
+                click.echo(f"  [{idx}] ✓ {repo_config.path}")
         except GitError as e:
             if verbose:
-                click.echo(f"  ✗ {repo_config.path} ({e})")
+                click.echo(f"  [{idx}] ✗ {repo_config.path} ({e})")
 
     if verbose:
         click.echo("")
@@ -234,6 +237,7 @@ def show_project_status(
     verbose: bool = False,
     meta_only: bool = False,
     repos_only: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Show status for current or specified project.
 
@@ -243,13 +247,19 @@ def show_project_status(
         verbose: If True, show detailed file lists
         meta_only: If True, only show meta repository
         repos_only: If True, only show sub-repositories
+        config_overrides: Configuration overrides from CLI
 
     Raises:
         StatusError: If status cannot be retrieved
         click.ClickException: For user-facing errors
     """
-    # Load configuration
-    config = QenConfig()
+    # Load configuration with overrides
+    overrides = config_overrides or {}
+    config = QenConfig(
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
     if not config.main_config_exists():
         raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
@@ -310,13 +320,22 @@ def show_project_status(
 @click.option("--project", help="Project name (default: current project)")
 @click.option("--meta-only", is_flag=True, help="Show only meta repository status")
 @click.option("--repos-only", is_flag=True, help="Show only sub-repository status")
+@click.pass_context
 def status_command(
-    fetch: bool, verbose: bool, project: str | None, meta_only: bool, repos_only: bool
+    ctx: click.Context,
+    fetch: bool,
+    verbose: bool,
+    project: str | None,
+    meta_only: bool,
+    repos_only: bool,
 ) -> None:
     """Show git status across all repositories in the current project.
 
     Displays branch information, uncommitted changes, and sync status
     for both the meta repository and all sub-repositories.
+
+    Repositories are shown with indices ([1], [2], etc.) based on their
+    order in the project configuration.
 
     Examples:
 
@@ -344,6 +363,7 @@ def status_command(
         # Show only sub-repositories
         $ qen status --repos-only
     """
+    overrides = ctx.obj.get("config_overrides", {})
     try:
         show_project_status(
             project_name=project,
@@ -351,6 +371,7 @@ def status_command(
             verbose=verbose,
             meta_only=meta_only,
             repos_only=repos_only,
+            config_overrides=overrides,
         )
     except click.ClickException:
         raise

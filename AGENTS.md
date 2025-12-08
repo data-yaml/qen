@@ -4,7 +4,7 @@ This guide helps AI coding agents (like Claude Code, GitHub Copilot, Cursor, etc
 
 ## Quick Reference
 
-**Primary Documentation:** See [README.md](README.md) for full project details, philosophy, and user-facing documentation.
+**Primary Documentation:** See [README.md](README.md) for user-facing documentation, philosophy, and end-user guide.
 
 **Technology Stack:**
 
@@ -55,6 +55,44 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 - Single entry point for all development tasks
 - No need to remember `uv run` or activate venv
 
+## Development Setup
+
+### First Time Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/data-yaml/qen.git
+cd qen
+
+# Install with dev dependencies
+uv pip install -e ".[dev]"
+
+# Run tests (auto-installs git hooks on first run)
+./poe test
+```
+
+### Git Hooks
+
+The project uses `pre-commit` to maintain code quality:
+
+- **pre-commit**: Runs linting (ruff) and type checking (mypy) before each commit
+- **pre-push**: Runs the unit test suite before pushing
+
+Hooks are **automatically installed** when you run `./poe test` for the first time.
+
+To manually manage hooks:
+
+```bash
+# Install hooks explicitly
+./poe setup-hooks
+
+# Run pre-commit checks manually
+uv run pre-commit run --all-files
+
+# Run pre-push checks manually (including tests)
+uv run pre-commit run --hook-stage pre-push --all-files
+```
+
 ## Testing Philosophy
 
 ### Unit Tests - Fast and Mocked
@@ -62,6 +100,7 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 **Purpose:** Test individual functions and modules in isolation
 
 **Characteristics:**
+
 - Use mocks liberally for speed
 - No network calls
 - No external dependencies
@@ -69,6 +108,7 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 - Run before every commit (pre-commit hook)
 
 **Example:**
+
 ```python
 def test_parse_repo_url(mocker):
     """Unit test - mocks are OK here"""
@@ -80,6 +120,7 @@ def test_parse_repo_url(mocker):
 ```
 
 **Run unit tests:**
+
 ```bash
 ./poe test          # Default: runs only unit tests
 ./poe test-unit     # Explicit unit tests only
@@ -90,9 +131,10 @@ def test_parse_repo_url(mocker):
 **Purpose:** Validate our contract with GitHub's API
 
 **HARD REQUIREMENTS:**
+
 - ✅ **MUST use real GitHub API**
 - ✅ **MUST use actual `gh` CLI commands**
-- ✅ **MUST test against https://github.com/data-yaml/qen-test**
+- ✅ **MUST test against <https://github.com/data-yaml/qen-test>**
 - ❌ **NO MOCKS ALLOWED**
 - ❌ **NO MOCK DATA FILES**
 - ❌ **NO MOCK `gh` COMMANDS**
@@ -100,6 +142,7 @@ def test_parse_repo_url(mocker):
 **Why This Matters:**
 
 Past production bugs caused by mocks:
+
 1. Mock data had wrong field names (`state` vs `status`)
 2. Mock data omitted required fields (`mergeable`)
 3. GitHub API changes not caught by mocks
@@ -107,6 +150,7 @@ Past production bugs caused by mocks:
 **Integration tests validate our contract with GitHub. Never mock them.**
 
 **Example:**
+
 ```python
 @pytest.mark.integration
 def test_pr_status_passing_checks(real_test_repo, unique_prefix, cleanup_branches):
@@ -135,6 +179,7 @@ def test_pr_status_passing_checks(real_test_repo, unique_prefix, cleanup_branche
 ```
 
 **Run integration tests:**
+
 ```bash
 # Auto-detects GitHub token from gh CLI or environment
 ./poe test-integration
@@ -157,14 +202,16 @@ GITHUB_TOKEN="ghp_..." ./poe test-integration
 
 ### Test Repository: data-yaml/qen-test
 
-Integration tests use a dedicated repository at https://github.com/data-yaml/qen-test.
+Integration tests use a dedicated repository at <https://github.com/data-yaml/qen-test>.
 
 **GitHub Actions Workflows:**
+
 - `always-pass.yml` - Always passes
 - `always-fail.yml` - Fails for branches with "-failing-" in name
 - `slow-check.yml` - Takes 35 seconds to complete
 
 **Test Execution:**
+
 1. Clone real repo to /tmp
 2. Generate unique prefix: `test-{timestamp}-{uuid}`
 3. Create test branches and PRs using real gh CLI
@@ -173,17 +220,7 @@ Integration tests use a dedicated repository at https://github.com/data-yaml/qen
 
 ## Development Workflow
 
-### 1. First Time Setup
-
-```bash
-# Install with dev dependencies
-uv pip install -e ".[dev]"
-
-# Run tests (auto-installs git hooks on first run)
-./poe test
-```
-
-### 2. Before Making Changes
+### 1. Before Making Changes
 
 ```bash
 # Always run tests first to ensure baseline
@@ -193,7 +230,7 @@ uv pip install -e ".[dev]"
 ./poe typecheck
 ```
 
-### 3. After Making Changes
+### 2. After Making Changes
 
 ```bash
 # Fix formatting and check types
@@ -206,20 +243,24 @@ uv pip install -e ".[dev]"
 ./poe test-cov
 ```
 
-### 4. Git Hooks (Automatic)
+### 3. Common Testing Commands
 
-The project uses pre-commit hooks that run automatically:
+```bash
+# Run specific test file
+./poe test-fast tests/qen/test_config.py
 
-**pre-commit hook** (before each commit):
+# Run specific integration test
+pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
 
-- Linting with ruff
-- Type checking with mypy
+# Run with coverage for specific module
+pytest tests/qen/test_config.py --cov=src/qen/config.py --cov-report=term
 
-**pre-push hook** (before each push):
+# Stop on first failure
+./poe test-fast
 
-- Unit test suite (fast)
-
-**Note:** Hooks are auto-installed when you run `./poe test` for the first time.
+# Run all tests (unit + integration)
+./poe test-all
+```
 
 ## Project Architecture
 
@@ -236,7 +277,9 @@ src/
 │   ├── pyproject_utils.py  # pyproject.toml CRUD operations
 │   └── commands/           # Command implementations
 │       ├── init.py         # qen init [project]
-│       └── add.py          # qen add <repo>
+│       ├── add.py          # qen add <repo>
+│       ├── status.py       # qen status
+│       └── pr.py           # qen pr [subcommand]
 └── qenvy/                  # Reusable XDG-compliant config library
     ├── storage.py          # Profile-based config storage
     ├── base.py             # Core config management
@@ -245,8 +288,13 @@ src/
 
 tests/                      # Test suite mirrors src/ structure
 ├── unit/                   # Unit tests (mocks OK)
+│   ├── qen/                # Tests for qen module
+│   └── qenvy/              # Tests for qenvy module
 └── integration/            # Integration tests (NO MOCKS)
+    └── test_pr_status_real.py
 scripts/                    # Build and version management scripts
+    ├── version.py          # Version management
+    └── integration_test.py # Integration test runner
 ```
 
 ### Key Concepts
@@ -257,15 +305,109 @@ scripts/                    # Build and version management scripts
 
 **Project Structure:**
 
-- Each project creates a dated git branch: `YYYY-MM-DD-project-name`
-- Project directory: `proj/YYYY-MM-DD-project-name/`
+- Each project creates a dated git branch: `YYMMDD-project-name`
+- Project directory: `proj/YYMMDD-project-name/`
 - Contains: `README.md`, `pyproject.toml`, `repos/` (gitignored sub-repos)
 
 **Configuration Locations:**
 
 - Global: `$XDG_CONFIG_HOME/qen/config.toml`
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
-- Project manifest: `proj/YYYY-MM-DD-project/pyproject.toml` (with `[tool.qen]`)
+- Project manifest: `proj/YYMMDD-project/pyproject.toml` (with `[tool.qen]`)
+
+**CLI Global Options (Runtime Overrides):**
+
+The qen CLI provides global options that override configuration **for a single command execution only**:
+
+```bash
+qen [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
+```
+
+Available global options (defined in [cli.py](src/qen/cli.py:23-40)):
+
+- `--config-dir PATH` - Override configuration directory (default: `$XDG_CONFIG_HOME/qen`)
+- `--meta PATH` - Override meta repository path
+- `--proj NAME` or `--project NAME` - Override current project name
+
+**IMPORTANT:** These options must come **before** the subcommand, not after:
+
+- ✅ **Correct:** `qen --meta ~/GitHub/meta config --global`
+- ❌ **Wrong:** `qen config --global --meta ~/GitHub/meta`
+
+**Runtime vs. Persistent Config:**
+
+- Global options are **runtime overrides only** - they do not persist to disk
+- To permanently modify global config, use `qen init` (reinitializes with new meta path and org)
+- To switch current project persistently, use `qen config <project-name>`
+
+Example use cases:
+
+```bash
+# Temporarily use different meta repo for one command
+qen --meta /tmp/test-meta status
+
+# Temporarily work with different project
+qen --proj other-project status
+
+# Override config dir for testing
+qen --config-dir /tmp/qen-test init test-project
+```
+
+**Project pyproject.toml Schema:**
+
+The `[tool.qen]` section in each project's pyproject.toml contains:
+
+```toml
+[tool.qen]
+created = "2025-12-05T10:30:00Z"  # ISO8601 timestamp (required)
+description = "Optional description"  # string (optional)
+
+[[tool.qen.repos]]
+# User-specified fields (set via qen add):
+url = "https://github.com/org/repo"  # string (required)
+branch = "main"  # string (optional, default: "main")
+path = "repos/repo"  # string (optional, inferred from URL)
+
+# Auto-generated metadata (updated by qen pull):
+updated = "2025-12-05T14:23:45Z"  # ISO8601 timestamp of last pull
+pr = 123  # int - PR number detected via gh CLI
+pr_base = "main"  # string - PR base branch
+pr_status = "open"  # string - PR state (open, closed, merged)
+pr_checks = "passing"  # string - check status (passing, failing, pending, unknown)
+issue = 456  # int - issue number extracted from branch name
+```
+
+**Field Reference:**
+
+| Field | Type | Set By | Description |
+|-------|------|--------|-------------|
+| `url` | string | user (`qen add`) | Git clone URL (required) |
+| `branch` | string | user (`qen add`) | Branch to track (default: "main") |
+| `path` | string | user (`qen add`) | Local path in `repos/` (inferred from URL) |
+| `updated` | ISO8601 | `qen pull` | Last pull timestamp |
+| `pr` | int | `qen pull` | PR number from `gh` CLI |
+| `pr_base` | string | `qen pull` | PR base branch |
+| `pr_status` | string | `qen pull` | PR state (open/closed/merged) |
+| `pr_checks` | string | `qen pull` | Check status (passing/failing/pending/unknown) |
+| `issue` | int | `qen pull` | Issue number from branch name pattern |
+
+**Repository Indices:**
+
+Repositories are automatically assigned **1-based indices** based on their position in the `[[tool.qen.repos]]` array:
+
+- Indices start at 1 (not 0) for user-friendliness
+- Order is determined by position in the TOML array
+- Displayed in all repository listings (`qen status`, `qen pr status`, etc.)
+- Format: `[1]`, `[2]`, `[3]`, etc.
+- Use `enumerate(repos, start=1)` to iterate with indices in Python code
+
+Example in code:
+
+```python
+repos = load_repos_from_pyproject(project_dir)
+for idx, repo in enumerate(repos, start=1):
+    print(f"[{idx}] {repo.url}")
+```
 
 ### CRITICAL: QEN Always Uses Stored Config State
 
@@ -311,7 +453,7 @@ scripts/                    # Build and version management scripts
 1. Create command file: `src/qen/commands/mycommand.py`
 2. Implement command logic with Click decorators
 3. Register in `src/qen/cli.py`
-4. Add unit tests: `tests/qen/commands/test_mycommand.py`
+4. Add unit tests: `tests/unit/qen/commands/test_mycommand.py`
 5. Add integration tests if needed: `tests/integration/test_mycommand_real.py`
 6. Run: `./poe test`
 
@@ -337,17 +479,22 @@ from qen.project import find_project_root
 project_root = find_project_root()
 ```
 
-### Running Tests for Specific Files
+### Working with Repository Indices
 
-```bash
-# Run specific test file
-./poe test-fast tests/qen/test_config.py
+```python
+from qen.pyproject_utils import load_repos_from_pyproject
 
-# Run specific integration test
-pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
+# Load repositories
+repos = load_repos_from_pyproject(project_dir)
 
-# Run with coverage for specific module
-pytest tests/qen/test_config.py --cov=src/qen/config.py --cov-report=term
+# Iterate with 1-based indices
+for idx, repo in enumerate(repos, start=1):
+    # Display with index
+    print(f"[{idx}] {repo.url}")
+
+    # Access repo properties
+    print(f"  Branch: {repo.branch}")
+    print(f"  Path: {repo.path}")
 ```
 
 ## Current Implementation Status
@@ -357,11 +504,15 @@ pytest tests/qen/test_config.py --cov=src/qen/config.py --cov-report=term
 - `qen init` - Initialize qen configuration
 - `qen init <project>` - Create new project with full structure
 - `qen add <repo>` - Add sub-repositories with flexible URL parsing
+- `qen status` - Show git status across all sub-repos (with indices)
+- `qen pr status` - Show PR status for all repositories (with indices)
+- `qen pr stack` - Identify and display stacked PRs
+- `qen pr restack` - Update stacked PRs to latest base branches
 
 **Planned (not yet implemented):**
 
-- `qen status` - Show git status across all sub-repos
 - `qen sync` - Push and pull sub-repos
+- Additional PR management features
 
 ## Design Philosophy
 
@@ -440,6 +591,24 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 6. **XDG directories** - Use `platformdirs` for config paths
 7. **TOML for config** - Use `tomli` and `tomli_w` for reading/writing
 8. **NO MOCKS for integration tests** - Use real GitHub API only
+9. **Repository indices** - Use `enumerate(repos, start=1)` for 1-based indexing
+
+## Markdown Best Practices
+
+When writing markdown files (specs, documentation, etc.), always follow these rules:
+
+1. **Make headings unique** - Never duplicate heading text, even at different levels
+   - ❌ Bad: Multiple "Success Criteria" headings in the same file
+   - ✅ Good: "Success Criteria for Init", "Success Criteria for Add Command"
+
+2. **Use proper heading hierarchy** - Never use bold/emphasis as a heading substitute
+   - ❌ Bad: `**Important Section**` as a section divider
+   - ✅ Good: `### Important Section` with proper heading level
+
+3. **Always specify language for code blocks** - Every fenced code block must have a language
+   - ❌ Bad: ` ``` ` (no language specified)
+   - ✅ Good: ` ```bash ` or ` ```python ` or ` ```text ` or ` ```log ` or ` ```tree `
+   - Use `text` or `log` if no specific language applies
 
 ---
 

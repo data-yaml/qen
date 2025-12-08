@@ -1,6 +1,6 @@
 [project]
 name = "qen"
-version = "0.1.5"
+version = "0.2.0"
 description = "A tiny, extensible tool for organizing multi-repository development work"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -52,6 +52,12 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qen", "src/qenvy"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"proj/README.md" = "proj/README.md"
+"proj/pyproject.toml" = "proj/pyproject.toml"
+"proj/.gitignore" = "proj/.gitignore"
+"proj/qen" = "proj/qen"
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }

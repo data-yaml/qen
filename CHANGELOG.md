@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-12-08
+
+### Added
+
+- **qen workspace command**: Generate `.code-workspace` files for multi-repo projects with auto-discovery of sub-repositories
+- **Project wrapper executable**: Each project gets a `./qen` executable that runs commands in project context without `--proj` flag
+- **1-based repository indices**: Status and PR commands now display repositories with `[1]`, `[2]` indices for easier reference
+- **Template-based project initialization**: Projects now use external template files with variable substitution
+- **Configuration override flags**: Global `--meta`, `--proj`, and `--config-dir` flags to override configuration
+- **PR creation prompt**: `qen init <project>` now prompts to create a PR after initialization
+- **Force flag for add**: `qen add --force` removes existing repository before cloning to enable re-cloning
+- **Default PR subcommand**: `qen pr` now defaults to `qen pr status`
+
+### Changed
+
+- **Project ID format**: Changed from `YYYY-MM-DD` to `YYMMDD` (e.g., `251208-feature` instead of `2025-12-08-feature`)
+- **Workspace regeneration**: `qen add` now auto-regenerates workspace files after adding repositories
+
+### Fixed
+
+- Remote branch tracking now properly set when cloning repositories
+
 ## [0.1.5] - 2024-12-07
 
 ### Added
@@ -65,7 +87,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/data-yaml/qen/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/data-yaml/qen/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/data-yaml/qen/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/data-yaml/qen/compare/v0.1.2...v0.1.3

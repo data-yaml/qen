@@ -292,7 +292,7 @@ class TestInitProjectFunction:
 
         # Execute: Create project
         project_name = "test-project"
-        init_project(project_name, verbose=False, storage=test_storage)
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
         # Verify: Project config was created
         assert config.project_config_exists(project_name)
@@ -355,11 +355,11 @@ class TestInitProjectFunction:
 
         # Create project first time
         project_name = "test-project"
-        init_project(project_name, verbose=False, storage=test_storage)
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
         # Try to create again - should fail
         with pytest.raises(click.exceptions.Abort):
-            init_project(project_name, verbose=False, storage=test_storage)
+            init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
     def test_init_project_verbose_output(
         self,
@@ -387,7 +387,7 @@ class TestInitProjectFunction:
         )
 
         # Execute with verbose=True
-        init_project("test-project", verbose=True, storage=test_storage)
+        init_project("test-project", verbose=True, yes=True, storage=test_storage)
 
         # Verify: Verbose output was produced
         captured = capsys.readouterr()
@@ -422,7 +422,7 @@ class TestInitProjectFunction:
 
         # Execute
         project_name = "test-project"
-        init_project(project_name, verbose=False, storage=test_storage)
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
         # Verify: Check all files and their content
         project_config = config.read_project_config(project_name)
@@ -431,7 +431,7 @@ class TestInitProjectFunction:
         # Check README.md
         readme_content = (project_dir / "README.md").read_text()
         assert project_name in readme_content
-        assert "qen clone" in readme_content
+        assert "./qen" in readme_content  # Check for project wrapper
 
         # Check pyproject.toml
         pyproject_content = (project_dir / "pyproject.toml").read_text()
@@ -472,11 +472,11 @@ class TestInitProjectFunction:
         # Note: init_project doesn't expose date parameter, but we can test
         # that it uses the current date correctly
         project_name = "test-project"
-        init_project(project_name, verbose=False, storage=test_storage)
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
         # Verify: Branch and folder use today's date
         project_config = config.read_project_config(project_name)
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%y%m%d")
         assert project_config["branch"].startswith(today)
         assert project_config["folder"].startswith(f"proj/{today}")
 
@@ -760,7 +760,7 @@ class TestInitEdgeCases:
 
         # Test various project names
         for project_name in ["test-project", "test_project", "test-project-123"]:
-            init_project(project_name, verbose=False, storage=test_storage)
+            init_project(project_name, verbose=False, yes=True, storage=test_storage)
             assert config.project_config_exists(project_name)
 
     def test_meta_repo_at_root(self, tmp_path: Path, test_storage: QenvyTest) -> None:
@@ -836,3 +836,287 @@ class TestInitEdgeCases:
         # Parse to verify it's valid ISO 8601
         created_dt = datetime.fromisoformat(project_config["created"])
         assert created_dt is not None
+
+
+# ==============================================================================
+# Test PR Creation Prompt
+# ==============================================================================
+
+
+class TestInitProjectPRCreation:
+    """Test PR creation prompt in init_project."""
+
+    def test_init_project_with_yes_flag_skips_prompt(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+        mocker,
+    ) -> None:
+        """Test that --yes flag skips PR creation prompt."""
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Mock click.confirm to ensure it's not called
+        mock_confirm = mocker.patch("click.confirm")
+
+        # Execute with yes=True
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
+
+        # Verify: click.confirm was not called
+        mock_confirm.assert_not_called()
+
+    def test_init_project_prompts_for_pr_when_gh_available(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+        mocker,
+    ) -> None:
+        """Test that PR prompt appears when gh CLI is available."""
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Mock subprocess.run to simulate gh CLI being available
+        original_run = subprocess.run
+
+        def mock_run(*args, **kwargs):
+            # Check if this is the gh --version check
+            if args and args[0] and args[0][0] == "gh" and args[0][1] == "--version":
+                # Simulate successful gh --version
+                result = subprocess.CompletedProcess(
+                    args=args[0], returncode=0, stdout=b"gh version 2.0.0", stderr=b""
+                )
+                return result
+            # For all other calls, use the original subprocess.run
+            return original_run(*args, **kwargs)
+
+        mocker.patch("subprocess.run", side_effect=mock_run)
+
+        # Mock click.confirm to return False (user doesn't want to create PR)
+        mock_confirm = mocker.patch("click.confirm", return_value=False)
+
+        # Execute
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=False, storage=test_storage)
+
+        # Verify: click.confirm was called
+        mock_confirm.assert_called_once()
+
+    def test_init_project_creates_pr_when_user_confirms(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+        mocker,
+    ) -> None:
+        """Test that PR is created when user confirms."""
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Track gh pr create call
+        gh_pr_create_called = False
+        gh_pr_create_args = None
+
+        original_run = subprocess.run
+
+        def mock_run(*args, **kwargs):
+            nonlocal gh_pr_create_called, gh_pr_create_args
+
+            # Check if this is the gh --version check
+            if args and args[0] and args[0][0] == "gh" and args[0][1] == "--version":
+                result = subprocess.CompletedProcess(
+                    args=args[0], returncode=0, stdout=b"gh version 2.0.0", stderr=b""
+                )
+                return result
+            # Check if this is gh pr create
+            elif (
+                args
+                and args[0]
+                and args[0][0] == "gh"
+                and args[0][1] == "pr"
+                and args[0][2] == "create"
+            ):
+                gh_pr_create_called = True
+                gh_pr_create_args = args[0]
+                # Simulate successful PR creation
+                result = subprocess.CompletedProcess(
+                    args=args[0],
+                    returncode=0,
+                    stdout="https://github.com/testorg/meta/pull/1",
+                    stderr="",
+                )
+                return result
+            # For all other calls, use the original subprocess.run
+            return original_run(*args, **kwargs)
+
+        mocker.patch("subprocess.run", side_effect=mock_run)
+
+        # Mock click.confirm to return True (user wants to create PR)
+        mocker.patch("click.confirm", return_value=True)
+
+        # Execute
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=False, storage=test_storage)
+
+        # Verify: gh pr create was called
+        assert gh_pr_create_called
+        assert gh_pr_create_args is not None
+        assert "gh" in gh_pr_create_args
+        assert "pr" in gh_pr_create_args
+        assert "create" in gh_pr_create_args
+        assert "--title" in gh_pr_create_args
+        assert "--body" in gh_pr_create_args
+
+    def test_init_project_no_prompt_when_gh_not_available(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+        mocker,
+    ) -> None:
+        """Test that no prompt appears when gh CLI is not available."""
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Mock subprocess.run to simulate gh CLI not being available
+        original_run = subprocess.run
+
+        def mock_run(*args, **kwargs):
+            # Check if this is the gh --version check
+            if args and args[0] and args[0][0] == "gh" and args[0][1] == "--version":
+                # Simulate gh not found
+                raise FileNotFoundError("gh not found")
+            # For all other calls, use the original subprocess.run
+            return original_run(*args, **kwargs)
+
+        mocker.patch("subprocess.run", side_effect=mock_run)
+
+        # Mock click.confirm to ensure it's not called
+        mock_confirm = mocker.patch("click.confirm")
+
+        # Execute
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=False, storage=test_storage)
+
+        # Verify: click.confirm was not called (no prompt when gh unavailable)
+        mock_confirm.assert_not_called()
+
+    def test_init_project_handles_pr_creation_failure(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+        mocker,
+    ) -> None:
+        """Test that PR creation failure is handled gracefully."""
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        original_run = subprocess.run
+
+        def mock_run(*args, **kwargs):
+            # Check if this is the gh --version check
+            if args and args[0] and args[0][0] == "gh" and args[0][1] == "--version":
+                result = subprocess.CompletedProcess(
+                    args=args[0], returncode=0, stdout=b"gh version 2.0.0", stderr=b""
+                )
+                return result
+            # Check if this is gh pr create - simulate failure
+            elif (
+                args
+                and args[0]
+                and args[0][0] == "gh"
+                and args[0][1] == "pr"
+                and args[0][2] == "create"
+            ):
+                raise subprocess.CalledProcessError(
+                    returncode=1,
+                    cmd=args[0],
+                    stderr="Failed to create PR: permission denied",
+                )
+            # For all other calls, use the original subprocess.run
+            return original_run(*args, **kwargs)
+
+        mocker.patch("subprocess.run", side_effect=mock_run)
+
+        # Mock click.confirm to return True (user wants to create PR)
+        mocker.patch("click.confirm", return_value=True)
+
+        # Execute - should not raise exception despite PR creation failure
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=False, storage=test_storage)
+
+        # Verify: Project was still created successfully
+        assert config.project_config_exists(project_name)

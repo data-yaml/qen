@@ -250,6 +250,29 @@ def unique_prefix() -> str:
 
 
 @pytest.fixture(scope="function")
+def temp_config_dir(tmp_path: Path) -> Path:
+    """Provide temporary config directory for integration tests.
+
+    This prevents integration tests from polluting the user's actual
+    qen configuration in $XDG_CONFIG_HOME/qen/.
+
+    Args:
+        tmp_path: Pytest temporary directory
+
+    Returns:
+        Path to temporary config directory
+
+    Example:
+        def test_integration(temp_config_dir):
+            # Use --config-dir flag to isolate test config
+            subprocess.run(["qen", "--config-dir", str(temp_config_dir), "init"])
+    """
+    config_dir = tmp_path / "qen-config"
+    config_dir.mkdir()
+    return config_dir
+
+
+@pytest.fixture(scope="function")
 def cleanup_branches(
     real_test_repo: Path,
 ) -> Generator[list[str], None, None]:
@@ -293,6 +316,47 @@ def cleanup_branches(
 # ============================================================================
 # INTEGRATION TEST HELPERS (NO MOCKS)
 # ============================================================================
+
+
+def run_qen(
+    args: list[str],
+    temp_config_dir: Path,
+    cwd: Path | None = None,
+    check: bool = False,
+    timeout: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run qen command with isolated config directory.
+
+    This helper ensures all integration test qen calls use --config-dir
+    to avoid polluting the user's actual qen configuration.
+
+    Args:
+        args: Command arguments (e.g., ["init", "my-project"])
+        temp_config_dir: Temporary config directory from fixture
+        cwd: Working directory for command (optional)
+        check: Raise CalledProcessError if command fails (default: False)
+        timeout: Command timeout in seconds (optional)
+
+    Returns:
+        CompletedProcess with stdout/stderr as text
+
+    Example:
+        result = run_qen(
+            ["init", "test-project", "--yes"],
+            temp_config_dir,
+            cwd=repo_dir,
+        )
+        assert result.returncode == 0
+    """
+    cmd = ["qen", "--config-dir", str(temp_config_dir)] + args
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=check,
+        timeout=timeout,
+    )
 
 
 def create_test_pr(

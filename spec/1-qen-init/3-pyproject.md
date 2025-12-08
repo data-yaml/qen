@@ -23,7 +23,7 @@ Replace `meta.toml` with `pyproject.toml` using the `[tool.qen]` namespace for p
 
 ### Addressing the Four Questions
 
-**1. Terminology:** Using "proj" for things managed by qen (in `proj/YYYY-MM-DD-<name>/`)
+**1. Terminology:** Using "proj" for things managed by qen (in `proj/YYMMDD-<name>/`)
 
 **2. How meta.toml imagined repo tracking:**
 
