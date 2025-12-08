@@ -480,6 +480,23 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 7. **TOML for config** - Use `tomli` and `tomli_w` for reading/writing
 8. **NO MOCKS for integration tests** - Use real GitHub API only
 
+## Markdown Best Practices
+
+When writing markdown files (specs, documentation, etc.), always follow these rules:
+
+1. **Make headings unique** - Never duplicate heading text, even at different levels
+   - ❌ Bad: Multiple "Success Criteria" headings in the same file
+   - ✅ Good: "Success Criteria for Init", "Success Criteria for Add Command"
+
+2. **Use proper heading hierarchy** - Never use bold/emphasis as a heading substitute
+   - ❌ Bad: `**Important Section**` as a section divider
+   - ✅ Good: `### Important Section` with proper heading level
+
+3. **Always specify language for code blocks** - Every fenced code block must have a language
+   - ❌ Bad: ` ``` ` (no language specified)
+   - ✅ Good: ` ```bash ` or ` ```python ` or ` ```text ` or ` ```log ` or ` ```tree `
+   - Use `text` or `log` if no specific language applies
+
 ---
 
 *This file is intended for AI coding agents. For human-readable documentation, see [README.md](README.md).*
