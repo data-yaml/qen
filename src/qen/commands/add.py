@@ -85,6 +85,7 @@ def add_repository(
     verbose: bool = False,
     force: bool = False,
     yes: bool = False,
+    no_workspace: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
     meta_path_override: Path | str | None = None,
@@ -99,6 +100,7 @@ def add_repository(
         verbose: Enable verbose output
         force: Force re-add even if repository exists (removes and re-clones)
         yes: Auto-confirm prompts (create local branch without asking)
+        no_workspace: Skip automatic workspace file regeneration
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
         meta_path_override: Override meta repository path
@@ -290,11 +292,52 @@ def add_repository(
         if verbose:
             click.echo("Repository was added successfully but metadata may be incomplete.")
 
-    # 9. Success message
+    # 9. Regenerate workspace files (unless --no-workspace)
+    if not no_workspace:
+        if verbose:
+            click.echo("\nRegenerating workspace files...")
+        try:
+            from .workspace import create_workspace_files
+
+            # Get current project name for workspace generation
+            config = QenConfig(
+                config_dir=config_dir,
+                storage=storage,
+                meta_path_override=meta_path_override,
+                current_project_override=current_project_override,
+            )
+            main_config = config.read_main_config()
+            current_project = main_config.get("current_project", "project")
+
+            # Read all repos from pyproject.toml
+            from ..pyproject_utils import read_pyproject
+
+            pyproject = read_pyproject(project_dir)
+            repos = pyproject.get("tool", {}).get("qen", {}).get("repos", [])
+
+            # Regenerate workspace files
+            created_files = create_workspace_files(
+                project_dir, repos, current_project, editor="all", verbose=verbose
+            )
+
+            if verbose:
+                click.echo("Updated workspace files:")
+                for editor_name, file_path in created_files.items():
+                    rel_path = file_path.relative_to(project_dir)
+                    click.echo(f"  • {editor_name}: {rel_path}")
+        except Exception as e:
+            # Non-fatal: workspace regeneration is a convenience feature
+            click.echo(f"Warning: Could not regenerate workspace files: {e}", err=True)
+            if verbose:
+                click.echo("You can manually regenerate with: qen workspace")
+
+    # 10. Success message
     click.echo()
     click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")
     click.echo(f"  Path: {clone_path}")
+    if not no_workspace:
+        click.echo("  Workspace files: updated")
     click.echo()
     click.echo("Next steps:")
     click.echo("  - Review the cloned repository")

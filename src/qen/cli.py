@@ -121,6 +121,7 @@ def init(ctx: click.Context, project_name: str | None, verbose: bool, yes: bool)
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
 @click.option("--force", is_flag=True, help="Force re-add if repository exists")
 @click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts")
+@click.option("--no-workspace", is_flag=True, help="Skip workspace file regeneration")
 @click.pass_context
 def add(
     ctx: click.Context,
@@ -130,6 +131,7 @@ def add(
     verbose: bool,
     force: bool,
     yes: bool,
+    no_workspace: bool,
 ) -> None:
     """Add a repository to the current project.
 
@@ -140,8 +142,9 @@ def add(
     - Org/repo: org/repo (assumes GitHub)
     - Repo name: repo (uses org from config)
 
-    The repository will be cloned to the project's repos/ directory
-    and added to pyproject.toml.
+    The repository will be cloned to the project's repos/ directory,
+    added to pyproject.toml, and workspace files will be automatically
+    regenerated (unless --no-workspace is specified).
 
     Examples:
 
@@ -164,6 +167,10 @@ def add(
     \b
         # Add with custom path
         $ qen add myorg/myrepo --path repos/custom-name
+
+    \b
+        # Add without regenerating workspace files
+        $ qen add myrepo --no-workspace
     """
     overrides = ctx.obj.get("config_overrides", {})
     add_repository(
@@ -173,6 +180,7 @@ def add(
         verbose,
         force,
         yes,
+        no_workspace,
         config_dir=overrides.get("config_dir"),
         meta_path_override=overrides.get("meta_path"),
         current_project_override=overrides.get("current_project"),
