@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import run_qen
+
 
 @pytest.mark.integration
 def test_qen_wrapper_generation(
@@ -44,22 +46,12 @@ def test_qen_wrapper_generation(
     # Generate project name with unique prefix
     project_name = f"{unique_prefix}-wrapper-test"
 
-    # Create project using --config-dir and --meta flags (REAL command, NO MOCKS)
-    # IMPORTANT: --config-dir isolates test config from user's actual config
-    # IMPORTANT: --meta flag specifies qen-test as meta repo
-    result = subprocess.run(
-        [
-            "qen",
-            "--config-dir",
-            str(temp_config_dir),
-            "--meta",
-            str(real_test_repo),
-            "init",
-            project_name,
-            "--yes",
-        ],
-        capture_output=True,
-        text=True,
+    # Create project using run_qen helper (REAL command, NO MOCKS)
+    # Helper automatically adds --config-dir to isolate test config
+    # --meta flag specifies qen-test as meta repo
+    result = run_qen(
+        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+        temp_config_dir,
     )
 
     assert result.returncode == 0, f"qen init failed: {result.stderr}"
@@ -102,8 +94,10 @@ def test_qen_wrapper_generation(
 
     # Verify wrapper script can execute
     # Run a simple command: ./qen status (should work even with no repos)
+    # NOTE: This is the only place we call ./qen directly (testing the wrapper itself)
+    # IMPORTANT: Must pass --config-dir to avoid polluting user's config
     result = subprocess.run(
-        ["./qen", "status"],
+        ["./qen", "--config-dir", str(temp_config_dir), "status"],
         cwd=project_dir,
         capture_output=True,
         text=True,

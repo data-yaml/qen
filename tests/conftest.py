@@ -318,6 +318,47 @@ def cleanup_branches(
 # ============================================================================
 
 
+def run_qen(
+    args: list[str],
+    temp_config_dir: Path,
+    cwd: Path | None = None,
+    check: bool = False,
+    timeout: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run qen command with isolated config directory.
+
+    This helper ensures all integration test qen calls use --config-dir
+    to avoid polluting the user's actual qen configuration.
+
+    Args:
+        args: Command arguments (e.g., ["init", "my-project"])
+        temp_config_dir: Temporary config directory from fixture
+        cwd: Working directory for command (optional)
+        check: Raise CalledProcessError if command fails (default: False)
+        timeout: Command timeout in seconds (optional)
+
+    Returns:
+        CompletedProcess with stdout/stderr as text
+
+    Example:
+        result = run_qen(
+            ["init", "test-project", "--yes"],
+            temp_config_dir,
+            cwd=repo_dir,
+        )
+        assert result.returncode == 0
+    """
+    cmd = ["qen", "--config-dir", str(temp_config_dir)] + args
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=check,
+        timeout=timeout,
+    )
+
+
 def create_test_pr(
     repo_dir: Path,
     head_branch: str,

@@ -8,11 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-12-08
+
 ### Added
 
 - **qen workspace command**: Generate `.code-workspace` files for multi-repo projects with auto-discovery of sub-repositories
+- **Project wrapper executable**: Each project gets a `./qen` executable that runs commands in project context without `--proj` flag
 - **1-based repository indices**: Status and PR commands now display repositories with `[1]`, `[2]` indices for easier reference
-- **Integration test for qen wrapper**: Added real integration test verifying wrapper script creation and execution
+- **Template-based project initialization**: Projects now use external template files with variable substitution
+- **Configuration override flags**: Global `--meta`, `--proj`, and `--config-dir` flags to override configuration
+- **PR creation prompt**: `qen init <project>` now prompts to create a PR after initialization
+- **Force flag for add**: `qen add --force` removes existing repository before cloning to enable re-cloning
+- **Default PR subcommand**: `qen pr` now defaults to `qen pr status`
 
 ### Changed
 
@@ -21,42 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Pre-commit hook now uses `uv run pytest` for consistent test execution
-- Template variable regex now correctly distinguishes Python templates from bash variables
-
-### Documentation
-
-- Added qen wrapper script specification ([spec/3-proj/08-qen-wrapper.md](spec/3-proj/08-qen-wrapper.md))
-- Updated all specifications to use YYMMDD format consistently
-- Added workspace command documentation to README
-
-## [0.2.0] - 2024-12-08
-
-### Added
-
-- **Template-based project initialization**: Projects now use external template files instead of hardcoded strings
-- **Project wrapper executable**: Each project gets a `./qen` executable that runs commands in project context without `--proj` flag
-- **Configuration override flags**: Global `--meta`, `--proj`, and `--config-dir` flags to override configuration
-- **PR creation prompt**: `qen init <project>` now prompts to create a PR after initialization
-- **Force flag for add**: `qen add --force` removes existing repository before cloning to enable re-cloning
-- **Default PR subcommand**: `qen pr` now defaults to `qen pr status`
-
-### Changed
-
-- Project files (README.md, pyproject.toml, .gitignore) now generated from templates with variable substitution
-- Templates stored in `./proj` directory and included in distribution package
-- Template variables: project_name, date, timestamp, branch_name, folder_path, github_org, meta_path
-
-### Fixed
-
 - Remote branch tracking now properly set when cloning repositories
-- `qen add` and `qen pull` work correctly with repository management
-
-### Documentation
-
-- Updated README with project wrapper usage examples
-- Added AGENTS.md with markdown best practices for AI coding agents
-- Added comprehensive specifications for template system and CLI overrides
 
 ## [0.1.5] - 2024-12-07
 
