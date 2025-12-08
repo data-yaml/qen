@@ -205,11 +205,14 @@ def git_pull(repo_path: Path, verbose: bool = False) -> tuple[bool, str, dict[st
         # Get current commit before pull
         current_commit = run_git_command(["rev-parse", "HEAD"], cwd=repo_path)
 
-        # Perform pull
+        # Get current branch for explicit pull
+        current_branch = get_current_branch(repo_path)
+
+        # Perform pull - explicitly specify branch to avoid "did not specify a branch" error
         if verbose:
-            result = run_git_command(["pull", "origin", "-v"], cwd=repo_path)
+            result = run_git_command(["pull", "origin", current_branch, "-v"], cwd=repo_path)
         else:
-            result = run_git_command(["pull", "origin"], cwd=repo_path)
+            result = run_git_command(["pull", "origin", current_branch], cwd=repo_path)
 
         # Check if already up to date
         if "Already up to date" in result or "Already up-to-date" in result:

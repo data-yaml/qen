@@ -188,3 +188,14 @@ def clone_repository(
                     run_git_command(["checkout", "-b", branch], cwd=dest_path)
                 except GitError as e:
                     raise GitError(f"Failed to create branch '{branch}': {e}") from e
+
+    # Set up upstream tracking for the branch
+    # This is necessary for git pull to work without specifying remote/branch
+    if branch:
+        try:
+            run_git_command(["branch", f"--set-upstream-to=origin/{branch}", branch], cwd=dest_path)
+        except GitError:
+            # If remote branch doesn't exist (common for project-specific branches),
+            # we can't set upstream tracking yet. User will need to push first.
+            # This is expected and not an error.
+            pass

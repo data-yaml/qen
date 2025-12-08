@@ -206,8 +206,22 @@ def add_repository(
         from .pull import check_gh_installed, pull_repository
 
         pyproject = read_pyproject(project_dir)
-        repos = pyproject.get("tool", {}).get("qen", {}).get("repos", {})
-        repo_entry = repos.get(repo_name, {})
+        repos = pyproject.get("tool", {}).get("qen", {}).get("repos", [])
+
+        # Find the repo entry we just added (repos is a list, not a dict)
+        repo_entry = None
+        for repo in repos:
+            if isinstance(repo, dict):
+                # Match by URL and branch since we just added it
+                if repo.get("url") == url and repo.get("branch") == branch:
+                    repo_entry = repo
+                    break
+
+        if not repo_entry:
+            if verbose:
+                click.echo("Warning: Could not find repo entry for metadata initialization")
+            # Skip metadata initialization if we can't find the entry
+            raise ValueError(f"Repository entry not found after add: {url}")
 
         # Call pull_repository to update metadata and detect PR/issue info
         gh_available = check_gh_installed()
