@@ -206,6 +206,13 @@ def add_repository(
     if verbose:
         click.echo(f"Cloning to: {clone_path}")
 
+    # With --force, ensure clean slate by removing any existing directory
+    # This handles cases where directory exists but isn't in config
+    if force and clone_path.exists():
+        if verbose:
+            click.echo(f"Removing existing clone directory at {clone_path}")
+        shutil.rmtree(clone_path)
+
     try:
         clone_repository(url, clone_path, branch, verbose, yes=yes)
     except GitError as e:
@@ -222,16 +229,12 @@ def add_repository(
         click.echo(f"Error: {e}", err=True)
         # Clean up the cloned repository
         if clone_path.exists():
-            import shutil
-
             shutil.rmtree(clone_path)
         raise click.Abort() from e
     except PyProjectUpdateError as e:
         click.echo(f"Error updating pyproject.toml: {e}", err=True)
         # Clean up the cloned repository
         if clone_path.exists():
-            import shutil
-
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
@@ -286,4 +289,7 @@ def add_repository(
     click.echo()
     click.echo("Next steps:")
     click.echo("  - Review the cloned repository")
-    click.echo("  - Commit changes: git add pyproject.toml && git commit -m 'Add repository'")
+    click.echo(
+        f"  - Commit changes: git add pyproject.toml && "
+        f"git commit -m 'Add {repo_name} (branch: {branch})'"
+    )
