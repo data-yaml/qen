@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-12-08
+
+### Added
+
+- **Template-based project initialization**: Projects now use external template files instead of hardcoded strings
+- **Project wrapper executable**: Each project gets a `./qen` executable that runs commands in project context without `--proj` flag
+- **Configuration override flags**: Global `--meta`, `--proj`, and `--config-dir` flags to override configuration
+- **PR creation prompt**: `qen init <project>` now prompts to create a PR after initialization
+- **Force flag for add**: `qen add --force` removes existing repository before cloning to enable re-cloning
+- **Default PR subcommand**: `qen pr` now defaults to `qen pr status`
+
+### Changed
+
+- Project files (README.md, pyproject.toml, .gitignore) now generated from templates with variable substitution
+- Templates stored in `./proj` directory and included in distribution package
+- Template variables: project_name, date, timestamp, branch_name, folder_path, github_org, meta_path
+
+### Fixed
+
+- Remote branch tracking now properly set when cloning repositories
+- `qen add` and `qen pull` work correctly with repository management
+
+### Documentation
+
+- Updated README with project wrapper usage examples
+- Added AGENTS.md with markdown best practices for AI coding agents
+- Added comprehensive specifications for template system and CLI overrides
+
 ## [0.1.5] - 2024-12-07
 
 ### Added
@@ -65,7 +93,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/data-yaml/qen/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/data-yaml/qen/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/data-yaml/qen/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/data-yaml/qen/compare/v0.1.2...v0.1.3
