@@ -53,9 +53,9 @@ def test_pr_with_passing_checks(
     cleanup_branches.append(branch)
 
     # Wait for GitHub Actions to complete
-    # always-pass.yml should complete quickly
-    # slow-check.yml takes 35 seconds
-    time.sleep(40)
+    # always-pass.yml should complete quickly (fast checks only)
+    # Note: slow-check.yml takes 35s but we don't need to wait for it
+    time.sleep(15)
 
     # Get PR status using gh CLI (REAL API call)
     result = subprocess.run(
@@ -123,7 +123,9 @@ def test_pr_with_failing_checks(
     cleanup_branches.append(branch)
 
     # Wait for GitHub Actions to complete
-    time.sleep(40)
+    # always-fail.yml should complete quickly (fast checks only)
+    # Note: slow-check.yml takes 35s but we don't need to wait for it
+    time.sleep(15)
 
     # Get PR status using gh CLI (REAL API call)
     result = subprocess.run(
