@@ -1006,3 +1006,197 @@ class TestRemoveRepoFromPyproject:
         # Action & Assert
         with pytest.raises(PyProjectNotFoundError):
             remove_repo_from_pyproject(tmp_path, "https://github.com/org/repo", "main")
+
+
+# ==============================================================================
+# Test --force Flag Integration
+# ==============================================================================
+
+
+class TestAddCommandForce:
+    """Integration tests for the --force flag."""
+
+    def test_add_duplicate_repository_fails_without_force(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test that adding duplicate repository fails WITHOUT --force flag."""
+        import click
+
+        # Setup: Create meta repo with project
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
+
+        project_name = "test-project"
+        branch = "2025-12-07-test-project"
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.qen]
+created = "2025-12-07T10:00:00Z"
+"""
+        )
+
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-07T10:00:00Z",
+            },
+        )
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # First add - should succeed
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            force=False,
+            storage=test_storage,
+        )
+
+        # Second add WITHOUT force - should fail
+        with pytest.raises(click.exceptions.Abort):
+            add_repository(
+                repo=str(child_repo),
+                branch="main",
+                path=None,
+                verbose=False,
+                force=False,
+                storage=test_storage,
+            )
+
+    def test_add_duplicate_repository_with_force(
+        self,
+        tmp_path: Path,
+        test_storage: QenvyTest,
+        temp_git_repo: Path,
+        child_repo: Path,
+    ) -> None:
+        """Test that adding duplicate repository succeeds WITH --force flag."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup: Create meta repo with project
+        meta_repo = temp_git_repo
+        meta_repo.rename(tmp_path / "meta")
+        meta_repo = tmp_path / "meta"
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        test_storage.write_profile(
+            "main",
+            {
+                "meta_path": str(meta_repo),
+                "org": "testorg",
+                "current_project": None,
+            },
+        )
+
+        project_name = "test-project"
+        branch = "2025-12-07-test-project"
+        folder = f"proj/{branch}"
+        project_dir = meta_repo / folder
+
+        project_dir.mkdir(parents=True)
+        (project_dir / "repos").mkdir()
+        (project_dir / "README.md").write_text("# Test Project\n")
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.qen]
+created = "2025-12-07T10:00:00Z"
+"""
+        )
+
+        test_storage.write_profile(
+            project_name,
+            {
+                "name": project_name,
+                "branch": branch,
+                "folder": folder,
+                "created": "2025-12-07T10:00:00Z",
+            },
+        )
+
+        main_config = test_storage.read_profile("main")
+        main_config["current_project"] = project_name
+        test_storage.write_profile("main", main_config)
+
+        # First add - should succeed
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            force=False,
+            storage=test_storage,
+        )
+
+        # Create a marker file in the clone to verify it gets removed
+        repos_dir = project_dir / "repos" / "main"
+        repos_dir.mkdir(parents=True, exist_ok=True)
+        repo_clone = repos_dir / "child_repo"
+        repo_clone.mkdir(exist_ok=True)
+        marker_file = repo_clone / "MARKER"
+        marker_file.write_text("original")
+
+        # Second add WITH force - should succeed and re-clone
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=True,
+            force=True,
+            storage=test_storage,
+        )
+
+        # Verify:
+        # 1. Marker file is gone (directory was removed and re-cloned)
+        assert not marker_file.exists(), "Marker file should be removed with --force"
+
+        # 2. Only one entry in pyproject.toml (not duplicated)
+        handler = TOMLHandler()
+        updated_config = handler.read(pyproject)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1, "Should have exactly one repo entry"
+        assert repos[0]["url"] == str(child_repo)
+        assert repos[0]["branch"] == "main"
