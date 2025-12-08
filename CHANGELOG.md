@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **qen workspace command**: Generate `.code-workspace` files for multi-repo projects with auto-discovery of sub-repositories
+- **1-based repository indices**: Status and PR commands now display repositories with `[1]`, `[2]` indices for easier reference
+- **Integration test for qen wrapper**: Added real integration test verifying wrapper script creation and execution
+
+### Changed
+
+- **Project ID format**: Changed from `YYYY-MM-DD` to `YYMMDD` (e.g., `251208-feature` instead of `2025-12-08-feature`)
+- **Workspace regeneration**: `qen add` now auto-regenerates workspace files after adding repositories
+
+### Fixed
+
+- Pre-commit hook now uses `uv run pytest` for consistent test execution
+- Template variable regex now correctly distinguishes Python templates from bash variables
+
+### Documentation
+
+- Added qen wrapper script specification ([spec/3-proj/08-qen-wrapper.md](spec/3-proj/08-qen-wrapper.md))
+- Updated all specifications to use YYMMDD format consistently
+- Added workspace command documentation to README
+
 ## [0.2.0] - 2024-12-08
 
 ### Added

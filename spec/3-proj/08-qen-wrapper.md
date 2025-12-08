@@ -119,6 +119,8 @@ class TestQenExecutableCreation:
 
 **Pattern**: Follow [tests/integration/test_pr_status_real.py](tests/integration/test_pr_status_real.py:1-80)
 
+**Key Insight**: Use `--meta` flag to specify qen-test as meta repo WITHOUT touching user's actual config.
+
 **New file**: `tests/integration/test_qen_wrapper.py`
 
 ```python
@@ -160,11 +162,11 @@ def test_qen_wrapper_generation(
     # Generate project name with unique prefix
     project_name = f"{unique_prefix}-wrapper-test"
 
-    # Run qen init to create project
-    # (This assumes qen is installed or uses uvx qen)
+    # Run qen init to create project using --meta flag
+    # IMPORTANT: Use --meta flag to specify qen-test as meta repo
+    # This avoids touching the user's actual qen configuration
     result = subprocess.run(
-        ["qen", "init", project_name, "--yes"],
-        cwd=real_test_repo,
+        ["qen", "--meta", str(real_test_repo), "init", project_name, "--yes"],
         capture_output=True,
         text=True,
     )
