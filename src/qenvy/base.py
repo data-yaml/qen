@@ -37,6 +37,16 @@ class QenvyBase(ABC):
     - Subclasses: Storage primitives (filesystem, database, etc.)
     """
 
+    def __init__(self, secure_fields: list[str] | None = None):
+        """Initialize base configuration manager.
+
+        Args:
+            secure_fields: List of field paths that contain secrets
+                          (e.g., ["api.key", "db.password"])
+                          Used for documentation and validation, not storage decisions.
+        """
+        self.secure_fields = secure_fields or []
+
     # ====================================================================
     # Abstract Storage Primitives (to be implemented by subclasses)
     # ====================================================================

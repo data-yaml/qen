@@ -27,6 +27,7 @@ from .exceptions import (
     QenvyError,
     StorageError,
 )
+from .factory import create_storage
 from .formats import FormatHandler, JSONHandler, TOMLHandler, get_format_handler
 from .protocols import IConfigStorage
 from .storage import QenvyConfig
@@ -38,12 +39,18 @@ from .types import (
     ValidationResult,
 )
 
+# Lazy import for ParameterStoreConfig to avoid requiring boto3
+# Users can import it directly: from qenvy.parameter_store import ParameterStoreConfig
+__all_backends__ = ["ParameterStoreConfig"]
+
 __version__ = "0.1.0"
 
 __all__ = [
     # Main classes
     "QenvyConfig",
     "QenvyBase",
+    # Factory
+    "create_storage",
     # Exceptions
     "QenvyError",
     "ProfileNotFoundError",

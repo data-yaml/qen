@@ -430,7 +430,15 @@ def update_pyproject_metadata(
                 # Update metadata fields
                 for key, value in updated_metadata.items():
                     # Only update metadata fields (not core fields like url, path)
-                    if key in ["branch", "updated", "pr", "pr_base", "issue"]:
+                    if key in [
+                        "branch",
+                        "updated",
+                        "pr",
+                        "pr_base",
+                        "pr_status",
+                        "pr_checks",
+                        "issue",
+                    ]:
                         repo[key] = value
                 found = True
                 break
