@@ -315,6 +315,44 @@ scripts/                    # Build and version management scripts
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
 - Project manifest: `proj/YYYY-MM-DD-project/pyproject.toml` (with `[tool.qen]`)
 
+**Project pyproject.toml Schema:**
+
+The `[tool.qen]` section in each project's pyproject.toml contains:
+
+```toml
+[tool.qen]
+created = "2025-12-05T10:30:00Z"  # ISO8601 timestamp (required)
+description = "Optional description"  # string (optional)
+
+[[tool.qen.repos]]
+# User-specified fields (set via qen add):
+url = "https://github.com/org/repo"  # string (required)
+branch = "main"  # string (optional, default: "main")
+path = "repos/repo"  # string (optional, inferred from URL)
+
+# Auto-generated metadata (updated by qen pull):
+updated = "2025-12-05T14:23:45Z"  # ISO8601 timestamp of last pull
+pr = 123  # int - PR number detected via gh CLI
+pr_base = "main"  # string - PR base branch
+pr_status = "open"  # string - PR state (open, closed, merged)
+pr_checks = "passing"  # string - check status (passing, failing, pending, unknown)
+issue = 456  # int - issue number extracted from branch name
+```
+
+**Field Reference:**
+
+| Field | Type | Set By | Description |
+|-------|------|--------|-------------|
+| `url` | string | user (`qen add`) | Git clone URL (required) |
+| `branch` | string | user (`qen add`) | Branch to track (default: "main") |
+| `path` | string | user (`qen add`) | Local path in `repos/` (inferred from URL) |
+| `updated` | ISO8601 | `qen pull` | Last pull timestamp |
+| `pr` | int | `qen pull` | PR number from `gh` CLI |
+| `pr_base` | string | `qen pull` | PR base branch |
+| `pr_status` | string | `qen pull` | PR state (open/closed/merged) |
+| `pr_checks` | string | `qen pull` | Check status (passing/failing/pending/unknown) |
+| `issue` | int | `qen pull` | Issue number from branch name pattern |
+
 ### CRITICAL: QEN Always Uses Stored Config State
 
 - **QEN commands ALWAYS operate on the CURRENT CONFIG as stored in XDG directories**

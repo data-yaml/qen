@@ -17,6 +17,7 @@ from .commands.pull import pull_all_repositories
 from .commands.push import push_command
 from .commands.sh import sh_command
 from .commands.status import status_command
+from .commands.workspace import workspace_command
 
 
 @click.group()
@@ -228,6 +229,56 @@ main.add_command(pr_command)
 main.add_command(push_command)
 main.add_command(sh_command)
 main.add_command(status_command)
+
+
+@main.command("workspace")
+@click.option(
+    "--editor",
+    "-e",
+    type=click.Choice(["vscode", "sublime", "all"], case_sensitive=False),
+    default="all",
+    help="Editor type to generate workspace for (default: all)",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose output")
+@click.pass_context
+def workspace(ctx: click.Context, editor: str, verbose: bool) -> None:
+    """Generate editor workspace files for the current project.
+
+    Creates workspace configuration files in the workspaces/ directory
+    that span all repositories in the current project.
+
+    Supported editors:
+    - vscode: VS Code (.code-workspace)
+    - sublime: Sublime Text (.sublime-project)
+    - all: Generate for all supported editors (default)
+
+    Examples:
+
+    \b
+        # Generate workspaces for all editors
+        $ qen workspace
+
+    \b
+        # Generate only VS Code workspace
+        $ qen workspace --editor vscode
+
+    \b
+        # Generate only Sublime Text workspace
+        $ qen workspace --editor sublime
+
+    \b
+        # Open VS Code workspace
+        $ qen workspace
+        $ code workspaces/vscode.code-workspace
+    """
+    overrides = ctx.obj.get("config_overrides", {})
+    workspace_command(
+        editor=editor,
+        verbose=verbose,
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
 
 if __name__ == "__main__":
