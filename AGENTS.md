@@ -33,7 +33,10 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 
 | Task | Command | Purpose |
 |------|---------|---------|
-| `./poe test` | Auto-installs hooks + runs pytest | Run test suite (use this first!) |
+| `./poe test` | Run unit tests only | Run fast unit tests (use this first!) |
+| `./poe test-unit` | Unit tests only | Fast tests with mocks |
+| `./poe test-integration` | Integration tests only | Slow tests with real GitHub API |
+| `./poe test-all` | All tests | Run both unit and integration tests |
 | `./poe test-cov` | pytest with coverage | Generate coverage report |
 | `./poe test-fast` | pytest -x | Stop on first failure |
 | `./poe typecheck` | mypy src/ | Type checking only |
@@ -51,6 +54,108 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 - Ensures consistent environment (uv, venv, or global)
 - Single entry point for all development tasks
 - No need to remember `uv run` or activate venv
+
+## Testing Philosophy
+
+### Unit Tests - Fast and Mocked
+
+**Purpose:** Test individual functions and modules in isolation
+
+**Characteristics:**
+- Use mocks liberally for speed
+- No network calls
+- No external dependencies
+- Run in milliseconds
+- Run before every commit (pre-commit hook)
+
+**Example:**
+```python
+def test_parse_repo_url(mocker):
+    """Unit test - mocks are OK here"""
+    mock_clone = mocker.patch('subprocess.run')
+
+    result = parse_repo_url("https://github.com/org/repo")
+    assert result.org == "org"
+    assert result.repo == "repo"
+```
+
+**Run unit tests:**
+```bash
+./poe test          # Default: runs only unit tests
+./poe test-unit     # Explicit unit tests only
+```
+
+### Integration Tests - Real and Unmocked
+
+**Purpose:** Validate our contract with GitHub's API
+
+**HARD REQUIREMENTS:**
+- ✅ **MUST use real GitHub API**
+- ✅ **MUST use actual `gh` CLI commands**
+- ✅ **MUST test against https://github.com/data-yaml/qen-test**
+- ❌ **NO MOCKS ALLOWED**
+- ❌ **NO MOCK DATA FILES**
+- ❌ **NO MOCK `gh` COMMANDS**
+
+**Why This Matters:**
+
+Past production bugs caused by mocks:
+1. Mock data had wrong field names (`state` vs `status`)
+2. Mock data omitted required fields (`mergeable`)
+3. GitHub API changes not caught by mocks
+
+**Integration tests validate our contract with GitHub. Never mock them.**
+
+**Example:**
+```python
+@pytest.mark.integration
+def test_pr_status_passing_checks(real_test_repo, unique_prefix, cleanup_branches):
+    """Integration test - NO MOCKS"""
+    # Create real branch
+    branch = f"{unique_prefix}-passing"
+
+    # Create real PR via gh CLI (not mocked!)
+    pr_url = create_test_pr(real_test_repo, branch, "main")
+    cleanup_branches.append(branch)
+
+    # Wait for real GitHub Actions to complete
+    time.sleep(40)
+
+    # Test against REAL GitHub API
+    result = subprocess.run(
+        ["gh", "pr", "view", pr_url, "--json", "statusCheckRollup"],
+        cwd=real_test_repo,
+        capture_output=True,
+        text=True,
+        check=True
+    )
+
+    pr_data = json.loads(result.stdout)
+    assert len(pr_data["statusCheckRollup"]) > 0
+```
+
+**Run integration tests:**
+```bash
+# Requires GITHUB_TOKEN environment variable
+export GITHUB_TOKEN="ghp_..."
+./poe test-integration
+```
+
+### Test Repository: data-yaml/qen-test
+
+Integration tests use a dedicated repository at https://github.com/data-yaml/qen-test.
+
+**GitHub Actions Workflows:**
+- `always-pass.yml` - Always passes
+- `always-fail.yml` - Fails for branches with "-failing-" in name
+- `slow-check.yml` - Takes 35 seconds to complete
+
+**Test Execution:**
+1. Clone real repo to /tmp
+2. Generate unique prefix: `test-{timestamp}-{uuid}`
+3. Create test branches and PRs using real gh CLI
+4. Run tests against REAL GitHub API
+5. Cleanup branches after test
 
 ## Development Workflow
 
@@ -98,7 +203,7 @@ The project uses pre-commit hooks that run automatically:
 
 **pre-push hook** (before each push):
 
-- Full test suite
+- Unit test suite (fast)
 
 **Note:** Hooks are auto-installed when you run `./poe test` for the first time.
 
@@ -125,6 +230,8 @@ src/
     └── types.py            # Type definitions
 
 tests/                      # Test suite mirrors src/ structure
+├── unit/                   # Unit tests (mocks OK)
+└── integration/            # Integration tests (NO MOCKS)
 scripts/                    # Build and version management scripts
 ```
 
@@ -173,14 +280,15 @@ scripts/                    # Build and version management scripts
 
 - pytest for all tests
 - Tests mirror `src/` structure
-- Use `pytest-mock` for mocking
+- Use `pytest-mock` for mocking **unit tests only**
+- **NEVER mock integration tests**
 - Aim for high coverage (use `./poe test-cov` to check)
 
 ### Git Conventions
 
 - Descriptive commit messages
 - Pre-commit hooks ensure quality (auto-run)
-- Pre-push hooks run full test suite
+- Pre-push hooks run unit test suite
 
 ## Common Development Tasks
 
@@ -189,8 +297,9 @@ scripts/                    # Build and version management scripts
 1. Create command file: `src/qen/commands/mycommand.py`
 2. Implement command logic with Click decorators
 3. Register in `src/qen/cli.py`
-4. Add tests: `tests/qen/commands/test_mycommand.py`
-5. Run: `./poe test`
+4. Add unit tests: `tests/qen/commands/test_mycommand.py`
+5. Add integration tests if needed: `tests/integration/test_mycommand_real.py`
+6. Run: `./poe test`
 
 ### Working with Configuration
 
@@ -219,6 +328,9 @@ project_root = find_project_root()
 ```bash
 # Run specific test file
 ./poe test-fast tests/qen/test_config.py
+
+# Run specific integration test
+pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
 
 # Run with coverage for specific module
 pytest tests/qen/test_config.py --cov=src/qen/config.py --cov-report=term
@@ -291,6 +403,10 @@ pytest tests/ -vv
 
 # Run single test
 pytest tests/qen/test_config.py::test_specific_function -vv
+
+# Run integration tests (requires GITHUB_TOKEN)
+export GITHUB_TOKEN="ghp_..."
+./poe test-integration
 ```
 
 ## Related Documentation
@@ -299,6 +415,7 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 - `pyproject.toml` - All tool configuration, dependencies, and poe tasks
 - `scripts/version.py` - Version management implementation
 - `.pre-commit-config.yaml` - Git hooks configuration
+- `spec/2-status/07-repo-qen-test.md` - Integration testing specification
 
 ## For AI Agents: Key Reminders
 
@@ -309,6 +426,7 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 5. **Test coverage matters** - Use `./poe test-cov` to verify
 6. **XDG directories** - Use `platformdirs` for config paths
 7. **TOML for config** - Use `tomli` and `tomli_w` for reading/writing
+8. **NO MOCKS for integration tests** - Use real GitHub API only
 
 ---
 

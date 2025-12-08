@@ -55,14 +55,13 @@ packages = ["src/qen", "src/qenvy"]
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
-setup-test-repo = { script = "scripts.setup_test_repo:main", help = "Create local test repository for integration tests" }
-clean-test-repo = { script = "scripts.clean_test_repo:main", help = "Remove local test repository" }
-test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -v" }], help = "Run tests (auto-installs hooks)" }
-test-integration = { sequence = ["setup-test-repo", { cmd = "pytest tests/integration -v" }], help = "Run integration tests (creates test repo first)" }
-test-cov = "pytest tests/ --cov=src --cov-report=term --cov-report=html"
-test-fast = "pytest tests/ -x"
+test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
+test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
+test-integration = { cmd = "pytest tests/ -m integration -v", help = "Run only integration tests (real GitHub API, requires GITHUB_TOKEN)" }
+test-all = { cmd = "pytest tests/ -v", help = "Run all tests (unit + integration)" }
+test-cov = "pytest tests/ -m 'not integration' --cov=src --cov-report=term --cov-report=html"
+test-fast = "pytest tests/ -m 'not integration' -x"
 typecheck = "mypy src/"
-clean = { sequence = ["clean-test-repo"], help = "Clean up test artifacts" }
 claude = { shell = "ln -sf AGENTS.md CLAUDE.md", help = "Create CLAUDE.md symlink to AGENTS.md" }
 
 [tool.poe.tasks.version]
@@ -102,7 +101,7 @@ filterwarnings = [
     "error",
 ]
 markers = [
-    "integration: marks tests as integration tests (slow, requires network)",
+    "integration: marks tests as integration tests (slow, requires network, uses real GitHub API - NO MOCKS)",
     "requires_gh: marks tests that require GitHub CLI",
     "requires_test_repo: marks tests that need test repository access",
 ]
@@ -141,7 +140,7 @@ select = [
     "I",   # isort
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "UP",  # pyupgrade",
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
