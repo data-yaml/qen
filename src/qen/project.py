@@ -222,6 +222,7 @@ def create_project_structure(
         "branch_name": branch_name,
         "folder_path": folder_path,
         "github_org": github_org or "your-org",
+        "meta_path": str(meta_path),
     }
 
     # Render and write README.md
@@ -250,6 +251,17 @@ def create_project_structure(
         gitignore_path.write_text(gitignore_content)
     except Exception as e:
         raise ProjectError(f"Failed to create .gitignore: {e}") from e
+
+    # Render and write qen executable wrapper
+    qen_template = get_template_path("qen")
+    qen_content = render_template(qen_template, **template_vars)
+    qen_path = project_dir / "qen"
+    try:
+        qen_path.write_text(qen_content)
+        # Make executable (chmod +x)
+        qen_path.chmod(0o755)
+    except Exception as e:
+        raise ProjectError(f"Failed to create qen executable: {e}") from e
 
     # Create repos/ directory
     repos_dir = project_dir / "repos"

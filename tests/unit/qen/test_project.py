@@ -209,6 +209,9 @@ class TestCreateProjectStructure:
         gitignore_template = tmp_path / ".gitignore"
         gitignore_template.write_text("repos/\n*.pyc")
 
+        qen_template = tmp_path / "qen"
+        qen_template.write_text("#!/bin/bash\necho qen")
+
         # Mock get_template_path
         def mock_get_template_path(name: str) -> Path:
             if name == "README.md":
@@ -217,6 +220,8 @@ class TestCreateProjectStructure:
                 return pyproject_template
             elif name == ".gitignore":
                 return gitignore_template
+            elif name == "qen":
+                return qen_template
             raise FileNotFoundError(name)
 
         mocker.patch("qen.project.get_template_path", side_effect=mock_get_template_path)
@@ -274,7 +279,8 @@ class TestCreateProjectStructure:
             "Timestamp: ${timestamp}\n"
             "Branch: ${branch_name}\n"
             "Folder: ${folder_path}\n"
-            "Org: ${github_org}"
+            "Org: ${github_org}\n"
+            "Meta: ${meta_path}"
         )
 
         pyproject_template = tmp_path / "pyproject.toml"
@@ -283,6 +289,9 @@ class TestCreateProjectStructure:
         gitignore_template = tmp_path / ".gitignore"
         gitignore_template.write_text("repos/")
 
+        qen_template = tmp_path / "qen"
+        qen_template.write_text("#!/bin/bash\necho qen")
+
         def mock_get_template_path(name: str) -> Path:
             if name == "README.md":
                 return readme_template
@@ -290,6 +299,8 @@ class TestCreateProjectStructure:
                 return pyproject_template
             elif name == ".gitignore":
                 return gitignore_template
+            elif name == "qen":
+                return qen_template
             raise FileNotFoundError(name)
 
         mocker.patch("qen.project.get_template_path", side_effect=mock_get_template_path)
@@ -329,6 +340,9 @@ class TestCreateProjectStructure:
         gitignore_template = tmp_path / ".gitignore"
         gitignore_template.write_text("repos/")
 
+        qen_template = tmp_path / "qen"
+        qen_template.write_text("#!/bin/bash\necho qen")
+
         def mock_get_template_path(name: str) -> Path:
             if name == "README.md":
                 return readme_template
@@ -336,6 +350,8 @@ class TestCreateProjectStructure:
                 return pyproject_template
             elif name == ".gitignore":
                 return gitignore_template
+            elif name == "qen":
+                return qen_template
             raise FileNotFoundError(name)
 
         mocker.patch("qen.project.get_template_path", side_effect=mock_get_template_path)
@@ -501,3 +517,62 @@ class TestProjectErrorCases:
             render_template(template_file)
 
         assert "Failed to render template" in str(exc_info.value)
+
+
+# ==============================================================================
+# Test QEN Executable Creation
+# ==============================================================================
+
+
+class TestQenExecutableCreation:
+    """Test qen executable wrapper creation."""
+
+    def test_qen_executable_created(self, tmp_path: Path, mocker) -> None:
+        """Test that qen executable is created during project structure creation."""
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
+        # Mock template functions
+        mocker.patch("qen.project.get_template_path", return_value=tmp_path / "template")
+        mocker.patch("qen.project.render_template", return_value="rendered content")
+
+        create_project_structure(
+            meta_path, "test-proj", "2025-12-08-test-proj", "proj/2025-12-08-test-proj"
+        )
+
+        project_dir = meta_path / "proj" / "2025-12-08-test-proj"
+        qen_executable = project_dir / "qen"
+
+        assert qen_executable.exists()
+        assert qen_executable.stat().st_mode & 0o111  # Check executable bits
+
+    def test_qen_executable_has_meta_path_variable(self, tmp_path: Path, mocker) -> None:
+        """Test that qen executable template receives meta_path variable."""
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
+        # Track all template renders
+        render_calls = []
+
+        def capture_render(template_path: Path, **variables):
+            render_calls.append((template_path, variables))
+            return "rendered content"
+
+        # Return different paths for different templates
+        def get_template(name: str) -> Path:
+            return tmp_path / name
+
+        mocker.patch("qen.project.get_template_path", side_effect=get_template)
+        mocker.patch("qen.project.render_template", side_effect=capture_render)
+
+        create_project_structure(
+            meta_path, "test-proj", "2025-12-08-test-proj", "proj/2025-12-08-test-proj"
+        )
+
+        # Find the qen template render call
+        qen_renders = [(path, vars) for path, vars in render_calls if path.name == "qen"]
+        assert len(qen_renders) == 1
+        _, qen_vars = qen_renders[0]
+
+        assert "meta_path" in qen_vars
+        assert qen_vars["meta_path"] == str(meta_path)

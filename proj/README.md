@@ -17,20 +17,27 @@ This project includes repositories defined in the `pyproject.toml` file. Current
 
 ## Getting Started
 
-### Clone the Project
+### Using the Project Wrapper
+
+This project includes a `./qen` executable that automatically runs qen commands in this project's context:
 
 ```bash
-qen init ${project_name}
+# From within the project directory, use the wrapper:
+./qen status      # Check project status
+./qen add <repo>  # Add a repository
+./qen pr status   # Check PR status
+
+# The wrapper ensures you're always working with this project,
+# even if you have multiple qen projects configured.
 ```
 
-### Update Repositories
+### Using Global qen
+
+Alternatively, you can use the global `qen` command with the `--proj` flag:
 
 ```bash
-# Pull all repositories
-qen pull
-
-# Check project status
-qen status
+qen --proj ${project_name} status
+qen --proj ${project_name} add <repo>
 ```
 
 ## Next Steps

@@ -37,7 +37,22 @@ This uses the previously-discovered `meta` repository to create a project-specif
 - **Project files**:
   - `README.md` - Project documentation stub
   - `pyproject.toml` - Repository configuration with `[tool.qen]` section
+  - `qen` - Executable wrapper for running qen commands in project context
+  - `.gitignore` - Ignores repos/ directory
   - `repos/` - Gitignored directory for sub-repositories
+
+### Using the Project Wrapper
+
+Each project includes a `./qen` executable wrapper that automatically runs qen commands in that project's context:
+
+```bash
+cd proj/YYYY-MM-DD-my-project/
+./qen status      # Works without specifying --proj
+./qen add myrepo  # Automatically uses this project
+./qen pr status   # Check PR status for this project
+```
+
+The wrapper is especially useful when you have multiple projects, as it eliminates the need to specify `--proj` or remember which project you're in
 
 ### 3. Manage Configuration
 

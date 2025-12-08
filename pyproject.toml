@@ -57,6 +57,7 @@ packages = ["src/qen", "src/qenvy"]
 "proj/README.md" = "proj/README.md"
 "proj/pyproject.toml" = "proj/pyproject.toml"
 "proj/.gitignore" = "proj/.gitignore"
+"proj/qen" = "proj/qen"
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
