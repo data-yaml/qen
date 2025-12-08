@@ -515,6 +515,8 @@ def pull_all_repositories(
     verbose: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> None:
     """Pull or fetch all repositories in the current project.
 
@@ -524,6 +526,8 @@ def pull_all_repositories(
         verbose: Enable verbose output
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
+        meta_path_override: Runtime override for meta_path
+        current_project_override: Runtime override for current_project
 
     Raises:
         NoActiveProjectError: If no project is currently active
@@ -531,7 +535,12 @@ def pull_all_repositories(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Load configuration
-    config = QenConfig(config_dir=config_dir, storage=storage)
+    config = QenConfig(
+        config_dir=config_dir,
+        storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     if not config.main_config_exists():
         click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)

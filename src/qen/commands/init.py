@@ -24,7 +24,13 @@ from ..git_utils import (
 from ..project import ProjectError, create_project
 
 
-def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
+def init_qen(
+    verbose: bool = False,
+    storage: QenvyBase | None = None,
+    config_dir: Path | str | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
+) -> None:
     """Initialize qen tooling.
 
     Behavior:
@@ -34,6 +40,10 @@ def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
 
     Args:
         verbose: Enable verbose output
+        storage: Optional storage backend for testing
+        config_dir: Override configuration directory
+        meta_path_override: Override meta repository path
+        current_project_override: Override current project name
 
     Raises:
         MetaRepoNotFoundError: If meta repository cannot be found
@@ -75,7 +85,12 @@ def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
         click.echo(f"Organization: {org}")
 
     # Create configuration
-    config = QenConfig(storage=storage)
+    config = QenConfig(
+        storage=storage,
+        config_dir=config_dir,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     try:
         config.write_main_config(
@@ -97,7 +112,13 @@ def init_qen(verbose: bool = False, storage: QenvyBase | None = None) -> None:
 
 
 def init_project(
-    project_name: str, verbose: bool = False, yes: bool = False, storage: QenvyBase | None = None
+    project_name: str,
+    verbose: bool = False,
+    yes: bool = False,
+    storage: QenvyBase | None = None,
+    config_dir: Path | str | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> None:
     """Create a new project in the meta repository.
 
@@ -117,6 +138,9 @@ def init_project(
         verbose: Enable verbose output
         yes: Auto-confirm prompts (skip PR creation prompt)
         storage: Optional storage backend for testing
+        config_dir: Override configuration directory
+        meta_path_override: Override meta repository path
+        current_project_override: Override current project name
 
     Raises:
         ProjectAlreadyExistsError: If project already exists
@@ -124,7 +148,12 @@ def init_project(
         ProjectError: If project creation fails
     """
     # Load configuration
-    config = QenConfig(storage=storage)
+    config = QenConfig(
+        storage=storage,
+        config_dir=config_dir,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     # Check if main config exists
     if not config.main_config_exists():

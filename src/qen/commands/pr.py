@@ -575,6 +575,8 @@ def get_all_pr_infos(
     project_name: str | None = None,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> list[PrInfo]:
     """Get PR information for all repositories in the current project.
 
@@ -585,6 +587,8 @@ def get_all_pr_infos(
         project_name: Name of project (if None, use current project from config)
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing)
+        meta_path_override: Runtime override for meta_path
+        current_project_override: Runtime override for current_project
 
     Returns:
         List of PrInfo objects for all repositories
@@ -595,7 +599,12 @@ def get_all_pr_infos(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Load configuration
-    config = QenConfig(config_dir=config_dir, storage=storage)
+    config = QenConfig(
+        config_dir=config_dir,
+        storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     if not config.main_config_exists():
         click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
@@ -686,6 +695,8 @@ def pr_status_command(
     verbose: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> list[PrInfo]:
     """Get PR status for all repositories in the current project.
 
@@ -694,6 +705,8 @@ def pr_status_command(
         verbose: Enable verbose output
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing)
+        meta_path_override: Runtime override for meta_path
+        current_project_override: Runtime override for current_project
 
     Returns:
         List of PrInfo objects for all repositories
@@ -704,7 +717,12 @@ def pr_status_command(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Get configuration to show project name
-    config = QenConfig(config_dir=config_dir, storage=storage)
+    config = QenConfig(
+        config_dir=config_dir,
+        storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
     main_config = config.read_main_config()
     current_project = main_config.get("current_project")
 
@@ -716,6 +734,8 @@ def pr_status_command(
         project_name=project_name,
         config_dir=config_dir,
         storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
     )
 
     # Display header
@@ -777,6 +797,8 @@ def pr_stack_command(
     verbose: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> dict[str, list[PrInfo]]:
     """Identify and display stacked PRs across all repositories.
 
@@ -785,6 +807,8 @@ def pr_stack_command(
         verbose: Enable verbose output
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing)
+        meta_path_override: Runtime override for meta_path
+        current_project_override: Runtime override for current_project
 
     Returns:
         Dictionary of stacks (root branch -> list of PRs)
@@ -797,6 +821,8 @@ def pr_stack_command(
         project_name=project_name,
         config_dir=config_dir,
         storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
     )
 
     # Check if we have any PRs
@@ -927,6 +953,8 @@ def pr_restack_command(
     dry_run: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> dict[str, list[tuple[PrInfo, bool]]]:
     """Update all stacked PRs to be based on latest versions of their base branches.
 
@@ -935,6 +963,8 @@ def pr_restack_command(
         dry_run: If True, show what would be done without making changes
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing)
+        meta_path_override: Runtime override for meta_path
+        current_project_override: Runtime override for current_project
 
     Returns:
         Dictionary mapping root branch to list of (PrInfo, success) tuples
@@ -948,6 +978,8 @@ def pr_restack_command(
         verbose=False,
         config_dir=config_dir,
         storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
     )
 
     if not stacks:
@@ -1020,7 +1052,8 @@ def pr_command() -> None:
 
 @pr_command.command("status")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed PR information")
-def pr_status(verbose: bool) -> None:
+@click.pass_context
+def pr_status(ctx: click.Context, verbose: bool) -> None:
     """Show PR status for all repositories in the current project.
 
     Queries GitHub CLI (gh) to retrieve PR information for each repository,
@@ -1038,12 +1071,19 @@ def pr_status(verbose: bool) -> None:
         # Show detailed PR information
         $ qen pr status -v
     """
-    pr_status_command(verbose=verbose)
+    overrides = ctx.obj.get("config_overrides", {})
+    pr_status_command(
+        verbose=verbose,
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
 
 @pr_command.command("stack")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed stack information")
-def pr_stack(verbose: bool) -> None:
+@click.pass_context
+def pr_stack(ctx: click.Context, verbose: bool) -> None:
     """Show stacked PRs across all repositories.
 
     Identifies PR stacks by analyzing base branches. A PR is considered
@@ -1061,12 +1101,19 @@ def pr_stack(verbose: bool) -> None:
         # Show detailed stack information
         $ qen pr stack -v
     """
-    pr_stack_command(verbose=verbose)
+    overrides = ctx.obj.get("config_overrides", {})
+    pr_stack_command(
+        verbose=verbose,
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
 
 @pr_command.command("restack")
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
-def pr_restack(dry_run: bool) -> None:
+@click.pass_context
+def pr_restack(ctx: click.Context, dry_run: bool) -> None:
     """Update stacked PRs to be based on latest versions of their base branches.
 
     Finds all stacked PRs in the project and updates them in order (parent PRs first)
@@ -1088,4 +1135,10 @@ def pr_restack(dry_run: bool) -> None:
         # Preview what would be updated without making changes
         $ qen pr restack --dry-run
     """
-    pr_restack_command(dry_run=dry_run)
+    overrides = ctx.obj.get("config_overrides", {})
+    pr_restack_command(
+        dry_run=dry_run,
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )

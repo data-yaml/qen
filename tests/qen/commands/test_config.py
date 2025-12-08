@@ -339,7 +339,7 @@ class TestSwitchProject:
 
         output = io.StringIO()
         with redirect_stdout(output):
-            switch_project(config_with_projects, "project-two")
+            switch_project("project-two", config=config_with_projects)
 
         result = output.getvalue()
         assert "Switched to project: project-two" in result
@@ -360,7 +360,7 @@ class TestSwitchProject:
 
         with redirect_stdout(output), redirect_stderr(errors):
             with pytest.raises(click.Abort):
-                switch_project(config_with_projects, "nonexistent-project")
+                switch_project("nonexistent-project", config=config_with_projects)
 
         error_output = errors.getvalue() + output.getvalue()
         assert "not found" in error_output.lower()

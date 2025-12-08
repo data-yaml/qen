@@ -5,6 +5,7 @@ Shows git status across all repositories (meta + sub-repos) in the current proje
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -234,6 +235,7 @@ def show_project_status(
     verbose: bool = False,
     meta_only: bool = False,
     repos_only: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Show status for current or specified project.
 
@@ -243,13 +245,19 @@ def show_project_status(
         verbose: If True, show detailed file lists
         meta_only: If True, only show meta repository
         repos_only: If True, only show sub-repositories
+        config_overrides: Configuration overrides from CLI
 
     Raises:
         StatusError: If status cannot be retrieved
         click.ClickException: For user-facing errors
     """
-    # Load configuration
-    config = QenConfig()
+    # Load configuration with overrides
+    overrides = config_overrides or {}
+    config = QenConfig(
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
     if not config.main_config_exists():
         raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
@@ -310,8 +318,14 @@ def show_project_status(
 @click.option("--project", help="Project name (default: current project)")
 @click.option("--meta-only", is_flag=True, help="Show only meta repository status")
 @click.option("--repos-only", is_flag=True, help="Show only sub-repository status")
+@click.pass_context
 def status_command(
-    fetch: bool, verbose: bool, project: str | None, meta_only: bool, repos_only: bool
+    ctx: click.Context,
+    fetch: bool,
+    verbose: bool,
+    project: str | None,
+    meta_only: bool,
+    repos_only: bool,
 ) -> None:
     """Show git status across all repositories in the current project.
 
@@ -344,6 +358,7 @@ def status_command(
         # Show only sub-repositories
         $ qen status --repos-only
     """
+    overrides = ctx.obj.get("config_overrides", {})
     try:
         show_project_status(
             project_name=project,
@@ -351,6 +366,7 @@ def status_command(
             verbose=verbose,
             meta_only=meta_only,
             repos_only=repos_only,
+            config_overrides=overrides,
         )
     except click.ClickException:
         raise

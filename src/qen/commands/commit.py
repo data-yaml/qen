@@ -7,6 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -329,6 +330,7 @@ def commit_interactive(
     amend: bool = False,
     no_add: bool = False,
     verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Commit repositories interactively.
 
@@ -339,6 +341,7 @@ def commit_interactive(
         amend: If True, amend previous commits
         no_add: If True, don't auto-stage changes
         verbose: If True, show detailed output
+        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Returns:
         Dictionary with summary counts
@@ -477,6 +480,7 @@ def commit_project(
     specific_repo: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Commit all repositories in a project.
 
@@ -490,6 +494,7 @@ def commit_project(
         specific_repo: If set, only commit this repository
         dry_run: If True, show what would be committed
         verbose: If True, show detailed output
+        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Raises:
         click.ClickException: If commit fails
@@ -499,7 +504,12 @@ def commit_project(
         interactive = True
 
     # Load configuration
-    config = QenConfig()
+    overrides = config_overrides or {}
+    config = QenConfig(
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
     if not config.main_config_exists():
         raise click.ClickException("qen is not initialized. Run 'qen init' first.")
@@ -530,6 +540,7 @@ def commit_project(
                 amend=amend,
                 no_add=no_add,
                 verbose=verbose,
+                config_overrides=overrides,
             )
             click.echo("\nSummary:")
             click.echo(f"  {summary['committed']} repositories committed")
@@ -686,7 +697,9 @@ def print_commit_summary(
 @click.option("--dry-run", is_flag=True, help="Show what would be committed")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed output")
 @click.option("--project", help="Project name (default: current project)")
+@click.pass_context
 def commit_command(
+    ctx: click.Context,
     message: str | None,
     interactive: bool,
     amend: bool,
@@ -725,6 +738,7 @@ def commit_command(
         $ qen commit -m "Test" --dry-run
     """
     try:
+        overrides = ctx.obj.get("config_overrides", {})
         commit_project(
             project_name=project,
             message=message,
@@ -735,6 +749,7 @@ def commit_command(
             specific_repo=repo,
             dry_run=dry_run,
             verbose=verbose,
+            config_overrides=overrides,
         )
     except click.ClickException:
         raise

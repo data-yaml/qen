@@ -5,6 +5,7 @@ Executes shell commands in the project directory as defined in stored QEN config
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -23,6 +24,7 @@ def execute_shell_command(
     chdir: str | None = None,
     yes: bool = False,
     verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Execute a shell command in the project directory.
 
@@ -32,13 +34,19 @@ def execute_shell_command(
         chdir: Subdirectory to change to (relative to project root)
         yes: Skip confirmation prompt
         verbose: Show additional context information
+        config_overrides: Configuration overrides from CLI
 
     Raises:
         click.ClickException: For user-facing errors
         ShellError: For shell execution errors
     """
-    # Load configuration
-    config = QenConfig()
+    # Load configuration with overrides
+    overrides = config_overrides or {}
+    config = QenConfig(
+        config_dir=overrides.get("config_dir"),
+        meta_path_override=overrides.get("meta_path"),
+        current_project_override=overrides.get("current_project"),
+    )
 
     if not config.main_config_exists():
         raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
@@ -150,8 +158,14 @@ def execute_shell_command(
     "--project",
     help="Project name (default: current project)",
 )
+@click.pass_context
 def sh_command(
-    command: str, chdir: str | None, yes: bool, verbose: bool, project: str | None
+    ctx: click.Context,
+    command: str,
+    chdir: str | None,
+    yes: bool,
+    verbose: bool,
+    project: str | None,
 ) -> None:
     """Run shell commands in project context.
 
@@ -180,6 +194,7 @@ def sh_command(
         # Run in specific project
         $ qen sh --project my-project "git status"
     """
+    overrides = ctx.obj.get("config_overrides", {})
     try:
         execute_shell_command(
             command=command,
@@ -187,6 +202,7 @@ def sh_command(
             chdir=chdir,
             yes=yes,
             verbose=verbose,
+            config_overrides=overrides,
         )
     except click.ClickException:
         raise

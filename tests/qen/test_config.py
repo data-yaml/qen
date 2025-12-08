@@ -608,3 +608,151 @@ class TestExceptionTypes:
         error = exc_info.value
         assert error.project_name == "test-project"
         assert "test-project" in error.config_path
+
+
+class TestConfigOverrides:
+    """Test runtime configuration overrides."""
+
+    def test_meta_path_override(self, test_storage: QenvyTest) -> None:
+        """Test meta_path_override parameter."""
+        # Create config with stored meta_path
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/original/meta", "testorg")
+
+        # Create new config with override
+        config_with_override = QenConfig(storage=test_storage, meta_path_override="/override/meta")
+
+        main_config = config_with_override.read_main_config()
+        assert main_config["meta_path"] == "/override/meta"
+        assert main_config["org"] == "testorg"
+
+        # Verify override is not persisted
+        config_without_override = QenConfig(storage=test_storage)
+        original_config = config_without_override.read_main_config()
+        assert original_config["meta_path"] == "/original/meta"
+
+    def test_current_project_override(self, test_storage: QenvyTest) -> None:
+        """Test current_project_override parameter."""
+        # Create config with stored current_project
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/tmp/meta", "testorg", current_project="original-proj")
+
+        # Create new config with override
+        config_with_override = QenConfig(
+            storage=test_storage, current_project_override="override-proj"
+        )
+
+        main_config = config_with_override.read_main_config()
+        assert main_config["current_project"] == "override-proj"
+        assert main_config["org"] == "testorg"
+
+        # Verify override is not persisted
+        config_without_override = QenConfig(storage=test_storage)
+        original_config = config_without_override.read_main_config()
+        assert original_config["current_project"] == "original-proj"
+
+    def test_override_nonexistent_config(self, test_storage: QenvyTest) -> None:
+        """Test overrides work even when main config doesn't exist."""
+        # Don't create main config
+        config = QenConfig(
+            storage=test_storage,
+            meta_path_override="/tmp/meta",
+            current_project_override="test-proj",
+        )
+
+        # Should return dict with overrides even though main config doesn't exist
+        main_config = config.read_main_config()
+        assert main_config["meta_path"] == "/tmp/meta"
+        assert main_config["current_project"] == "test-proj"
+
+        # Verify nothing was persisted
+        assert not config.main_config_exists()
+
+    def test_combined_overrides(self, test_storage: QenvyTest) -> None:
+        """Test multiple overrides applied together."""
+        # Create config with stored values
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/original/meta", "testorg", current_project="orig-proj")
+
+        # Create new config with both overrides
+        config_with_overrides = QenConfig(
+            storage=test_storage,
+            meta_path_override="/override/meta",
+            current_project_override="override-proj",
+        )
+
+        main_config = config_with_overrides.read_main_config()
+        assert main_config["meta_path"] == "/override/meta"
+        assert main_config["current_project"] == "override-proj"
+        assert main_config["org"] == "testorg"
+
+        # Verify overrides are not persisted
+        config_without_override = QenConfig(storage=test_storage)
+        original_config = config_without_override.read_main_config()
+        assert original_config["meta_path"] == "/original/meta"
+        assert original_config["current_project"] == "orig-proj"
+
+    def test_override_with_path_object(self, test_storage: QenvyTest) -> None:
+        """Test meta_path_override accepts Path objects."""
+        from pathlib import Path
+
+        config = QenConfig(storage=test_storage, meta_path_override=Path("/tmp/meta"))
+
+        main_config = config.read_main_config()
+        assert main_config["meta_path"] == "/tmp/meta"
+
+    def test_override_none_values(self, test_storage: QenvyTest) -> None:
+        """Test overrides with None values (no override)."""
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/tmp/meta", "testorg", current_project="proj")
+
+        # Create config with None overrides (should use stored values)
+        config_no_override = QenConfig(
+            storage=test_storage,
+            meta_path_override=None,
+            current_project_override=None,
+        )
+
+        main_config = config_no_override.read_main_config()
+        assert main_config["meta_path"] == "/tmp/meta"
+        assert main_config["current_project"] == "proj"
+
+    def test_override_only_meta_path(self, test_storage: QenvyTest) -> None:
+        """Test overriding only meta_path, leaving other values unchanged."""
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/original/meta", "testorg", current_project="proj")
+
+        config_with_override = QenConfig(storage=test_storage, meta_path_override="/override/meta")
+
+        main_config = config_with_override.read_main_config()
+        assert main_config["meta_path"] == "/override/meta"
+        assert main_config["current_project"] == "proj"
+        assert main_config["org"] == "testorg"
+
+    def test_override_only_current_project(self, test_storage: QenvyTest) -> None:
+        """Test overriding only current_project, leaving other values unchanged."""
+        config = QenConfig(storage=test_storage)
+        config.write_main_config("/tmp/meta", "testorg", current_project="orig")
+
+        config_with_override = QenConfig(storage=test_storage, current_project_override="override")
+
+        main_config = config_with_override.read_main_config()
+        assert main_config["meta_path"] == "/tmp/meta"
+        assert main_config["current_project"] == "override"
+        assert main_config["org"] == "testorg"
+
+    def test_override_with_config_dir(self, test_storage: QenvyTest, tmp_path: Path) -> None:
+        """Test overrides work with custom config_dir."""
+        custom_dir = tmp_path / "custom_config"
+
+        # Note: Can't use both storage and config_dir in real usage,
+        # but test that parameters are accepted
+        config = QenConfig(
+            storage=test_storage,
+            config_dir=str(custom_dir),
+            meta_path_override="/override/meta",
+        )
+
+        # Override should work even with config_dir
+        main_config = config.read_main_config()
+        assert main_config["meta_path"] == "/override/meta"

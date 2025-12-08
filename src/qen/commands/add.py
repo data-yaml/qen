@@ -87,6 +87,8 @@ def add_repository(
     yes: bool = False,
     config_dir: Path | str | None = None,
     storage: QenvyBase | None = None,
+    meta_path_override: Path | str | None = None,
+    current_project_override: str | None = None,
 ) -> None:
     """Add a repository to the current project.
 
@@ -99,6 +101,8 @@ def add_repository(
         yes: Auto-confirm prompts (create local branch without asking)
         config_dir: Override config directory (for testing)
         storage: Override storage backend (for testing with in-memory storage)
+        meta_path_override: Override meta repository path
+        current_project_override: Override current project name
 
     Raises:
         NoActiveProjectError: If no project is currently active
@@ -109,7 +113,12 @@ def add_repository(
         QenConfigError: If configuration cannot be read
     """
     # 1. Load configuration and get current project
-    config = QenConfig(config_dir=config_dir, storage=storage)
+    config = QenConfig(
+        config_dir=config_dir,
+        storage=storage,
+        meta_path_override=meta_path_override,
+        current_project_override=current_project_override,
+    )
 
     if not config.main_config_exists():
         click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)

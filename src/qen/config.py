@@ -41,12 +41,20 @@ class QenConfig:
 
     MAIN_PROFILE = "main"
 
-    def __init__(self, config_dir: Path | str | None = None, storage: QenvyBase | None = None):
+    def __init__(
+        self,
+        config_dir: Path | str | None = None,
+        storage: QenvyBase | None = None,
+        meta_path_override: Path | str | None = None,
+        current_project_override: str | None = None,
+    ):
         """Initialize qen configuration manager.
 
         Args:
             config_dir: Override default config directory (for testing)
             storage: Override storage backend (for testing with in-memory storage)
+            meta_path_override: Runtime override for meta_path (not persisted)
+            current_project_override: Runtime override for current_project (not persisted)
         """
         if storage is not None:
             # Use provided storage backend (for testing)
@@ -58,6 +66,10 @@ class QenConfig:
                 base_dir=config_dir,
                 format="toml",
             )
+
+        # Store runtime overrides (never persisted to disk)
+        self._meta_path_override = Path(meta_path_override) if meta_path_override else None
+        self._current_project_override = current_project_override
 
     def get_config_dir(self) -> Path:
         """Get the qen configuration directory.
@@ -112,16 +124,40 @@ class QenConfig:
         return self._qenvy.profile_exists(project_name)
 
     def read_main_config(self) -> dict[str, Any]:
-        """Read main qen configuration.
+        """Read main qen configuration with runtime overrides applied.
+
+        Runtime overrides (meta_path_override, current_project_override) are applied
+        to the returned config dict but never persisted to disk.
 
         Returns:
-            Main configuration dictionary
+            Main configuration dictionary with overrides applied
 
         Raises:
             QenConfigError: If main config does not exist or read fails
         """
         try:
-            return self._qenvy.read_profile(self.MAIN_PROFILE, resolve_inheritance=False)
+            # Read stored config
+            if self.main_config_exists():
+                config = self._qenvy.read_profile(self.MAIN_PROFILE, resolve_inheritance=False)
+            else:
+                # If no config exists and no overrides provided, raise error
+                if not self._meta_path_override and not self._current_project_override:
+                    raise QenConfigError(
+                        "Failed to read main config: Main configuration does not exist"
+                    )
+                # Otherwise start with empty config (will be populated by overrides)
+                config = {}
+
+            # Apply runtime overrides (never persisted)
+            if self._meta_path_override:
+                config["meta_path"] = str(self._meta_path_override)
+            if self._current_project_override:
+                config["current_project"] = self._current_project_override
+
+            return config
+        except QenConfigError:
+            # Re-raise QenConfigError without wrapping
+            raise
         except Exception as e:
             raise QenConfigError(f"Failed to read main config: {e}") from e
 
