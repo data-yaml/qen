@@ -87,9 +87,7 @@ class TestParameterStoreInitialization:
     def test_init_with_secure_fields(self, aws_credentials: None) -> None:
         """Test initialization with secure_fields parameter."""
         with mock_aws():
-            config = ParameterStoreConfig(
-                "my-app", secure_fields=["api.key", "db.password"]
-            )
+            config = ParameterStoreConfig("my-app", secure_fields=["api.key", "db.password"])
 
             assert config.secure_fields == ["api.key", "db.password"]
 
@@ -437,9 +435,7 @@ class TestErrorHandling:
 
             assert "Invalid JSON" in str(exc_info.value)
 
-    def test_profile_not_found_error_message(
-        self, parameter_store: ParameterStoreConfig
-    ) -> None:
+    def test_profile_not_found_error_message(self, parameter_store: ParameterStoreConfig) -> None:
         """Test ProfileNotFoundError has helpful message."""
         with mock_aws():
             parameter_store.ssm = boto3.client("ssm", region_name="us-east-1")
