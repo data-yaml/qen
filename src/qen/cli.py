@@ -20,7 +20,7 @@ from .commands.status import status_command
 from .commands.workspace import workspace_command
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="qen")
 @click.option(
     "--config-dir",
@@ -51,6 +51,10 @@ def main(ctx: click.Context, config_dir: Path | None, meta: Path | None, proj: s
         "meta_path": meta,
         "current_project": proj,
     }
+
+    # If no subcommand was provided, show help
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @main.command("init")
