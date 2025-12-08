@@ -309,6 +309,7 @@ def workspace_command(
     if "vscode" in created_files:
         vscode_file = created_files["vscode"]
         click.echo(f"  code {vscode_file}")
+        click.echo(f"  cursor {vscode_file}")
     if "sublime" in created_files:
         sublime_file = created_files["sublime"]
         click.echo(f"  subl --project {sublime_file}")
