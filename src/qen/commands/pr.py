@@ -1040,14 +1040,19 @@ def pr_restack_command(
     return results
 
 
-@click.group(name="pr")
-def pr_command() -> None:
+@click.group(name="pr", invoke_without_command=True)
+@click.pass_context
+def pr_command(ctx: click.Context) -> None:
     """Manage pull requests across repositories.
 
     Commands for querying and managing pull requests in all repositories
     within the current project.
+
+    If no subcommand is provided, defaults to 'status'.
     """
-    pass
+    # If no subcommand was provided, default to status
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(pr_status, verbose=False)
 
 
 @pr_command.command("status")
