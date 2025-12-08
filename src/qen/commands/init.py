@@ -124,8 +124,8 @@ def init_project(
 
     Behavior:
     1. Check if project config already exists (error if yes)
-    2. Create branch YYYY-MM-DD-<proj-name> in meta repo
-    3. Create directory proj/YYYY-MM-DD-<proj-name>/ with:
+    2. Create branch YYMMDD-<proj-name> in meta repo
+    3. Create directory proj/YYMMDD-<proj-name>/ with:
        - README.md (stub)
        - meta.toml (empty repos list)
        - repos/ (gitignored)

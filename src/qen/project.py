@@ -32,7 +32,7 @@ class ProjectNotFoundError(ProjectError):
 def generate_branch_name(project_name: str, date: datetime | None = None) -> str:
     """Generate a branch name with date prefix.
 
-    Format: YYYY-MM-DD-<project-name>
+    Format: YYMMDD-<project-name>
 
     Args:
         project_name: Name of the project
@@ -44,14 +44,14 @@ def generate_branch_name(project_name: str, date: datetime | None = None) -> str
     if date is None:
         date = datetime.now(UTC)
 
-    date_prefix = date.strftime("%Y-%m-%d")
+    date_prefix = date.strftime("%y%m%d")
     return f"{date_prefix}-{project_name}"
 
 
 def generate_folder_path(project_name: str, date: datetime | None = None) -> str:
     """Generate a folder path with date prefix.
 
-    Format: proj/YYYY-MM-DD-<project-name>
+    Format: proj/YYMMDD-<project-name>
 
     Args:
         project_name: Name of the project
@@ -63,7 +63,7 @@ def generate_folder_path(project_name: str, date: datetime | None = None) -> str
     if date is None:
         date = datetime.now(UTC)
 
-    date_prefix = date.strftime("%Y-%m-%d")
+    date_prefix = date.strftime("%y%m%d")
     return f"proj/{date_prefix}-{project_name}"
 
 
