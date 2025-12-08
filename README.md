@@ -32,7 +32,7 @@ uvx qen init my-project
 
 This uses the previously-discovered `meta` repository to create a project-specific:
 
-- **Git branch**: `YYMMDD-my-project` (format: `YYMMDD-snake-case-name`, e.g., `251203-readme-bootstrap`)
+- **Git branch**: `YYMMDD-my-project` (e.g., `251203-readme-bootstrap`)
 - **Project directory**: `proj/YYMMDD-my-project/`
 - **Project files**:
   - `README.md` - Project documentation stub
@@ -40,6 +40,7 @@ This uses the previously-discovered `meta` repository to create a project-specif
   - `qen` - Executable wrapper for running qen commands in project context
   - `.gitignore` - Ignores repos/ directory
   - `repos/` - Gitignored directory for sub-repositories
+  - `workspaces/` - IDE multi-repo configuration
 
 ### Using the Project Wrapper
 

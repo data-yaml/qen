@@ -315,6 +315,44 @@ scripts/                    # Build and version management scripts
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
 - Project manifest: `proj/YYMMDD-project/pyproject.toml` (with `[tool.qen]`)
 
+**CLI Global Options (Runtime Overrides):**
+
+The qen CLI provides global options that override configuration **for a single command execution only**:
+
+```bash
+qen [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
+```
+
+Available global options (defined in [cli.py](src/qen/cli.py:23-40)):
+
+- `--config-dir PATH` - Override configuration directory (default: `$XDG_CONFIG_HOME/qen`)
+- `--meta PATH` - Override meta repository path
+- `--proj NAME` or `--project NAME` - Override current project name
+
+**IMPORTANT:** These options must come **before** the subcommand, not after:
+
+- ✅ **Correct:** `qen --meta ~/GitHub/meta config --global`
+- ❌ **Wrong:** `qen config --global --meta ~/GitHub/meta`
+
+**Runtime vs. Persistent Config:**
+
+- Global options are **runtime overrides only** - they do not persist to disk
+- To permanently modify global config, use `qen init` (reinitializes with new meta path and org)
+- To switch current project persistently, use `qen config <project-name>`
+
+Example use cases:
+
+```bash
+# Temporarily use different meta repo for one command
+qen --meta /tmp/test-meta status
+
+# Temporarily work with different project
+qen --proj other-project status
+
+# Override config dir for testing
+qen --config-dir /tmp/qen-test init test-project
+```
+
 **Project pyproject.toml Schema:**
 
 The `[tool.qen]` section in each project's pyproject.toml contains:
