@@ -35,7 +35,7 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 |------|---------|---------|
 | `./poe test` | Run unit tests only | Run fast unit tests (use this first!) |
 | `./poe test-unit` | Unit tests only | Fast tests with mocks |
-| `./poe test-integration` | Integration tests only | Slow tests with real GitHub API |
+| `./poe test-integration` | Integration tests only | Real GitHub API (auto-detects token) |
 | `./poe test-all` | All tests | Run both unit and integration tests |
 | `./poe test-cov` | pytest with coverage | Generate coverage report |
 | `./poe test-fast` | pytest -x | Stop on first failure |
@@ -136,12 +136,15 @@ def test_pr_status_passing_checks(real_test_repo, unique_prefix, cleanup_branche
 
 **Run integration tests:**
 ```bash
-# Requires GITHUB_TOKEN environment variable
-export GITHUB_TOKEN="ghp_..."
+# Auto-detects GitHub token from gh CLI or environment
 ./poe test-integration
 
-# Or use gh CLI token
-GITHUB_TOKEN=$(gh auth token) ./poe test-integration
+# Token detection order:
+# 1. GITHUB_TOKEN environment variable (if set)
+# 2. gh auth token (if gh CLI is authenticated)
+
+# You can also explicitly set the token:
+GITHUB_TOKEN="ghp_..." ./poe test-integration
 ```
 
 #### IMPORTANT: Integration tests are NOT run in CI
@@ -415,8 +418,7 @@ pytest tests/ -vv
 # Run single test
 pytest tests/qen/test_config.py::test_specific_function -vv
 
-# Run integration tests (requires GITHUB_TOKEN)
-export GITHUB_TOKEN="ghp_..."
+# Run integration tests (auto-detects token from gh CLI)
 ./poe test-integration
 ```
 
