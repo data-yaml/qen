@@ -6,7 +6,7 @@ Enumerate and retrieve PR information across all repositories:
 3. For each repository:
    - Query gh CLI for PR information
    - Collect PR status, checks, and metadata
-4. Display comprehensive PR summary
+4. Display comprehensive PR summary with repository indices
 """
 
 import json
@@ -289,20 +289,24 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         )
 
 
-def format_pr_info(pr: PrInfo, verbose: bool = False) -> str:
+def format_pr_info(pr: PrInfo, verbose: bool = False, index: int | None = None) -> str:
     """Format PR information for display.
 
     Args:
         pr: PrInfo object
         verbose: Include additional details
+        index: Optional 1-based index to display
 
     Returns:
         Formatted string
     """
     lines = []
 
-    # Repository header
-    lines.append(f"\n📦 {pr.repo_path} ({pr.branch})")
+    # Repository header with optional index
+    if index is not None:
+        lines.append(f"\n[{index}] 📦 {pr.repo_path} ({pr.branch})")
+    else:
+        lines.append(f"\n📦 {pr.repo_path} ({pr.branch})")
 
     # Error handling
     if pr.error:
@@ -741,9 +745,9 @@ def pr_status_command(
     # Display header
     click.echo(f"PR Status for project: {current_project}")
 
-    # Display each PR
-    for pr_info in pr_infos:
-        click.echo(format_pr_info(pr_info, verbose))
+    # Display each PR with 1-based index
+    for idx, pr_info in enumerate(pr_infos, start=1):
+        click.echo(format_pr_info(pr_info, verbose, index=idx))
 
     # Display summary
     total = len(pr_infos)
@@ -1048,6 +1052,8 @@ def pr_command(ctx: click.Context) -> None:
     Commands for querying and managing pull requests in all repositories
     within the current project.
 
+    Repositories are displayed with indices ([1], [2], etc.) for easy reference.
+
     If no subcommand is provided, defaults to 'status'.
     """
     # If no subcommand was provided, default to status
@@ -1063,6 +1069,9 @@ def pr_status(ctx: click.Context, verbose: bool) -> None:
 
     Queries GitHub CLI (gh) to retrieve PR information for each repository,
     including PR state, checks, and mergeable status.
+
+    Repositories are displayed with indices ([1], [2], etc.) based on their
+    order in the project configuration.
 
     Requires GitHub CLI (gh) to be installed and authenticated.
 

@@ -99,11 +99,20 @@ The repository will be:
 - Cloned to `repos/myrepo/`
 - Added to `pyproject.toml` in the `[[tool.qen.repos]]` section
 - Tracked with its URL, branch, and local path
+- **Assigned an index** based on the order it was added (starting from 1)
+
+Repositories are displayed with indices for easy reference:
+
+```text
+[1] myorg/repo1 (main)
+[2] myorg/repo2 (feature)
+[3] myorg/repo3 (dev)
+```
 
 ### 5. Check Git Status
 
 ```bash
-# Show git status across all repos
+# Show git status across all repos (with indices)
 uvx qen status
 
 # Show detailed status with verbose output
@@ -113,10 +122,20 @@ uvx qen status -v
 uvx qen status --fetch
 ```
 
+The `status` command displays each repository with its index:
+
+```text
+Sub-repositories:
+
+  [1] repos/main/repo1 (https://github.com/org/repo1)
+    Status: Clean
+    Branch: main
+```
+
 ### 6. Work with Pull Requests
 
 ```bash
-# Show PR status for all repositories
+# Show PR status for all repositories (with indices)
 uvx qen pr status
 
 # Show detailed PR information
@@ -130,6 +149,17 @@ uvx qen pr restack
 
 # Preview restack changes without making them
 uvx qen pr restack --dry-run
+```
+
+PR status displays also include repository indices:
+
+```text
+[1] 📦 repo1 (main)
+   📋 PR #123: Feature implementation
+   ✓ Checks: passing
+
+[2] 📦 repo2 (feature)
+   • No PR for this branch
 ```
 
 ### 7. Generate Editor Workspaces
@@ -151,10 +181,22 @@ code workspaces/vscode.code-workspace
 ```
 
 Workspace files are created in the `workspaces/` directory and include:
+
 - Project root folder
 - All sub-repositories
 - PR numbers in folder names (when available)
 - Sensible file exclusions (.git, __pycache__, etc.)
+
+## Repository Indices
+
+QEN automatically assigns **1-based indices** to repositories based on their order in the `[[tool.qen.repos]]` array in `pyproject.toml`. These indices:
+
+- Start at 1 (not 0) for user-friendliness
+- Are based on the order repositories appear in the configuration
+- Are displayed in all repository listings (`qen status`, `qen pr status`, etc.)
+- Provide a convenient way to reference repositories
+
+The index reflects the position in the TOML array, making it easy to understand which repo you're referring to when working with multiple repositories.
 
 ## Requirements
 

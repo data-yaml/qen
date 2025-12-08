@@ -353,6 +353,24 @@ issue = 456  # int - issue number extracted from branch name
 | `pr_checks` | string | `qen pull` | Check status (passing/failing/pending/unknown) |
 | `issue` | int | `qen pull` | Issue number from branch name pattern |
 
+**Repository Indices:**
+
+Repositories are automatically assigned **1-based indices** based on their position in the `[[tool.qen.repos]]` array:
+
+- Indices start at 1 (not 0) for user-friendliness
+- Order is determined by position in the TOML array
+- Displayed in all repository listings (`qen status`, `qen pr status`, etc.)
+- Format: `[1]`, `[2]`, `[3]`, etc.
+- Use `enumerate(repos, start=1)` to iterate with indices in Python code
+
+Example in code:
+
+```python
+repos = load_repos_from_pyproject(project_dir)
+for idx, repo in enumerate(repos, start=1):
+    print(f"[{idx}] {repo.url}")
+```
+
 ### CRITICAL: QEN Always Uses Stored Config State
 
 - **QEN commands ALWAYS operate on the CURRENT CONFIG as stored in XDG directories**
@@ -423,6 +441,24 @@ from qen.project import find_project_root
 project_root = find_project_root()
 ```
 
+### Working with Repository Indices
+
+```python
+from qen.pyproject_utils import load_repos_from_pyproject
+
+# Load repositories
+repos = load_repos_from_pyproject(project_dir)
+
+# Iterate with 1-based indices
+for idx, repo in enumerate(repos, start=1):
+    # Display with index
+    print(f"[{idx}] {repo.url}")
+
+    # Access repo properties
+    print(f"  Branch: {repo.branch}")
+    print(f"  Path: {repo.path}")
+```
+
 ## Current Implementation Status
 
 **Implemented:**
@@ -430,8 +466,8 @@ project_root = find_project_root()
 - `qen init` - Initialize qen configuration
 - `qen init <project>` - Create new project with full structure
 - `qen add <repo>` - Add sub-repositories with flexible URL parsing
-- `qen status` - Show git status across all sub-repos
-- `qen pr status` - Show PR status for all repositories
+- `qen status` - Show git status across all sub-repos (with indices)
+- `qen pr status` - Show PR status for all repositories (with indices)
 - `qen pr stack` - Identify and display stacked PRs
 - `qen pr restack` - Update stacked PRs to latest base branches
 
@@ -517,6 +553,7 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 6. **XDG directories** - Use `platformdirs` for config paths
 7. **TOML for config** - Use `tomli` and `tomli_w` for reading/writing
 8. **NO MOCKS for integration tests** - Use real GitHub API only
+9. **Repository indices** - Use `enumerate(repos, start=1)` for 1-based indexing
 
 ## Markdown Best Practices
 

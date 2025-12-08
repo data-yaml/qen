@@ -145,10 +145,11 @@ def format_status_output(
             lines.append("Sub-repositories:")
             lines.append("")
 
-            for repo_config, repo_status in status.repo_statuses:
+            # Use enumerate to add 1-based indices
+            for idx, (repo_config, repo_status) in enumerate(status.repo_statuses, start=1):
                 # Extract repo name from URL for display
                 repo_display = f"{repo_config.path} ({repo_config.url})"
-                lines.append(f"  {repo_display}")
+                lines.append(f"  [{idx}] {repo_display}")
 
                 if not repo_status.exists:
                     lines.append("    Warning: Repository not cloned. Run 'qen add' to clone.")
@@ -210,20 +211,21 @@ def fetch_all_repos(project_dir: Path, meta_path: Path, verbose: bool = False) -
     except (PyProjectNotFoundError, Exception) as e:
         raise StatusError(f"Failed to load repositories: {e}") from e
 
-    for repo_config in repos:
+    # Use enumerate to show indices when fetching
+    for idx, repo_config in enumerate(repos, start=1):
         repo_path = repo_config.local_path(project_dir)
         if not repo_path.exists():
             if verbose:
-                click.echo(f"  - {repo_config.path} (not cloned)")
+                click.echo(f"  [{idx}] {repo_config.path} (not cloned)")
             continue
 
         try:
             git_fetch(repo_path)
             if verbose:
-                click.echo(f"  ✓ {repo_config.path}")
+                click.echo(f"  [{idx}] ✓ {repo_config.path}")
         except GitError as e:
             if verbose:
-                click.echo(f"  ✗ {repo_config.path} ({e})")
+                click.echo(f"  [{idx}] ✗ {repo_config.path} ({e})")
 
     if verbose:
         click.echo("")
@@ -331,6 +333,9 @@ def status_command(
 
     Displays branch information, uncommitted changes, and sync status
     for both the meta repository and all sub-repositories.
+
+    Repositories are shown with indices ([1], [2], etc.) based on their
+    order in the project configuration.
 
     Examples:
 
