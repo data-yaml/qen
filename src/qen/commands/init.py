@@ -164,6 +164,7 @@ def init_project(
     try:
         main_config = config.read_main_config()
         meta_path = Path(main_config["meta_path"])
+        github_org = main_config.get("org")  # Get org from config
     except QenConfigError as e:
         click.echo(f"Error reading configuration: {e}", err=True)
         raise click.Abort() from e
@@ -185,7 +186,12 @@ def init_project(
     now = datetime.now(UTC)
 
     try:
-        branch_name, folder_path = create_project(meta_path, project_name, date=now)
+        branch_name, folder_path = create_project(
+            meta_path,
+            project_name,
+            date=now,
+            github_org=github_org,  # Pass org to create_project
+        )
     except ProjectError as e:
         click.echo(f"Error creating project: {e}", err=True)
         raise click.Abort() from e
