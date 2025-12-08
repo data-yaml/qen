@@ -213,3 +213,65 @@ def add_repo_to_pyproject(project_dir: Path, url: str, branch: str, path: str) -
         handler.write(pyproject_path, config)
     except Exception as e:
         raise PyProjectUpdateError(f"Failed to write pyproject.toml: {e}") from e
+
+
+def remove_repo_from_pyproject(project_dir: Path, url: str, branch: str) -> str | None:
+    """Remove a repository entry from pyproject.toml.
+
+    Args:
+        project_dir: Path to project directory
+        url: Repository URL to remove
+        branch: Branch name to remove
+
+    Returns:
+        The path of the removed repository (for cleanup), or None if not found
+
+    Raises:
+        PyProjectNotFoundError: If pyproject.toml does not exist
+        PyProjectUpdateError: If update fails
+    """
+    pyproject_path = project_dir / "pyproject.toml"
+
+    if not pyproject_path.exists():
+        raise PyProjectNotFoundError(f"pyproject.toml not found in {project_dir}")
+
+    handler = TOMLHandler()
+
+    try:
+        config = handler.read(pyproject_path)
+    except Exception as e:
+        raise PyProjectUpdateError(f"Failed to read pyproject.toml: {e}") from e
+
+    # Navigate to [tool.qen.repos]
+    if "tool" not in config or "qen" not in config["tool"] or "repos" not in config["tool"]["qen"]:
+        return None
+
+    repos = config["tool"]["qen"]["repos"]
+    if not isinstance(repos, list):
+        return None
+
+    # Find and remove matching repo
+    removed_path: str | None = None
+    new_repos = []
+    for repo in repos:
+        if isinstance(repo, dict):
+            if repo.get("url") == url and repo.get("branch") == branch:
+                path = repo.get("path")
+                if isinstance(path, str):
+                    removed_path = path
+            else:
+                new_repos.append(repo)
+
+    if removed_path is None:
+        return None  # Repo not found
+
+    # Update config
+    config["tool"]["qen"]["repos"] = new_repos
+
+    # Write back to file
+    try:
+        handler.write(pyproject_path, config)
+    except Exception as e:
+        raise PyProjectUpdateError(f"Failed to write pyproject.toml: {e}") from e
+
+    return removed_path

@@ -11,6 +11,7 @@ from qen.pyproject_utils import (
     PyProjectNotFoundError,
     add_repo_to_pyproject,
     read_pyproject,
+    remove_repo_from_pyproject,
     repo_exists_in_pyproject,
 )
 from qen.repo_utils import (
@@ -922,3 +923,86 @@ created = "2025-12-05T10:00:00Z"
         assert len(result["tool"]["qen"]["repos"]) == 1
         assert result["tool"]["qen"]["repos"][0]["branch"] == "feature-branch"
         assert result["tool"]["qen"]["repos"][0]["path"] == "repos/feature-branch/child_repo"
+
+
+# ==============================================================================
+# Test Repository Removal from pyproject.toml
+# ==============================================================================
+
+
+class TestRemoveRepoFromPyproject:
+    """Tests for removing repositories from pyproject.toml."""
+
+    def test_remove_existing_repo(self, tmp_path: Path) -> None:
+        """Test removing an existing repository."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup: Create pyproject.toml with two repos
+        pyproject_path = tmp_path / "pyproject.toml"
+        config = {
+            "tool": {
+                "qen": {
+                    "repos": [
+                        {
+                            "url": "https://github.com/org/repo1",
+                            "branch": "main",
+                            "path": "repos/main/repo1",
+                        },
+                        {
+                            "url": "https://github.com/org/repo2",
+                            "branch": "dev",
+                            "path": "repos/dev/repo2",
+                        },
+                    ]
+                }
+            }
+        }
+        handler = TOMLHandler()
+        handler.write(pyproject_path, config)
+
+        # Action: Remove one repo
+        removed_path = remove_repo_from_pyproject(tmp_path, "https://github.com/org/repo1", "main")
+
+        # Assert: Returns correct path and only remaining repo exists
+        assert removed_path == "repos/main/repo1"
+        updated_config = handler.read(pyproject_path)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1
+        assert repos[0]["url"] == "https://github.com/org/repo2"
+
+    def test_remove_nonexistent_repo(self, tmp_path: Path) -> None:
+        """Test removing a repo that doesn't exist."""
+        from qenvy.formats import TOMLHandler
+
+        # Setup
+        pyproject_path = tmp_path / "pyproject.toml"
+        config = {
+            "tool": {
+                "qen": {
+                    "repos": [
+                        {
+                            "url": "https://github.com/org/repo1",
+                            "branch": "main",
+                            "path": "repos/main/repo1",
+                        }
+                    ]
+                }
+            }
+        }
+        handler = TOMLHandler()
+        handler.write(pyproject_path, config)
+
+        # Action: Try to remove different repo
+        removed_path = remove_repo_from_pyproject(tmp_path, "https://github.com/org/other", "main")
+
+        # Assert: Returns None, original repo unchanged
+        assert removed_path is None
+        updated_config = handler.read(pyproject_path)
+        repos = updated_config["tool"]["qen"]["repos"]
+        assert len(repos) == 1
+
+    def test_remove_repo_no_pyproject(self, tmp_path: Path) -> None:
+        """Test removing repo when pyproject.toml doesn't exist."""
+        # Action & Assert
+        with pytest.raises(PyProjectNotFoundError):
+            remove_repo_from_pyproject(tmp_path, "https://github.com/org/repo", "main")
