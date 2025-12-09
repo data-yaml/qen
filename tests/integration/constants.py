@@ -4,18 +4,19 @@ These permanent PRs exist in data-yaml/qen-test and should NEVER be closed.
 They enable fast integration tests without creating new PRs every run.
 
 To recreate these PRs if needed, run:
-    cd /tmp && git clone https://github.com/data-yaml/qen-test
-    cd qen-test
-    # Follow setup instructions in spec/4-tests/optimize-integration-tests.md
+    python scripts/ensure_test_repo.py
+
+Note: PR numbers are discovered dynamically from branch names, not hardcoded.
 """
 
 # Standard reference PRs in data-yaml/qen-test
 # These PRs are permanent and should remain open for integration testing
+# PR numbers are discovered dynamically - use get_standard_pr_numbers() to get actual numbers
 STANDARD_PRS = {
-    "passing": 7,  # Branch: ref-passing-checks, Base: main, Status: Open with passing checks
-    "failing": 8,  # Branch: ref-failing-checks, Base: main, Status: Open with failing checks
-    "issue": 9,  # Branch: ref-issue-456-test, Base: main, Status: Open with issue pattern
-    "stack": [10, 11, 12],  # Stack: ref-stack-a → ref-stack-b → ref-stack-c
+    "passing": 215,  # Branch: ref-passing-checks, Base: main, Status: Open with passing checks
+    "failing": 216,  # Branch: ref-failing-checks, Base: main, Status: Open with failing checks
+    "issue": 217,  # Branch: ref-issue-456-test, Base: main, Status: Open with issue pattern
+    "stack": [218, 219, 220],  # Stack: ref-stack-a → ref-stack-b → ref-stack-c
 }
 
 # Branch names for standard PRs

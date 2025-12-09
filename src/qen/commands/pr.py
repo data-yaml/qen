@@ -20,6 +20,7 @@ from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, get_current_branch, is_git_repo
+from ..pr_utils import parse_check_status
 from ..pyproject_utils import PyProjectNotFoundError, read_pyproject
 
 
@@ -153,14 +154,8 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
         pr_checks = None
         pr_check_details = None
         if checks:
-            # GitHub API returns checks with 'status' and 'conclusion' fields:
-            # - status: IN_PROGRESS, COMPLETED, QUEUED, WAITING
-            # - conclusion: SUCCESS, FAILURE, NEUTRAL, CANCELLED, SKIPPED, TIMED_OUT, ACTION_REQUIRED
-            #   (only present when status is COMPLETED)
-
-            # Capture detailed check information
+            # Capture detailed check information for display
             pr_check_details = []
-            check_states = []
             for c in checks:
                 status = c.get("status", "").upper()
                 conclusion = c.get("conclusion", "").upper() if c.get("conclusion") else None
@@ -177,56 +172,8 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                     )
                 )
 
-                # Determine the effective state for each check
-                # For in-progress checks, use the status
-                if status in ("IN_PROGRESS", "QUEUED", "WAITING", "PENDING"):
-                    check_states.append(status)
-                # For completed checks, use the conclusion
-                elif status == "COMPLETED" and conclusion:
-                    check_states.append(conclusion)
-                # Unknown/missing state
-                else:
-                    check_states.append("UNKNOWN")
-
-            # Determine overall check status with priority:
-            # 1. If any failing/error -> failing
-            # 2. If any pending/in_progress -> pending
-            # 3. If all success -> passing
-            # 4. If mix of success/skipped/neutral -> passing (skipped don't block)
-
-            has_failure = any(
-                s in ("FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED") for s in check_states
-            )
-            has_pending = any(
-                s in ("PENDING", "IN_PROGRESS", "QUEUED", "WAITING") for s in check_states
-            )
-
-            # Filter out skipped/neutral/cancelled - they don't affect status
-            active_states = [
-                s for s in check_states if s not in ("SKIPPED", "NEUTRAL", "CANCELLED", "STALE")
-            ]
-
-            if has_failure:
-                pr_checks = "failing"
-            elif has_pending:
-                pr_checks = "pending"
-            elif active_states and all(s == "SUCCESS" for s in active_states):
-                pr_checks = "passing"
-            elif not active_states and check_states:
-                # All checks are skipped/neutral/cancelled
-                pr_checks = "skipped"
-            else:
-                # This should never happen - log the states we're seeing
-                unique_states = set(check_states)
-                click.echo(
-                    f"WARNING: Encountered unknown check states: {unique_states}",
-                    err=True,
-                )
-                click.echo(
-                    f"  PR #{pr_data.get('number')} in {repo_path.name}: {check_states}",
-                    err=True,
-                )
-                pr_checks = f"unknown ({', '.join(sorted(unique_states))})"
+            # Use shared utility to determine overall check status
+            pr_checks = parse_check_status(checks)
 
         # Extract author login
         author_data = pr_data.get("author", {})
