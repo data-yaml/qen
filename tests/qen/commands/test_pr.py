@@ -92,7 +92,9 @@ class TestGetPrInfoForBranch:
             "state": "OPEN",
             "baseRefName": "main",
             "url": "https://github.com/org/repo/pull/123",
-            "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
+            "statusCheckRollup": [
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"}
+            ],
             "mergeable": "MERGEABLE",
             "author": {"login": "testuser"},
             "createdAt": "2025-01-01T10:00:00Z",
@@ -138,8 +140,8 @@ class TestGetPrInfoForBranch:
             "baseRefName": "main",
             "url": "https://github.com/org/repo/pull/456",
             "statusCheckRollup": [
-                {"status": "COMPLETED", "conclusion": "FAILURE"},
-                {"status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "FAILURE"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
             ],
             "mergeable": "CONFLICTING",
             "author": {"login": "testuser"},
@@ -174,8 +176,8 @@ class TestGetPrInfoForBranch:
             "baseRefName": "develop",
             "url": "https://github.com/org/repo/pull/789",
             "statusCheckRollup": [
-                {"status": "IN_PROGRESS", "conclusion": ""},
-                {"status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "IN_PROGRESS", "conclusion": ""},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
             ],
             "mergeable": "MERGEABLE",
             "author": {"login": "anotheruser"},
@@ -209,8 +211,8 @@ class TestGetPrInfoForBranch:
             "baseRefName": "main",
             "url": "https://github.com/org/repo/pull/999",
             "statusCheckRollup": [
-                {"status": "COMPLETED", "conclusion": "SKIPPED"},
-                {"status": "COMPLETED", "conclusion": "SKIPPED"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SKIPPED"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SKIPPED"},
             ],
             "mergeable": "MERGEABLE",
             "author": {"login": "testuser"},
@@ -244,9 +246,9 @@ class TestGetPrInfoForBranch:
             "baseRefName": "main",
             "url": "https://github.com/org/repo/pull/888",
             "statusCheckRollup": [
-                {"status": "COMPLETED", "conclusion": "SUCCESS"},
-                {"status": "COMPLETED", "conclusion": "SKIPPED"},
-                {"status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SKIPPED"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
             ],
             "mergeable": "MERGEABLE",
             "author": {"login": "testuser"},

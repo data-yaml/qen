@@ -63,8 +63,8 @@ class TestPRDetection:
             "baseRefName": "main",
             "state": "OPEN",
             "statusCheckRollup": [
-                {"state": "SUCCESS"},
-                {"state": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
             ],
         }
 
@@ -97,8 +97,8 @@ class TestPRDetection:
             "baseRefName": "develop",
             "state": "DRAFT",
             "statusCheckRollup": [
-                {"state": "SUCCESS"},
-                {"state": "FAILURE"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "FAILURE"},
             ],
         }
 
@@ -120,8 +120,8 @@ class TestPRDetection:
             "baseRefName": "main",
             "state": "OPEN",
             "statusCheckRollup": [
-                {"state": "SUCCESS"},
-                {"state": "PENDING"},
+                {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"__typename": "CheckRun", "status": "IN_PROGRESS", "conclusion": ""},
             ],
         }
 
