@@ -659,7 +659,7 @@ def config_command(
             json_output=json_output,
         )
 
-    except click.ClickException:
+    except (click.ClickException, click.Abort):
         raise
     except Exception as e:
         raise click.ClickException(f"Unexpected error: {e}") from e
