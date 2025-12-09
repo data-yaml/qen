@@ -340,10 +340,8 @@ def create_project(
     Raises:
         ProjectError: If project creation fails
     """
-    if date is None:
-        date = datetime.now(UTC)
-
     # Generate branch and folder names
+    # Pass date to generation functions (or None to use local time)
     branch_name = generate_branch_name(project_name, date)
     folder_path = generate_folder_path(project_name, date)
 
