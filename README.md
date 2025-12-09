@@ -186,7 +186,7 @@ Workspace files are created in the `workspaces/` directory and include:
 - Project root folder
 - All sub-repositories
 - PR numbers in folder names (when available)
-- Sensible file exclusions (.git, __pycache__, etc.)
+- Sensible file exclusions (.git, **pycache**, etc.)
 
 ## Repository Indices
 

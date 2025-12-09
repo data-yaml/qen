@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-12-08
+
+### Added
+
+- **Force flag for init**: `qen init <project> --force` recreates existing projects (cleans up branch, folder, and config)
+- **Auto-initialization**: `qen init <project>` now auto-initializes qen if not already initialized
+- **Branch push before PR prompt**: `qen init <project>` now pushes branch to remote before prompting for PR creation
+
+### Changed
+
+- **Smart --yes flag**: `qen add --yes` now enables force-like cleanup behavior, automatically removing and re-adding existing repos
+- **Show help by default**: Running `qen` without arguments now shows help text instead of an error
+
+### Fixed
+
+- **PR check status parsing**: Fixed incorrect check status determination by extracting logic to shared utility
+- **Branch name timezone**: Branch names now consistently use local time instead of UTC
+
 ## [0.2.0] - 2024-12-08
 
 ### Added
@@ -87,7 +105,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/data-yaml/qen/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/data-yaml/qen/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/data-yaml/qen/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/data-yaml/qen/compare/v0.1.3...v0.1.4

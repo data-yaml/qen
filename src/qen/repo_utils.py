@@ -227,11 +227,16 @@ def clone_repository(
                     raise GitError(f"Branch '{branch}' does not exist on remote")
 
             # Create local branch and push to remote (user confirmed or --yes)
+            # Check if local branch already exists
             try:
-                # First try to checkout if it already exists
                 run_git_command(["checkout", branch], cwd=dest_path)
+                # Branch exists locally, just push it
+                if verbose:
+                    import click
+
+                    click.echo(f"Local branch '{branch}' exists, pushing to remote...")
             except GitError:
-                # If it doesn't exist, create it
+                # Branch doesn't exist locally, create it
                 try:
                     run_git_command(["checkout", "-b", branch], cwd=dest_path)
                 except GitError as e:
@@ -243,6 +248,6 @@ def clone_repository(
                 if verbose:
                     import click
 
-                    click.echo(f"Created and pushed branch '{branch}' to remote")
+                    click.echo(f"Pushed branch '{branch}' to remote")
             except GitError as e:
                 raise GitError(f"Failed to push branch '{branch}' to remote: {e}") from e

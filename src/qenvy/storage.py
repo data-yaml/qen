@@ -49,6 +49,7 @@ class QenvyConfig(QenvyBase):
         app_name: str,
         base_dir: Path | str | None = None,
         format: str = "toml",
+        secure_fields: list[str] | None = None,
     ):
         """Initialize filesystem configuration storage.
 
@@ -56,10 +57,12 @@ class QenvyConfig(QenvyBase):
             app_name: Application name (used for directory name)
             base_dir: Base configuration directory (default: platform-native config dir)
             format: Configuration format ('toml' or 'json', default: 'toml')
+            secure_fields: List of field paths that contain secrets
 
         Raises:
             FormatError: If format is not supported
         """
+        super().__init__(secure_fields=secure_fields)
         self.app_name = app_name
         self.format_handler = get_format_handler(format)
 

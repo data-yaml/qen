@@ -122,14 +122,14 @@ def add_repository(
         current_project_override=current_project_override,
     )
 
-    if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
-
+    # Try to read main config
+    # If it doesn't exist and we have overrides, that's OK - we'll create it
+    # If it doesn't exist and we don't have overrides, we'll fail when trying to read it
     try:
         main_config = config.read_main_config()
     except QenConfigError as e:
         click.echo(f"Error reading configuration: {e}", err=True)
+        click.echo("Hint: Run 'qen init' first to initialize qen.", err=True)
         raise click.Abort() from e
 
     current_project = main_config.get("current_project")
@@ -193,9 +193,10 @@ def add_repository(
         click.echo(f"Path: {path}")
 
     # 5. Check if repository already exists in pyproject.toml
+    # With --yes, automatically enable force-like cleanup behavior
     try:
         if repo_exists_in_pyproject(project_dir, url, branch):
-            if not force:
+            if not force and not yes:
                 # Existing behavior - block and abort
                 click.echo(
                     f"Error: Repository already exists in project: {url} (branch: {branch})",
@@ -203,9 +204,10 @@ def add_repository(
                 )
                 raise click.Abort()
             else:
-                # New behavior - remove existing entry and re-add
+                # Remove existing entry and re-add (with --force or --yes)
                 if verbose:
-                    click.echo("Repository exists. Removing and re-adding with --force...")
+                    flag = "--force" if force else "--yes"
+                    click.echo(f"Repository exists. Removing and re-adding with {flag}...")
                 remove_existing_repo(project_dir, url, branch, verbose)
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
@@ -217,9 +219,9 @@ def add_repository(
     if verbose:
         click.echo(f"Cloning to: {clone_path}")
 
-    # With --force, ensure clean slate by removing any existing directory
+    # With --force or --yes, ensure clean slate by removing any existing directory
     # This handles cases where directory exists but isn't in config
-    if force and clone_path.exists():
+    if (force or yes) and clone_path.exists():
         if verbose:
             click.echo(f"Removing existing clone directory at {clone_path}")
         shutil.rmtree(clone_path)

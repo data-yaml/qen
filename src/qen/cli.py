@@ -20,7 +20,7 @@ from .commands.status import status_command
 from .commands.workspace import workspace_command
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="qen")
 @click.option(
     "--config-dir",
@@ -52,6 +52,10 @@ def main(ctx: click.Context, config_dir: Path | None, meta: Path | None, proj: s
         "current_project": proj,
     }
 
+    # If no subcommand was provided, show help
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
 
 @main.command("init")
 @click.argument("project_name", required=False)
@@ -62,8 +66,11 @@ def main(ctx: click.Context, config_dir: Path | None, meta: Path | None, proj: s
     help="Enable verbose output",
 )
 @click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts (e.g., PR creation)")
+@click.option("--force", "-f", is_flag=True, help="Force recreate if project already exists")
 @click.pass_context
-def init(ctx: click.Context, project_name: str | None, verbose: bool, yes: bool) -> None:
+def init(
+    ctx: click.Context, project_name: str | None, verbose: bool, yes: bool, force: bool
+) -> None:
     """Initialize qen tooling or create a new project.
 
     Two modes:
@@ -90,6 +97,10 @@ def init(ctx: click.Context, project_name: str | None, verbose: bool, yes: bool)
         # Create a new project without PR creation prompt
         $ qen init my-project --yes
 
+    \b
+        # Recreate an existing project
+        $ qen init my-project --force
+
     """
     overrides = ctx.obj.get("config_overrides", {})
     if project_name is None:
@@ -107,6 +118,7 @@ def init(ctx: click.Context, project_name: str | None, verbose: bool, yes: bool)
             project_name,
             verbose=verbose,
             yes=yes,
+            force=force,
             storage=None,
             config_dir=overrides.get("config_dir"),
             meta_path_override=overrides.get("meta_path"),

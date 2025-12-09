@@ -1,6 +1,6 @@
 [project]
 name = "qen"
-version = "0.2.0"
+version = "0.2.1"
 description = "A tiny, extensible tool for organizing multi-repository development work"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -38,6 +38,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.optional-dependencies]
+aws = [
+    "boto3>=1.34.0",
+]
 dev = [
     "poethepoet>=0.24.0",
     "pytest>=8.0.0",
@@ -48,6 +51,9 @@ dev = [
     "pre-commit>=4.0.0",
     "requests>=2.31.0",
     "typing-extensions>=4.0.0",
+    "boto3>=1.34.0",
+    "boto3-stubs[ssm]>=1.34.0",
+    "moto[ssm]>=5.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -63,7 +69,7 @@ packages = ["src/qen", "src/qenvy"]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
 test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
 test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
-test-integration = { script = "scripts.integration_test:main", help = "Run integration tests (auto-detects gh token)", use_exec = true }
+test-integration = { cmd = "python scripts/integration_test.py", help = "Run integration tests (auto-detects GitHub token from gh CLI)" }
 test-all = { cmd = "pytest tests/ -v", help = "Run all tests (unit + integration)" }
 test-cov = "pytest tests/ -m 'not integration' --cov=src --cov-report=term --cov-report=html"
 test-fast = "pytest tests/ -m 'not integration' -x"
@@ -102,12 +108,13 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--durations=3",
 ]
 filterwarnings = [
     "error",
 ]
 markers = [
-    "integration: marks tests as integration tests (slow, requires network, uses real GitHub API - NO MOCKS)",
+    "integration: marks tests as integration tests (requires network, uses real GitHub API - NO MOCKS)",
     "requires_gh: marks tests that require GitHub CLI",
     "requires_test_repo: marks tests that need test repository access",
 ]

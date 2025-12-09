@@ -73,7 +73,7 @@ echo "$GITHUB_TOKEN" | gh auth login --with-token
 ./poe test-all
 
 # Run specific integration test
-pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
+pytest tests/integration/test_pr_status.py::test_pr_with_passing_checks_standard -v
 ```
 
 ## Test Fixtures
@@ -134,12 +134,12 @@ Tests handling of in-progress checks during `slow-check.yml` execution.
 - Uses mocks
 - Matrix: Python 3.12, 3.13 on Ubuntu, macOS
 
-**2. integration-tests** - Slow, runs only on main branch
+**2. integration-tests** - Fast, can run regularly
 
-- Runs in < 15 minutes
+- Runs in ~10-15 seconds using standard PRs
 - Uses real GitHub API
 - Requires `GITHUB_TOKEN`
-- Only runs on `main` branch or PRs to `main`
+- Can run on `main` branch or PRs to `main`
 
 ## Test Cleanup
 
@@ -207,12 +207,13 @@ The following mock infrastructure has been **DELETED**:
 - Zero production bugs from mock mismatches
 - Integration test reliability > 95%
 - Unit tests < 10 minutes
-- Integration tests < 15 minutes
-- Branch cleanup success rate > 99%
+- Integration tests ~10-15 seconds (using standard PRs)
+- Standard PR availability > 99%
 
 ## Related Documentation
 
 - **Specification:** `spec/2-status/07-repo-qen-test.md`
 - **Agent Guide:** `AGENTS.md` - Testing Philosophy section
 - **Fixtures:** `tests/conftest.py` - Integration test fixtures
-- **Tests:** `tests/integration/test_pr_status_real.py`
+- **Tests:** `tests/integration/test_pr_status.py` and `tests/integration/test_pull.py`
+- **Standard PR Setup:** `STANDARD_PRS_SETUP.md`

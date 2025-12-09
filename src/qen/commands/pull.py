@@ -21,6 +21,7 @@ from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, get_current_branch, is_git_repo, run_git_command
+from ..pr_utils import parse_check_status
 from ..pyproject_utils import PyProjectNotFoundError, PyProjectUpdateError, read_pyproject
 
 
@@ -90,19 +91,9 @@ def get_pr_info(repo_path: Path, branch: str) -> dict[str, Any]:
             info["pr_base"] = pr_data.get("baseRefName")
             info["pr_status"] = pr_data.get("state", "").lower()
 
-            # Parse check status
+            # Parse check status using shared utility
             checks = pr_data.get("statusCheckRollup", [])
-            if checks:
-                # Determine overall check status
-                check_states = [c.get("state", "").upper() for c in checks]
-                if "FAILURE" in check_states or "ERROR" in check_states:
-                    info["pr_checks"] = "failing"
-                elif "PENDING" in check_states or "IN_PROGRESS" in check_states:
-                    info["pr_checks"] = "pending"
-                elif all(s == "SUCCESS" for s in check_states):
-                    info["pr_checks"] = "passing"
-                else:
-                    info["pr_checks"] = "unknown"
+            info["pr_checks"] = parse_check_status(checks)
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, json.JSONDecodeError):
         # If gh command fails, just skip PR info
         pass
@@ -430,7 +421,15 @@ def update_pyproject_metadata(
                 # Update metadata fields
                 for key, value in updated_metadata.items():
                     # Only update metadata fields (not core fields like url, path)
-                    if key in ["branch", "updated", "pr", "pr_base", "issue"]:
+                    if key in [
+                        "branch",
+                        "updated",
+                        "pr",
+                        "pr_base",
+                        "pr_status",
+                        "pr_checks",
+                        "issue",
+                    ]:
                         repo[key] = value
                 found = True
                 break
