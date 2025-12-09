@@ -108,6 +108,7 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--durations=3",
 ]
 filterwarnings = [
     "error",
