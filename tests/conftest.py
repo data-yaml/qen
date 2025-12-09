@@ -51,6 +51,22 @@ def temp_git_repo(tmp_path: Path) -> Path:
         capture_output=True,
     )
 
+    # Create an initial commit so the repo has a HEAD
+    readme = repo_dir / "README.md"
+    readme.write_text("# Test Repository\n")
+    subprocess.run(
+        ["git", "add", "README.md"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+
     return repo_dir
 
 
