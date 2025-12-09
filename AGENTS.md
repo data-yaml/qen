@@ -194,9 +194,9 @@ GITHUB_TOKEN="ghp_..." ./poe test-integration
 
 #### IMPORTANT: Integration tests are NOT run in CI
 
-- They create real PRs on data-yaml/qen-test
-- They require write permissions to external repo
-- They're expensive (API rate limits, 2+ min runtime)
+- They use standard reference PRs on data-yaml/qen-test
+- They require read permissions to external repo
+- They run in ~10-15 seconds using standard PRs
 - Run them manually when changing GitHub API integration code
 - CI only runs fast unit tests
 
@@ -291,10 +291,8 @@ tests/                      # Test suite mirrors src/ structure
 │   ├── qen/                # Tests for qen module
 │   └── qenvy/              # Tests for qenvy module
 └── integration/            # Integration tests (NO MOCKS)
-    ├── test_pull.py        # Fast tests (default)
-    ├── test_pr_status.py   # Fast tests (default)
-    ├── test_pull_lifecycle.py      # Slow lifecycle tests
-    └── test_pr_status_lifecycle.py # Slow lifecycle tests
+    ├── test_pull.py        # Integration tests using standard PRs
+    └── test_pr_status.py   # Integration tests using standard PRs
 scripts/                    # Build and version management scripts
     ├── version.py          # Version management
     └── integration_test.py # Integration test runner

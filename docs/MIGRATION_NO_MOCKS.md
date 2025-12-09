@@ -46,7 +46,7 @@ Successfully migrated QEN integration tests from mocked to real GitHub API testi
 
 ### 3. Rewrote Integration Tests
 
-**File:** `tests/integration/test_pr_status_lifecycle.py`
+**Files:** `tests/integration/test_pr_status.py` and `tests/integration/test_pull.py`
 
 **Removed:**
 
@@ -54,13 +54,14 @@ Successfully migrated QEN integration tests from mocked to real GitHub API testi
 - Mock data loading
 - Subprocess mocking
 - Local test repo setup
+- PR creation overhead (now use standard PRs)
 
 **Added:**
 
-- `test_pr_with_passing_checks()` - Real GitHub Actions
-- `test_pr_with_failing_checks()` - Branch name triggers failure
-- `test_stacked_prs()` - Real PR stack creation
-- `test_check_slow_progress()` - In-progress check handling
+- `test_pr_with_passing_checks_standard()` - Uses standard reference PR
+- `test_pr_with_failing_checks_standard()` - Uses standard reference PR
+- `test_stacked_prs_standard()` - Uses standard reference PRs
+- Tests run in ~10-15 seconds using existing PRs
 
 **All tests use:**
 
@@ -110,7 +111,7 @@ markers = [
 **Job Matrix:**
 
 - Unit tests: Python 3.12, 3.13 on Ubuntu, macOS
-- Integration tests: Python 3.12 on Ubuntu only
+- Integration tests: Python 3.12 on Ubuntu only (fast, ~10-15 seconds)
 
 ### 6. Updated AGENTS.md
 
@@ -165,26 +166,29 @@ markers = [
 
 ```bash
 # 1. Deploy workflows to qen-test repository
-# 2. Set GITHUB_TOKEN
+# 2. Create standard reference PRs (see STANDARD_PRS_SETUP.md)
+# 3. Set GITHUB_TOKEN
 export GITHUB_TOKEN="ghp_..."
 
-# 3. Run integration tests
+# 4. Run integration tests
 ./poe test-integration
 
-# Expected: 4 tests pass, ~2-3 minutes execution
+# Expected: 6 tests pass, ~10-15 seconds execution
 ```
 
 ## Success Criteria
 
 - [x] conftest.py updated with real GitHub fixtures
 - [x] Integration tests rewritten without mocks
+- [x] Integration tests optimized to use standard PRs (~10-15 seconds)
 - [x] pyproject.toml tasks updated
 - [x] GitHub Actions workflow split into unit/integration
 - [x] AGENTS.md updated with testing policy
 - [x] Documentation created
 - [ ] GitHub Actions workflows deployed to qen-test
+- [ ] Standard reference PRs created in qen-test
 - [ ] Integration tests pass in CI
-- [ ] Mock infrastructure deleted
+- [x] Mock infrastructure deleted
 
 ## Rollback Plan
 
@@ -224,16 +228,11 @@ If integration tests fail:
 
 ### Follow-up (After Verification)
 
-1. Delete mock infrastructure:
-
-   ```bash
-   git rm scripts/setup_test_repo.py
-   git rm scripts/clean_test_repo.py
-   git commit -m "Remove mock infrastructure - using real GitHub API"
-   ```
+1. ✅ Mock infrastructure already deleted
 
 2. Monitor integration test reliability for 2 weeks
 3. Document any issues or improvements needed
+4. Consider adding standard PR protection (e.g., workflow to reopen if closed)
 
 ## Risk Assessment
 
@@ -248,21 +247,22 @@ If integration tests fail:
 
 - Dependency on external repository (qen-test)
 - GitHub Actions must be enabled in qen-test
+- Standard PRs could be closed accidentally
 - Rate limiting possible (unlikely with auth)
 
 **Mitigation:**
 
-- Integration tests only run on main branch in CI
+- Integration tests can run on main branch or PRs in CI (now fast enough)
 - Tests skip if GITHUB_TOKEN not set
-- Unique branch names prevent conflicts
-- Automatic cleanup after tests
+- Standard PRs have warning labels and descriptions
+- Tests verify standard PRs exist before running
 
 ## Timeline
 
 - **2025-12-06:** Implementation complete
-- **Next:** Deploy workflows to qen-test
+- **2025-12-08:** Optimized with standard PRs, deleted old slow tests
+- **Next:** Create standard reference PRs in qen-test
 - **Within 1 week:** Verify CI passes consistently
-- **Within 2 weeks:** Delete mock infrastructure
 
 ## References
 

@@ -198,14 +198,16 @@ def init_project(
         click.echo(f"Creating project: {project_name}")
         click.echo(f"Meta repository: {meta_path}")
 
-    # Create project with current timestamp
+    # Create project
+    # Use UTC for ISO8601 timestamps (machine-facing)
+    # But branch names will use local time (user-facing)
     now = datetime.now(UTC)
 
     try:
         branch_name, folder_path = create_project(
             meta_path,
             project_name,
-            date=now,
+            date=None,  # Let create_project use local time for branch names
             github_org=github_org,  # Pass org to create_project
         )
     except ProjectError as e:

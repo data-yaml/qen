@@ -34,15 +34,18 @@ def generate_branch_name(project_name: str, date: datetime | None = None) -> str
 
     Format: YYMMDD-<project-name>
 
+    Uses local time for user-facing branch names (not UTC).
+    This ensures the date matches what the user sees on their calendar.
+
     Args:
         project_name: Name of the project
-        date: Date to use (default: current date)
+        date: Date to use (default: current local date)
 
     Returns:
         Branch name with date prefix
     """
     if date is None:
-        date = datetime.now(UTC)
+        date = datetime.now()  # Local time for user-facing branch names
 
     date_prefix = date.strftime("%y%m%d")
     return f"{date_prefix}-{project_name}"
@@ -53,15 +56,18 @@ def generate_folder_path(project_name: str, date: datetime | None = None) -> str
 
     Format: proj/YYMMDD-<project-name>
 
+    Uses local time for user-facing paths (not UTC).
+    This ensures the date matches what the user sees on their calendar.
+
     Args:
         project_name: Name of the project
-        date: Date to use (default: current date)
+        date: Date to use (default: current local date)
 
     Returns:
         Folder path relative to meta repo root
     """
     if date is None:
-        date = datetime.now(UTC)
+        date = datetime.now()  # Local time for user-facing paths
 
     date_prefix = date.strftime("%y%m%d")
     return f"proj/{date_prefix}-{project_name}"

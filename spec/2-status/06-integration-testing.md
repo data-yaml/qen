@@ -172,7 +172,7 @@ def test_pr_status_check_rollup_schema():
 
 **Implementation:**
 ```python
-# tests/integration/test_pr_status_lifecycle.py
+# tests/integration/test_pr_status.py
 
 @pytest.mark.integration
 class TestRealPrStatus:
@@ -680,9 +680,10 @@ The following test infrastructure files have been created:
 1. **tests/integration/__init__.py** - Integration test package marker
 2. **tests/integration/conftest.py** - Shared fixtures and helpers (11.7KB)
 3. **tests/integration/test_github_api_contract.py** - GitHub API contract tests
-4. **tests/integration/test_pr_status_lifecycle.py** - Real PR status integration tests
-5. **tests/integration/test_pr_stack_integration.py** - PR stack detection tests
-6. **tests/integration/test_pr_restack_integration.py** - PR restack operation tests
+4. **tests/integration/test_pr_status.py** - Real PR status integration tests (optimized with standard PRs)
+5. **tests/integration/test_pull.py** - Real PR pull integration tests (optimized with standard PRs)
+6. **tests/integration/test_pr_stack_integration.py** - PR stack detection tests
+7. **tests/integration/test_pr_restack_integration.py** - PR restack operation tests
 7. **tests/schemas/__init__.py** - Schema package marker
 8. **tests/schemas/github_pr.py** - GitHub API type definitions (CheckRun, PrData, Author)
 9. **tests/helpers/github_mock.py** - Mock data generation helpers
@@ -813,7 +814,7 @@ Some test files use placeholders with `# type: ignore` comments where production
 
 #### 3. Implemented Mock GH CLI
 
-**Modified tests/integration/test_pr_status_lifecycle.py:**
+**Modified tests/integration/test_pr_status.py:**
 
 - ✅ Added `mock_gh_pr_view` fixture that intercepts `subprocess.run`
 - ✅ Reads mock PR data from `.gh-mock/` directory
@@ -837,12 +838,12 @@ Some test files use placeholders with `# type: ignore` comments where production
 **All critical "happy path" tests are now PASSING:**
 
 ```bash
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_passing_checks PASSED
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_failing_checks PASSED
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_in_progress_checks PASSED
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_mixed_states PASSED
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_no_checks PASSED
-tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_merge_conflicts PASSED
+tests/integration/test_pr_status.py::test_pr_with_passing_checks_standard PASSED
+tests/integration/test_pr_status.py::test_pr_with_failing_checks_standard PASSED
+tests/integration/test_pr_status.py::test_stacked_prs_standard PASSED
+tests/integration/test_pull.py::test_pull_updates_pr_metadata_standard PASSED
+tests/integration/test_pull.py::test_pull_with_failing_checks_standard PASSED
+tests/integration/test_pull.py::test_pull_detects_issue_standard PASSED
 ```
 
 **Test coverage includes:**
@@ -932,9 +933,10 @@ def setup_pr_stack(repo_path: str, stack_config: list[PRStackEntry]) -> dict[str
 **Location:** Various test files
 
 **Missing helpers:**
-- `tests/integration/test_pr_status_lifecycle.py:trigger_slow_workflow()` - Currently no-op (line 56-65)
 - `tests/integration/test_pr_restack_integration.py:create_parent_pr()` - Stub (line 147-157)
 - `tests/integration/test_pr_restack_integration.py:create_child_pr()` - Stub (line 160-171)
+
+**Note:** Integration tests have been optimized to use standard reference PRs in qen-test. See `STANDARD_PRS_SETUP.md` for details.
 - `tests/integration/test_pr_restack_integration.py:pr_restack_command()` - Duplicate stub (line 174-195)
   - **Note:** Real implementation exists in `src/qen/commands/pr.py:925-1008`
 

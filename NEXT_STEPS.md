@@ -6,7 +6,7 @@
 - Helper functions added to `tests/conftest.py`
 - Constants defined in `tests/integration/constants.py`
 - Optimized tests created in `test_pull.py` and `test_pr_status.py`
-- Original tests marked as `@pytest.mark.lifecycle` in `test_pull_lifecycle.py` and `test_pr_status_lifecycle.py`
+- Old slow tests deleted (`test_pull_lifecycle.py` and `test_pr_status_lifecycle.py`)
 - pytest configuration updated in `pyproject.toml`
 
 ⏳ **Standard PRs Need to Be Created** (One-Time Setup)
@@ -133,9 +133,10 @@ cd /Users/ernest/GitHub/qen
 
 Expected: No type errors.
 
-### Run Optimized Integration Tests
+### Run Integration Tests
+
 ```bash
-./poe test-integration-fast
+./poe test-integration
 ```
 
 **Expected Output:**
@@ -144,51 +145,26 @@ Expected: No type errors.
 - All tests use real GitHub API
 - Tests: `test_pull.py` (3 tests) + `test_pr_status.py` (3 tests)
 
-### Run Lifecycle Tests (Optional - Slow)
-```bash
-./poe test-lifecycle
-```
-
-**Expected Output:**
-
-- 7 tests should pass (3 from test_pull_lifecycle.py + 4 from test_pr_status_lifecycle.py)
-- Total time: ~60-80 seconds
-- Creates new PRs and waits for GitHub Actions
-
 ## Step 3: Measure Performance Improvement
 
-### Before (Baseline - Run Lifecycle Tests)
-```bash
-time ./poe test-lifecycle
-```
+### Run Optimized Tests
 
-Note the total time (should be ~68-80 seconds).
-
-### After (Run Optimized Tests)
 ```bash
-time ./poe test-integration-fast
+time ./poe test-integration
 ```
 
 Note the total time (should be ~10-15 seconds).
 
-**Expected Speedup:** 6-8x faster (85% reduction).
+**Expected Result:** Tests complete in ~10-15 seconds using standard PRs (85% faster than old approach).
 
 ## Step 4: Update CI Configuration (Optional)
 
-If you have CI workflows, update them to use the fast tests by default:
+If you have CI workflows, integration tests are now fast enough to run regularly:
 
 ```yaml
 # .github/workflows/test.yml
 - name: Run integration tests
-  run: ./poe test-integration-fast
-```
-
-Keep lifecycle tests for scheduled/nightly runs:
-
-```yaml
-# .github/workflows/nightly.yml
-- name: Run lifecycle tests
-  run: ./poe test-lifecycle
+  run: ./poe test-integration
 ```
 
 ## Step 5: Commit Changes
@@ -202,8 +178,6 @@ cd /Users/ernest/GitHub/qen
 git add tests/integration/constants.py
 git add tests/integration/test_pull.py
 git add tests/integration/test_pr_status.py
-git add tests/integration/test_pull_lifecycle.py
-git add tests/integration/test_pr_status_lifecycle.py
 git add tests/conftest.py
 git add pyproject.toml
 git add STANDARD_PRS_SETUP.md
@@ -215,10 +189,8 @@ git commit -m "feat: optimize integration tests with standard reference PRs
 
 - Add standard PR constants and helper functions
 - Create optimized test files (test_pull.py, test_pr_status.py)
-- Rename original tests to test_pull_lifecycle.py and test_pr_status_lifecycle.py
-- Mark original tests as @pytest.mark.lifecycle
-- Add test-integration-fast and test-lifecycle poe tasks
-- Reduce integration test time from 68s to ~10s (85% improvement)
+- Delete old slow tests (test_pull_lifecycle.py, test_pr_status_lifecycle.py)
+- Reduce integration test time from 68s to ~10-15s (85% improvement)
 
 Tests still use real GitHub API (no mocks).
 Standard PRs #7-12 created in data-yaml/qen-test."
@@ -239,7 +211,8 @@ git push origin integration-test-optimization
 - Check branch names match STANDARD_BRANCHES in constants.py
 
 ### Tests Slow: "Still taking 60+ seconds"
-- Verify you're running `./poe test-integration-fast`, not `./poe test-integration`
+
+- Verify that lifecycle test files have been deleted
 - Check that optimized tests are being executed (should see `test_*_standard` in output)
 
 ### Type Errors
@@ -252,9 +225,8 @@ git push origin integration-test-optimization
 - [ ] Standard PRs #7-12 created in data-yaml/qen-test
 - [ ] All 6 PRs are OPEN
 - [ ] `./poe typecheck` passes
-- [ ] `./poe test-integration-fast` passes in ~10-15s
-- [ ] `./poe test-lifecycle` passes in ~60-80s (optional)
-- [ ] Performance improvement measured (6-8x faster)
+- [ ] `./poe test-integration` passes in ~10-15s
+- [ ] Performance improvement measured (85% faster)
 - [ ] Changes committed to git
 
 ## Questions?

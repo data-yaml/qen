@@ -585,7 +585,7 @@ git push origin main
 # Update conftest.py - remove ALL mocks
 # Rewrite tests to use real GitHub API
 # Test incrementally
-pytest tests/integration/test_pr_status_lifecycle.py -v
+pytest tests/integration/test_pr_status.py -v
 ```
 
 ### Phase 3: Delete Mock Infrastructure (Week 3)

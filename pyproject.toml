@@ -69,9 +69,7 @@ packages = ["src/qen", "src/qenvy"]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
 test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
 test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
-test-integration = { script = "scripts.integration_test:main", help = "Run integration tests (auto-detects gh token)", use_exec = true }
-test-integration-fast = { cmd = "pytest tests/integration/ -v -m 'integration and not lifecycle'", help = "Run fast integration tests (uses standard PRs)" }
-test-lifecycle = { cmd = "pytest tests/integration/ -v -m lifecycle", help = "Run slow lifecycle tests (creates PRs)" }
+test-integration = { cmd = "pytest tests/integration/ -v -m integration", help = "Run integration tests (uses standard PRs, real GitHub API)" }
 test-all = { cmd = "pytest tests/ -v", help = "Run all tests (unit + integration)" }
 test-cov = "pytest tests/ -m 'not integration' --cov=src --cov-report=term --cov-report=html"
 test-fast = "pytest tests/ -m 'not integration' -x"
@@ -116,8 +114,7 @@ filterwarnings = [
     "error",
 ]
 markers = [
-    "integration: marks tests as integration tests (slow, requires network, uses real GitHub API - NO MOCKS)",
-    "lifecycle: marks tests as full lifecycle tests (very slow, creates PRs, run less frequently)",
+    "integration: marks tests as integration tests (requires network, uses real GitHub API - NO MOCKS)",
     "requires_gh: marks tests that require GitHub CLI",
     "requires_test_repo: marks tests that need test repository access",
 ]
