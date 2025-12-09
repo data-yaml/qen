@@ -595,14 +595,6 @@ def test_add_with_custom_path(
             break
     assert proj_dir is not None, "Project directory not created"
 
-    # Checkout main branch before adding (to get consistent branch default)
-    subprocess.run(
-        ["git", "checkout", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
     # Add repository with custom path and explicit --branch main (REAL CLONE)
     custom_path = "repos/my-custom-test-repo"
     result = run_qen(
@@ -738,16 +730,14 @@ def test_add_multiple_repos_with_indices(
     )
     assert result.returncode == 0
 
-    # Add second repository with explicit --branch main (REAL CLONE)
-    # This will clone the same repo but we'll use --path to differentiate
+    # Add second repository with different branch (REAL CLONE)
+    # Using different branch to test multi-repo tracking with indices
     result = run_qen(
         [
             "add",
             "https://github.com/data-yaml/qen-test",
             "--branch",
-            "main",
-            "--path",
-            "repos/qen-test-second",
+            "ref-passing-checks",
             "--yes",
             "--no-workspace",
         ],
@@ -759,7 +749,7 @@ def test_add_multiple_repos_with_indices(
 
     # Verify both repositories were cloned (REAL git operations)
     repo1_path = proj_dir / "repos" / "main" / "qen-test"
-    repo2_path = proj_dir / "repos" / "qen-test-second"
+    repo2_path = proj_dir / "repos" / "ref-passing-checks" / "qen-test"
 
     assert repo1_path.exists(), f"First repo not cloned to {repo1_path}"
     assert (repo1_path / ".git").exists(), "First repo not a git repository"
@@ -784,8 +774,8 @@ def test_add_multiple_repos_with_indices(
     # Verify second entry (index 2 in user-facing output)
     repo2_entry = repos[1]
     assert repo2_entry["url"] == "https://github.com/data-yaml/qen-test"
-    assert repo2_entry["branch"] == "main"
-    assert repo2_entry["path"] == "repos/qen-test-second"
+    assert repo2_entry["branch"] == "ref-passing-checks"
+    assert repo2_entry["path"] == "repos/ref-passing-checks/qen-test"
 
 
 @pytest.mark.integration
