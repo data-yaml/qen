@@ -2,6 +2,7 @@
 Shared pytest fixtures and configuration for all tests.
 """
 
+import json
 import os
 import subprocess
 import time
@@ -556,3 +557,105 @@ def create_pr_stack(
         base = branch  # Next PR is based on this one
 
     return branches
+
+
+# ============================================================================
+# STANDARD PR HELPERS (For optimized integration tests)
+# ============================================================================
+
+
+def clone_standard_branch(
+    project_dir: Path,
+    branch: str,
+    repo_name: str = "qen-test",
+) -> Path:
+    """Clone a standard reference branch for testing.
+
+    This clones an existing branch from the qen-test repository that has
+    a permanent PR associated with it. This is MUCH faster than creating
+    a new PR for every test run.
+
+    Args:
+        project_dir: Project directory path
+        branch: Branch name (e.g., "ref-passing-checks")
+        repo_name: Repository name (default: "qen-test")
+
+    Returns:
+        Path to cloned repository
+
+    Example:
+        repo_path = clone_standard_branch(
+            project_dir,
+            "ref-passing-checks"
+        )
+    """
+    repos_dir = project_dir / "repos"
+    repos_dir.mkdir(exist_ok=True)
+
+    repo_path = repos_dir / repo_name
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--branch",
+            branch,
+            f"https://github.com/data-yaml/{repo_name}",
+            str(repo_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    # Configure git
+    subprocess.run(
+        ["git", "config", "user.email", "test@qen.local"],
+        cwd=repo_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "QEN Integration Test"],
+        cwd=repo_path,
+        check=True,
+    )
+
+    return repo_path
+
+
+def verify_standard_pr_exists(pr_number: int) -> dict[str, str | int]:
+    """Verify standard reference PR exists and is open.
+
+    Args:
+        pr_number: PR number to verify
+
+    Returns:
+        PR data from GitHub API
+
+    Raises:
+        AssertionError: If PR doesn't exist or is closed
+
+    Example:
+        pr_data = verify_standard_pr_exists(7)
+        assert pr_data["state"] == "OPEN"
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--repo",
+            "data-yaml/qen-test",
+            "--json",
+            "number,state,headRefName,baseRefName",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    pr_data: dict[str, str | int] = json.loads(result.stdout)
+    assert pr_data["state"] == "OPEN", (
+        f"Standard PR #{pr_number} is not open (state={pr_data['state']})"
+    )
+
+    return pr_data

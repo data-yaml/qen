@@ -122,14 +122,14 @@ def add_repository(
         current_project_override=current_project_override,
     )
 
-    if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
-
+    # Try to read main config
+    # If it doesn't exist and we have overrides, that's OK - we'll create it
+    # If it doesn't exist and we don't have overrides, we'll fail when trying to read it
     try:
         main_config = config.read_main_config()
     except QenConfigError as e:
         click.echo(f"Error reading configuration: {e}", err=True)
+        click.echo("Hint: Run 'qen init' first to initialize qen.", err=True)
         raise click.Abort() from e
 
     current_project = main_config.get("current_project")

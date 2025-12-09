@@ -3,8 +3,10 @@
 NO MOCKS ALLOWED. These tests use the real GitHub API against
 https://github.com/data-yaml/qen-test repository.
 
-This is the HIGHEST VALUE integration test because qen pull updates
-the pyproject.toml schema with PR metadata from the real GitHub API.
+These are LIFECYCLE tests - they create new PRs and wait for GitHub Actions.
+They are SLOW (68s total) and should be run less frequently.
+
+For fast integration tests, see test_pull_optimized.py which uses standard PRs.
 
 Past production bugs caused by mocks:
 1. Mock data had wrong field names (state vs status)
@@ -165,6 +167,7 @@ def add_repo_to_project(
         tomli_w.dump(pyproject, f)
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_pull_updates_pr_metadata(
     real_test_repo: Path,
@@ -174,6 +177,9 @@ def test_pull_updates_pr_metadata(
     tmp_path: Path,
 ) -> None:
     """Test qen pull updates pyproject.toml with REAL PR metadata.
+
+    LIFECYCLE TEST - Creates new PR and waits for GitHub Actions (~21s).
+    For faster tests, use test_pull_optimized.py.
 
     This is the highest-value integration test. It validates:
     1. Real PR creation via gh CLI
@@ -291,6 +297,7 @@ def test_pull_updates_pr_metadata(
     assert repo["pr_status"] == pr_data["state"].lower()
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_pull_detects_issue_from_branch(
     real_test_repo: Path,
@@ -300,6 +307,9 @@ def test_pull_detects_issue_from_branch(
     tmp_path: Path,
 ) -> None:
     """Test qen pull extracts issue number from branch name pattern.
+
+    LIFECYCLE TEST - Creates new PR (~10s).
+    For faster tests, use test_pull_optimized.py.
 
     Validates issue extraction from branch names like:
     - issue-123-feature
@@ -354,6 +364,7 @@ def test_pull_detects_issue_from_branch(
     assert isinstance(repo["issue"], int), "issue should be an integer"
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_pull_with_failing_checks(
     real_test_repo: Path,
@@ -363,6 +374,9 @@ def test_pull_with_failing_checks(
     tmp_path: Path,
 ) -> None:
     """Test qen pull correctly reports failing check status.
+
+    LIFECYCLE TEST - Creates new PR with failing checks (~26s).
+    For faster tests, use test_pull_optimized.py.
 
     Creates a PR with branch name containing "-failing-" to trigger
     always-fail.yml workflow, then verifies qen pull reports pr_checks="failing".

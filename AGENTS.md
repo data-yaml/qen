@@ -250,7 +250,7 @@ Integration tests use a dedicated repository at <https://github.com/data-yaml/qe
 ./poe test-fast tests/qen/test_config.py
 
 # Run specific integration test
-pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
+pytest tests/integration/test_pr_status.py::test_pr_with_passing_checks -v
 
 # Run with coverage for specific module
 pytest tests/qen/test_config.py --cov=src/qen/config.py --cov-report=term
@@ -291,7 +291,10 @@ tests/                      # Test suite mirrors src/ structure
 │   ├── qen/                # Tests for qen module
 │   └── qenvy/              # Tests for qenvy module
 └── integration/            # Integration tests (NO MOCKS)
-    └── test_pr_status_real.py
+    ├── test_pull.py        # Fast tests (default)
+    ├── test_pr_status.py   # Fast tests (default)
+    ├── test_pull_lifecycle.py      # Slow lifecycle tests
+    └── test_pr_status_lifecycle.py # Slow lifecycle tests
 scripts/                    # Build and version management scripts
     ├── version.py          # Version management
     └── integration_test.py # Integration test runner

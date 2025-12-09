@@ -46,7 +46,7 @@ Successfully migrated QEN integration tests from mocked to real GitHub API testi
 
 ### 3. Rewrote Integration Tests
 
-**File:** `tests/integration/test_pr_status_real.py`
+**File:** `tests/integration/test_pr_status_lifecycle.py`
 
 **Removed:**
 
@@ -191,7 +191,7 @@ export GITHUB_TOKEN="ghp_..."
 If integration tests fail:
 
 1. Revert conftest.py changes
-2. Revert test_pr_status_real.py
+2. Revert test_pr_status_lifecycle.py
 3. Restore mock infrastructure scripts
 4. Investigate issues with real GitHub API
 5. Fix and redeploy

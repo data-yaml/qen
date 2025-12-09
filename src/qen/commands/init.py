@@ -53,20 +53,26 @@ def init_qen(
         QenConfigError: If config operations fail
     """
     # Find meta repository
-    if verbose:
-        click.echo("Searching for meta repository...")
+    # Use override if provided (for testing or explicit specification)
+    if meta_path_override:
+        meta_path = Path(meta_path_override)
+        if verbose:
+            click.echo(f"Using meta repository from override: {meta_path}")
+    else:
+        if verbose:
+            click.echo("Searching for meta repository...")
 
-    try:
-        meta_path = find_meta_repo()
-    except NotAGitRepoError as e:
-        click.echo(f"Error: {e}", err=True)
-        raise click.Abort() from e
-    except MetaRepoNotFoundError as e:
-        click.echo(f"Error: {e}", err=True)
-        raise click.Abort() from e
+        try:
+            meta_path = find_meta_repo()
+        except NotAGitRepoError as e:
+            click.echo(f"Error: {e}", err=True)
+            raise click.Abort() from e
+        except MetaRepoNotFoundError as e:
+            click.echo(f"Error: {e}", err=True)
+            raise click.Abort() from e
 
-    if verbose:
-        click.echo(f"Found meta repository: {meta_path}")
+        if verbose:
+            click.echo(f"Found meta repository: {meta_path}")
 
     # Extract organization from remotes
     if verbose:
@@ -155,10 +161,20 @@ def init_project(
         current_project_override=current_project_override,
     )
 
-    # Check if main config exists
+    # Auto-initialize if main config doesn't exist
+    # This allows commands like `qen --meta <path> init <project>` to work
+    # without requiring a separate `qen init` call first
     if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
+        if verbose:
+            click.echo("Auto-initializing qen configuration...")
+        # Silently initialize (verbose=False to avoid cluttering output)
+        init_qen(
+            verbose=False,
+            storage=storage,
+            config_dir=config_dir,
+            meta_path_override=meta_path_override,
+            current_project_override=current_project_override,
+        )
 
     # Read main config to get meta_path
     try:

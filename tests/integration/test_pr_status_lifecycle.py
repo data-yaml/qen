@@ -3,6 +3,11 @@
 NO MOCKS ALLOWED. These tests use the real GitHub API against
 https://github.com/data-yaml/qen-test repository.
 
+These are LIFECYCLE tests - they create new PRs and wait for GitHub Actions.
+They are SLOW and should be run less frequently.
+
+For fast integration tests, see test_pr_status_optimized.py which uses standard PRs.
+
 Past production bugs caused by mocks:
 1. Mock data had wrong field names
 2. Mock data omitted required fields
@@ -21,6 +26,7 @@ import pytest
 from tests.conftest import create_pr_stack, create_test_pr
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_pr_with_passing_checks(
     real_test_repo: Path,
@@ -28,6 +34,9 @@ def test_pr_with_passing_checks(
     cleanup_branches: list[str],
 ) -> None:
     """Test PR with all checks passing - REAL GITHUB API.
+
+    LIFECYCLE TEST - Creates new PR and waits for checks (~15s).
+    For faster tests, use test_pr_status_optimized.py.
 
     Creates a real PR on data-yaml/qen-test and verifies that GitHub Actions
     workflows (always-pass.yml) complete successfully.
@@ -91,6 +100,7 @@ def test_pr_with_passing_checks(
     assert len(completed_checks) > 0, "Expected at least one completed check"
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_pr_with_failing_checks(
     real_test_repo: Path,
@@ -98,6 +108,9 @@ def test_pr_with_failing_checks(
     cleanup_branches: list[str],
 ) -> None:
     """Test PR with failing checks - REAL GITHUB API.
+
+    LIFECYCLE TEST - Creates new PR with failing checks (~15s).
+    For faster tests, use test_pr_status_optimized.py.
 
     Creates a real PR with branch name containing "-failing-" which triggers
     the always-fail.yml workflow to fail.
@@ -165,6 +178,7 @@ def test_pr_with_failing_checks(
     assert len(failed_checks) > 0, "Expected always-fail.yml to fail"
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_stacked_prs(
     real_test_repo: Path,
@@ -172,6 +186,9 @@ def test_stacked_prs(
     cleanup_branches: list[str],
 ) -> None:
     """Test stacked PR detection - REAL GITHUB API.
+
+    LIFECYCLE TEST - Creates new stacked PRs (~22s).
+    For faster tests, use test_pr_status_optimized.py.
 
     Creates a real stack of PRs (A→B→C) and verifies we can detect the stack
     structure using the GitHub API.
@@ -221,6 +238,7 @@ def test_stacked_prs(
             assert pr_data["baseRefName"] == stack_branches[i - 1]
 
 
+@pytest.mark.lifecycle
 @pytest.mark.integration
 def test_check_slow_progress(
     real_test_repo: Path,
@@ -228,6 +246,8 @@ def test_check_slow_progress(
     cleanup_branches: list[str],
 ) -> None:
     """Test PR with slow check in progress - REAL GITHUB API.
+
+    LIFECYCLE TEST - Creates new PR with slow checks (~10s).
 
     Creates a real PR and checks status while slow-check.yml (35s) is running.
     This validates that we handle in-progress checks correctly.

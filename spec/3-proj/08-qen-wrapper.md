@@ -117,7 +117,7 @@ class TestQenExecutableCreation:
 
 ### Needed Test (Integration)
 
-**Pattern**: Follow [tests/integration/test_pr_status_real.py](tests/integration/test_pr_status_real.py:1-80)
+**Pattern**: Follow [tests/integration/test_pr_status_lifecycle.py](tests/integration/test_pr_status_lifecycle.py:1-80)
 
 **Key Insight**: Use `--meta` flag to specify qen-test as meta repo WITHOUT touching user's actual config.
 

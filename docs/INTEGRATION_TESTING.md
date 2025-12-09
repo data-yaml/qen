@@ -73,7 +73,7 @@ echo "$GITHUB_TOKEN" | gh auth login --with-token
 ./poe test-all
 
 # Run specific integration test
-pytest tests/integration/test_pr_status_real.py::test_pr_with_passing_checks -v
+pytest tests/integration/test_pr_status_lifecycle.py::test_pr_with_passing_checks -v
 ```
 
 ## Test Fixtures
@@ -215,4 +215,4 @@ The following mock infrastructure has been **DELETED**:
 - **Specification:** `spec/2-status/07-repo-qen-test.md`
 - **Agent Guide:** `AGENTS.md` - Testing Philosophy section
 - **Fixtures:** `tests/conftest.py` - Integration test fixtures
-- **Tests:** `tests/integration/test_pr_status_real.py`
+- **Tests:** `tests/integration/test_pr_status_lifecycle.py`

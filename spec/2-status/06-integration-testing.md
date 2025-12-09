@@ -172,7 +172,7 @@ def test_pr_status_check_rollup_schema():
 
 **Implementation:**
 ```python
-# tests/integration/test_pr_status_real.py
+# tests/integration/test_pr_status_lifecycle.py
 
 @pytest.mark.integration
 class TestRealPrStatus:
@@ -680,7 +680,7 @@ The following test infrastructure files have been created:
 1. **tests/integration/__init__.py** - Integration test package marker
 2. **tests/integration/conftest.py** - Shared fixtures and helpers (11.7KB)
 3. **tests/integration/test_github_api_contract.py** - GitHub API contract tests
-4. **tests/integration/test_pr_status_real.py** - Real PR status integration tests
+4. **tests/integration/test_pr_status_lifecycle.py** - Real PR status integration tests
 5. **tests/integration/test_pr_stack_integration.py** - PR stack detection tests
 6. **tests/integration/test_pr_restack_integration.py** - PR restack operation tests
 7. **tests/schemas/__init__.py** - Schema package marker
@@ -813,7 +813,7 @@ Some test files use placeholders with `# type: ignore` comments where production
 
 #### 3. Implemented Mock GH CLI
 
-**Modified tests/integration/test_pr_status_real.py:**
+**Modified tests/integration/test_pr_status_lifecycle.py:**
 
 - ✅ Added `mock_gh_pr_view` fixture that intercepts `subprocess.run`
 - ✅ Reads mock PR data from `.gh-mock/` directory
@@ -837,12 +837,12 @@ Some test files use placeholders with `# type: ignore` comments where production
 **All critical "happy path" tests are now PASSING:**
 
 ```bash
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_passing_checks PASSED
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_failing_checks PASSED
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_in_progress_checks PASSED
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_mixed_states PASSED
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_no_checks PASSED
-tests/integration/test_pr_status_real.py::TestRealPrStatus::test_pr_with_merge_conflicts PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_passing_checks PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_failing_checks PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_in_progress_checks PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_mixed_states PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_no_checks PASSED
+tests/integration/test_pr_status_lifecycle.py::TestRealPrStatus::test_pr_with_merge_conflicts PASSED
 ```
 
 **Test coverage includes:**
@@ -932,7 +932,7 @@ def setup_pr_stack(repo_path: str, stack_config: list[PRStackEntry]) -> dict[str
 **Location:** Various test files
 
 **Missing helpers:**
-- `tests/integration/test_pr_status_real.py:trigger_slow_workflow()` - Currently no-op (line 56-65)
+- `tests/integration/test_pr_status_lifecycle.py:trigger_slow_workflow()` - Currently no-op (line 56-65)
 - `tests/integration/test_pr_restack_integration.py:create_parent_pr()` - Stub (line 147-157)
 - `tests/integration/test_pr_restack_integration.py:create_child_pr()` - Stub (line 160-171)
 - `tests/integration/test_pr_restack_integration.py:pr_restack_command()` - Duplicate stub (line 174-195)

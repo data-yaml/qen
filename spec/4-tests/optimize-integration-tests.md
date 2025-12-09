@@ -276,7 +276,7 @@ def verify_standard_pr_exists(pr_number: int) -> dict:
 
 ### Phase 3: Rewrite Tests
 
-**File:** `tests/integration/test_pull_real.py`
+**File:** `tests/integration/test_pull_lifecycle.py`
 
 Create new test functions that use standard PRs:
 
@@ -477,8 +477,8 @@ help = "Run slow lifecycle tests (creates PRs)"
 
 ### To Modify
 
-- `tests/integration/test_pull_real.py` - Rewrite with standard PRs
-- `tests/integration/test_pr_status_real.py` - Rewrite `test_stacked_prs`
+- `tests/integration/test_pull_lifecycle.py` - Rewrite with standard PRs
+- `tests/integration/test_pr_status_lifecycle.py` - Rewrite `test_stacked_prs`
 - `tests/conftest.py` - Add helper functions
 - `pyproject.toml` - Add pytest markers and poe tasks
 
