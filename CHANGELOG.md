@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-08
+
+### Added
+
+- **Interactive PR TUI**: New interactive terminal UI for PR operations using `prompt_toolkit`
+- **PR info in status**: `qen status --pr` flag displays PR information (number, state, checks) inline with git status
+- **Multi-mode PR command**: `qen pr` supports three modes: full interactive, pre-selected indices, and direct operations
+- **Repository index selection**: Use positional arguments to select repos: `qen pr 1 3 --action merge`
+- **Batch operations**: Continue-on-failure strategy for multi-repo operations with summary reporting
+- **Action flags**: Pre-specify PR actions via `--action`, `--yes`, `--strategy`, `--title`, `--body`, `--base` flags
+
+### Changed
+
+- **BREAKING**: Removed `qen pr status` subcommand - use `qen status --pr` instead
+- **BREAKING**: Removed `qen pr stack` subcommand - use `qen pr` interactive TUI with stack view action
+- **BREAKING**: Removed `qen pr restack` subcommand - use `qen pr --action restack` instead
+- **Command structure**: Changed from `click.group` to single `click.command` for simpler PR management
+
+### Migration Guide
+
+If you were using:
+
+- `qen pr status` → use `qen status --pr` (read-only) or `qen pr` (interactive)
+- `qen pr stack` → use `qen pr` then select repos and choose "View stack relationships"
+- `qen pr restack` → use `qen pr --action restack` or select repos in TUI and choose restack
+
 ## [0.2.1] - 2025-12-08
 
 ### Added

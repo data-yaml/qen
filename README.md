@@ -50,7 +50,7 @@ Each project includes a `./qen` executable wrapper that automatically runs qen c
 cd proj/YYMMDD-my-project/
 ./qen status      # Works without specifying --proj
 ./qen add myrepo  # Automatically uses this project
-./qen pr status   # Check PR status for this project
+./qen pr          # Launch PR manager for this project
 ```
 
 The wrapper is especially useful when you have multiple projects, as it eliminates the need to specify `--proj` or remember which project you're in
@@ -135,32 +135,41 @@ Sub-repositories:
 
 ### 6. Work with Pull Requests
 
+QEN v0.3.0 introduces an interactive TUI for PR management:
+
 ```bash
-# Show PR status for all repositories (with indices)
-uvx qen pr status
+# Launch interactive PR manager (select repos, choose action)
+uvx qen pr
 
-# Show detailed PR information
-uvx qen pr status -v
+# Pre-select repos by index, then choose action interactively
+uvx qen pr 1 3
 
-# Identify and display stacked PRs
-uvx qen pr stack
+# Direct operations with flags
+uvx qen pr 1 --action merge --strategy squash --yes
+uvx qen pr 2 --action create --title "Add feature X"
+uvx qen pr --action restack
 
-# Update stacked PRs (rebase child PRs on parent PRs)
-uvx qen pr restack
-
-# Preview restack changes without making them
-uvx qen pr restack --dry-run
+# View PR information in git status
+uvx qen status --pr
 ```
 
-PR status displays also include repository indices:
+**Breaking Change:** The v0.3.0 release removed `qen pr status`, `qen pr stack`, and `qen pr restack` subcommands in favor of the interactive TUI. Use `qen status --pr` for read-only PR information.
+
+#### PR TUI Operations
+
+- **Merge**: Merge PR(s) with configurable strategy (squash/merge/rebase)
+- **Close**: Close PR(s) without merging
+- **Create**: Create new PR with title, body, and base branch
+- **Restack**: Update stacked PRs to latest base branch
+- **Stack View**: Display PR stack relationships
+
+Repository indices ([1], [2], etc.) are used for quick reference:
 
 ```text
-[1] 📦 repo1 (main)
-   📋 PR #123: Feature implementation
-   ✓ Checks: passing
-
-[2] 📦 repo2 (feature)
-   • No PR for this branch
+Index | Repo       | Branch      | PR#  | Status | Checks
+1     | foo        | feat-auth   | 123  | open   | passing
+2     | bar        | main        | -    | -      | -
+3     | baz        | fix-bug     | 124  | open   | failing
 ```
 
 ### 7. Generate Editor Workspaces
