@@ -164,8 +164,8 @@ class TestPrTableState:
     def test_initial_state(self) -> None:
         """Test initial table state."""
         rows = [
-            PrTableRow(1, "repo1", "main", "#123", "open", "passing", Mock()),
-            PrTableRow(2, "repo2", "feature", "#456", "merged", "failing", Mock()),
+            PrTableRow(1, "repo1", "main", "main", "#123", "open", "passing", Mock()),
+            PrTableRow(2, "repo2", "feature", "main", "#456", "merged", "failing", Mock()),
         ]
 
         state = PrTableState(rows)
@@ -232,9 +232,9 @@ class TestPrTableState:
 
     def test_get_selected_rows(self) -> None:
         """Test getting selected rows."""
-        row1 = PrTableRow(1, "repo1", "main", "#123", "open", "passing", Mock())
-        row2 = PrTableRow(2, "repo2", "feature", "#456", "merged", "failing", Mock())
-        row3 = PrTableRow(3, "repo3", "develop", "#789", "open", "pending", Mock())
+        row1 = PrTableRow(1, "repo1", "main", "main", "#123", "open", "passing", Mock())
+        row2 = PrTableRow(2, "repo2", "feature", "main", "#456", "merged", "failing", Mock())
+        row3 = PrTableRow(3, "repo3", "develop", "main", "#789", "open", "pending", Mock())
 
         state = PrTableState([row1, row2, row3])
 
@@ -261,8 +261,8 @@ class TestPrTableState:
 
     def test_format_table(self) -> None:
         """Test table formatting."""
-        row1 = PrTableRow(1, "repo1", "main", "#123", "open", "passing", Mock())
-        row2 = PrTableRow(2, "repo2", "feature-branch", "-", "-", "-", Mock())
+        row1 = PrTableRow(1, "repo1", "main", "main", "#123", "open", "passing", Mock())
+        row2 = PrTableRow(2, "repo2", "feature-branch", "-", "-", "-", "-", Mock())
 
         state = PrTableState([row1, row2])
         state.current_row = 0
@@ -302,7 +302,7 @@ class TestHandleMerge:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_merge(rows, skip_confirm=True, merge_strategy="squash")
 
@@ -328,7 +328,7 @@ class TestHandleMerge:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         success, failure = handle_merge(rows, skip_confirm=True)
 
@@ -348,7 +348,7 @@ class TestHandleMerge:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_merge(rows, skip_confirm=True)
 
@@ -367,7 +367,7 @@ class TestHandleMerge:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_merge(rows, skip_confirm=True)
 
@@ -398,8 +398,8 @@ class TestHandleMerge:
         )
 
         rows = [
-            PrTableRow(1, "repo1", "feature1", "#123", "open", "passing", pr_info1),
-            PrTableRow(2, "repo2", "feature2", "#456", "open", "passing", pr_info2),
+            PrTableRow(1, "repo1", "feature1", "main", "#123", "open", "passing", pr_info1),
+            PrTableRow(2, "repo2", "feature2", "main", "#456", "open", "passing", pr_info2),
         ]
 
         success, failure = handle_merge(rows, skip_confirm=True, merge_strategy="merge")
@@ -424,7 +424,7 @@ class TestHandleClose:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_close(rows, skip_confirm=True)
 
@@ -448,7 +448,7 @@ class TestHandleClose:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         success, failure = handle_close(rows, skip_confirm=True)
 
@@ -468,7 +468,7 @@ class TestHandleClose:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_close(rows, skip_confirm=True)
 
@@ -492,7 +492,7 @@ class TestHandleCreate:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         success, failure = handle_create(
             rows, skip_confirm=True, title="Test PR", body="Description", base="main"
@@ -524,7 +524,7 @@ class TestHandleCreate:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_create(rows, skip_confirm=True, title="Test PR")
 
@@ -543,7 +543,7 @@ class TestHandleCreate:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         success, failure = handle_create(rows, skip_confirm=True, title="Test PR", base="main")
 
@@ -568,7 +568,7 @@ class TestHandleRestack:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_restack(rows, dry_run=False)
 
@@ -587,7 +587,7 @@ class TestHandleRestack:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         success, failure = handle_restack(rows, dry_run=False)
 
@@ -608,7 +608,7 @@ class TestHandleRestack:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_restack(rows, dry_run=False)
 
@@ -629,7 +629,7 @@ class TestHandleRestack:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_restack(rows, dry_run=False)
 
@@ -650,7 +650,7 @@ class TestHandleRestack:
             has_pr=True,
             pr_number=123,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         success, failure = handle_restack(rows, dry_run=True)
 
@@ -671,7 +671,7 @@ class TestHandleStackView:
             branch="feature",
             has_pr=False,
         )
-        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
         # Should not raise error, just display message
         handle_stack_view(rows)
@@ -692,7 +692,7 @@ class TestHandleStackView:
             pr_number=123,
             pr_base="main",
         )
-        rows = [PrTableRow(1, "repo1", "feature", "#123", "open", "passing", pr_info)]
+        rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
         # Should not raise error
         handle_stack_view(rows)
@@ -724,8 +724,8 @@ class TestHandleStackView:
         mock_format.return_value = "Stack output"
 
         rows = [
-            PrTableRow(1, "repo1", "feature-1", "#123", "open", "passing", pr_info1),
-            PrTableRow(2, "repo1", "feature-2", "#456", "open", "passing", pr_info2),
+            PrTableRow(1, "repo1", "feature-1", "main", "#123", "open", "passing", pr_info1),
+            PrTableRow(2, "repo1", "feature-2", "feature-1", "#456", "open", "passing", pr_info2),
         ]
 
         handle_stack_view(rows)

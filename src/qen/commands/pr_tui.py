@@ -31,6 +31,7 @@ class PrTableRow:
     index: int
     repo_name: str
     branch: str
+    pr_base: str  # Base branch for the PR (or "-" if no PR)
     pr_number: str  # Can be "-" if no PR
     pr_state: str  # Can be "-" if no PR
     checks: str  # Can be "-" if no PR
@@ -85,7 +86,8 @@ class PrTableState:
 
         # Header
         header = (
-            f"{'Index':<7} {'Repo':<20} {'Branch':<20} {'PR#':<8} {'Status':<10} {'Checks':<12}"
+            f"{'Index':<7} {'Repo':<20} {'Branch':<20} {'Base':<15} "
+            f"{'PR#':<8} {'Status':<10} {'Checks':<12}"
         )
         lines.append(header)
         lines.append("-" * len(header))
@@ -101,6 +103,7 @@ class PrTableState:
             # Format row
             repo_short = row.repo_name[:18] + ".." if len(row.repo_name) > 20 else row.repo_name
             branch_short = row.branch[:18] + ".." if len(row.branch) > 20 else row.branch
+            base_short = row.pr_base[:13] + ".." if len(row.pr_base) > 15 else row.pr_base
 
             # Color coding for checks
             checks_display = row.checks
@@ -113,7 +116,7 @@ class PrTableState:
 
             line = (
                 f"{cursor} {sel} [{row.index}]   {repo_short:<20} {branch_short:<20} "
-                f"{row.pr_number:<8} {row.pr_state:<10} {checks_display}"
+                f"{base_short:<15} {row.pr_number:<8} {row.pr_state:<10} {checks_display}"
             )
             lines.append(line)
 
@@ -134,16 +137,18 @@ def build_pr_table(pr_infos: list[PrInfo]) -> list[PrTableRow]:
         # Extract repo name from path
         repo_name = pr_info.repo_path
 
-        # Format PR number, state, and checks
+        # Format PR number, state, checks, and base
         pr_number = f"#{pr_info.pr_number}" if pr_info.has_pr and pr_info.pr_number else "-"
         pr_state = pr_info.pr_state if pr_info.has_pr and pr_info.pr_state else "-"
         checks = pr_info.pr_checks if pr_info.has_pr and pr_info.pr_checks else "-"
+        pr_base = pr_info.pr_base if pr_info.has_pr and pr_info.pr_base else "-"
 
         rows.append(
             PrTableRow(
                 index=idx,
                 repo_name=repo_name,
                 branch=pr_info.branch,
+                pr_base=pr_base,
                 pr_number=pr_number,
                 pr_state=pr_state,
                 checks=checks,

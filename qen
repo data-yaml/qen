@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Shim script for running Poe the Poet tasks via uv
-# Usage: ./poe <task> [args...]
+# Wrapper for running qen via uv
+# Usage: ./qen <command> [args...]
 
 set -e
 
@@ -9,4 +9,4 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-exec uv run poe "$@"
+exec uv run qen "$@"

@@ -67,6 +67,7 @@ packages = ["src/qen", "src/qenvy"]
 "proj/qen" = "proj/qen"
 
 [tool.poe.tasks]
+install = { cmd = "uv pip install -e '.[dev]'", help = "Install package with dev dependencies" }
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
 test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
 test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
