@@ -9,7 +9,7 @@ Tests qen init functionality including:
 """
 
 import subprocess
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -327,7 +327,7 @@ class TestInitProjectFunction:
     def test_init_project_without_main_config(self, test_storage: QenvyTest) -> None:
         """Test that init_project fails without main config."""
         with pytest.raises(click.exceptions.Abort):
-            init_project("test-project", verbose=False, storage=test_storage)
+            init_project("test-project", verbose=False, yes=True, storage=test_storage)
 
     def test_init_project_already_exists(
         self,
@@ -360,6 +360,54 @@ class TestInitProjectFunction:
         # Try to create again - should fail
         with pytest.raises(click.exceptions.Abort):
             init_project(project_name, verbose=False, yes=True, storage=test_storage)
+
+    def test_init_project_force_recreate(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+    ) -> None:
+        """Test that init_project with --force recreates existing project."""
+        # Setup
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Create project first time
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
+
+        # Try to create again with force - should succeed
+        init_project(project_name, verbose=True, yes=True, force=True, storage=test_storage)
+
+        # Verify: New config exists with correct values
+        second_config = config.read_project_config(project_name)
+        second_branch = second_config["branch"]
+
+        # Branch and folder should be recreated
+        assert config.project_config_exists(project_name)
+        assert second_config["name"] == project_name
+
+        # Verify new branch exists
+        result = subprocess.run(
+            ["git", "branch", "--list", second_branch],
+            cwd=meta_repo,
+            capture_output=True,
+            text=True,
+        )
+        assert second_branch in result.stdout
 
     def test_init_project_verbose_output(
         self,
@@ -474,9 +522,9 @@ class TestInitProjectFunction:
         project_name = "test-project"
         init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
-        # Verify: Branch and folder use today's date
+        # Verify: Branch and folder use today's date (local time, not UTC)
         project_config = config.read_project_config(project_name)
-        today = datetime.now(UTC).strftime("%y%m%d")
+        today = datetime.now().strftime("%y%m%d")  # Local time for user-facing branch names
         assert project_config["branch"].startswith(today)
         assert project_config["folder"].startswith(f"proj/{today}")
 

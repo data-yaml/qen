@@ -121,6 +121,7 @@ def init_project(
     project_name: str,
     verbose: bool = False,
     yes: bool = False,
+    force: bool = False,
     storage: QenvyBase | None = None,
     config_dir: Path | str | None = None,
     meta_path_override: Path | str | None = None,
@@ -129,7 +130,7 @@ def init_project(
     """Create a new project in the meta repository.
 
     Behavior:
-    1. Check if project config already exists (error if yes)
+    1. Check if project config already exists (error if yes, unless --force)
     2. Create branch YYMMDD-<proj-name> in meta repo
     3. Create directory proj/YYMMDD-<proj-name>/ with:
        - README.md (stub)
@@ -143,13 +144,14 @@ def init_project(
         project_name: Name of the project
         verbose: Enable verbose output
         yes: Auto-confirm prompts (skip PR creation prompt)
+        force: Force recreate if project already exists
         storage: Optional storage backend for testing
         config_dir: Override configuration directory
         meta_path_override: Override meta repository path
         current_project_override: Override current project name
 
     Raises:
-        ProjectAlreadyExistsError: If project already exists
+        ProjectAlreadyExistsError: If project already exists and force is False
         QenConfigError: If config operations fail
         ProjectError: If project creation fails
     """
@@ -187,12 +189,133 @@ def init_project(
 
     # Check if project already exists
     if config.project_config_exists(project_name):
-        project_config_path = config.get_project_config_path(project_name)
-        click.echo(
-            f"Error: Project '{project_name}' already exists at {project_config_path}.",
-            err=True,
-        )
-        raise click.Abort()
+        if not force:
+            project_config_path = config.get_project_config_path(project_name)
+            click.echo(
+                f"Error: Project '{project_name}' already exists at {project_config_path}.",
+                err=True,
+            )
+            raise click.Abort()
+        else:
+            # Force mode: clean up existing project artifacts
+            if verbose:
+                click.echo(f"Force mode: Cleaning up existing project '{project_name}'")
+
+            # Get existing project config to find branch and folder
+            try:
+                old_config = config.read_project_config(project_name)
+                old_branch = old_config.get("branch")
+                old_folder = old_config.get("folder")
+
+                # Delete old branch if it exists
+                if old_branch:
+                    import subprocess
+
+                    try:
+                        # Check if branch exists
+                        branch_check = subprocess.run(
+                            ["git", "rev-parse", "--verify", old_branch],
+                            cwd=meta_path,
+                            capture_output=True,
+                            check=False,
+                        )
+                        if branch_check.returncode == 0:
+                            # Get current branch
+                            current_branch_result = subprocess.run(
+                                ["git", "branch", "--show-current"],
+                                cwd=meta_path,
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                            )
+                            current_branch = current_branch_result.stdout.strip()
+
+                            # If we're on the branch to be deleted, switch away first
+                            if current_branch == old_branch:
+                                # Get all branches
+                                branches_result = subprocess.run(
+                                    ["git", "branch"],
+                                    cwd=meta_path,
+                                    capture_output=True,
+                                    text=True,
+                                    check=True,
+                                )
+                                branches = [
+                                    b.strip().lstrip("* ").strip()
+                                    for b in branches_result.stdout.split("\n")
+                                    if b.strip()
+                                ]
+
+                                # Find a branch to switch to (prefer main/master, or any other branch)
+                                target_branch = None
+                                for preferred in ["main", "master"]:
+                                    if preferred in branches and preferred != old_branch:
+                                        target_branch = preferred
+                                        break
+
+                                if not target_branch:
+                                    # Use any branch that's not the one we're deleting
+                                    for branch in branches:
+                                        if branch != old_branch:
+                                            target_branch = branch
+                                            break
+
+                                if target_branch:
+                                    # Checkout the target branch
+                                    subprocess.run(
+                                        ["git", "checkout", target_branch],
+                                        cwd=meta_path,
+                                        capture_output=True,
+                                        check=True,
+                                    )
+                                else:
+                                    # No other branch exists, create a temporary one
+                                    subprocess.run(
+                                        ["git", "checkout", "-b", "tmp-qen-delete"],
+                                        cwd=meta_path,
+                                        capture_output=True,
+                                        check=True,
+                                    )
+
+                            # Now delete the branch
+                            delete_result = subprocess.run(
+                                ["git", "branch", "-D", old_branch],
+                                cwd=meta_path,
+                                capture_output=True,
+                                text=True,
+                                check=False,
+                            )
+                            if delete_result.returncode == 0:
+                                if verbose:
+                                    click.echo(f"  Deleted branch: {old_branch}")
+                            else:
+                                if verbose:
+                                    click.echo(
+                                        f"  Warning: Could not delete branch {old_branch}: {delete_result.stderr}"
+                                    )
+                    except subprocess.CalledProcessError as e:
+                        # Ignore errors deleting branch but log them in verbose mode
+                        if verbose:
+                            click.echo(f"  Warning: Could not delete branch {old_branch}: {e}")
+
+                # Delete old folder if it exists
+                if old_folder:
+                    import shutil
+
+                    old_folder_path = meta_path / old_folder
+                    if old_folder_path.exists():
+                        shutil.rmtree(old_folder_path)
+                        if verbose:
+                            click.echo(f"  Deleted folder: {old_folder_path}")
+
+            except QenConfigError:
+                # If can't read old config, just continue
+                pass
+
+            # Delete the config file
+            config.delete_project_config(project_name)
+            if verbose:
+                click.echo(f"  Deleted config for project '{project_name}'")
 
     if verbose:
         click.echo(f"Creating project: {project_name}")
