@@ -374,11 +374,35 @@ def init_project(
     click.echo(f"  Config: {config.get_project_config_path(project_name)}")
     click.echo()
 
+    # Push the branch to remote first (required for PR creation)
+    import subprocess
+
+    try:
+        if verbose:
+            click.echo(f"Pushing branch {branch_name} to remote...")
+
+        subprocess.run(
+            ["git", "push", "-u", "origin", branch_name],
+            cwd=meta_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if verbose:
+            click.echo("Branch pushed successfully")
+    except subprocess.CalledProcessError as e:
+        click.echo(f"\nWarning: Failed to push branch: {e.stderr}", err=True)
+        if verbose:
+            click.echo(f"Error details: {e}", err=True)
+        # Continue anyway - user can push manually later
+    except Exception as e:
+        click.echo(f"\nWarning: Failed to push branch: {e}", err=True)
+        # Continue anyway
+
     # Prompt to create PR unless --yes was specified
     if not yes:
         # Check if gh CLI is available
-        import subprocess
-
         try:
             subprocess.run(
                 ["gh", "--version"],
