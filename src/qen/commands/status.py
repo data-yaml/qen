@@ -1,6 +1,7 @@
 """Status command implementation for qen.
 
 Shows git status across all repositories (meta + sub-repos) in the current project.
+Optionally includes PR information from GitHub.
 """
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from ..git_utils import (
     git_fetch,
 )
 from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_from_pyproject
+from .pr import PrInfo, check_gh_installed, get_pr_info_for_branch
 
 
 class StatusError(Exception):
@@ -35,15 +37,19 @@ class ProjectStatus:
     branch: str
     meta_status: RepoStatus
     repo_statuses: list[tuple[RepoConfig, RepoStatus]]
+    pr_infos: list[PrInfo] | None = None  # Optional PR information
 
 
-def get_project_status(project_dir: Path, meta_path: Path, fetch: bool = False) -> ProjectStatus:
+def get_project_status(
+    project_dir: Path, meta_path: Path, fetch: bool = False, fetch_pr: bool = False
+) -> ProjectStatus:
     """Get status for all repositories in a project.
 
     Args:
         project_dir: Path to project directory
         meta_path: Path to meta repository
         fetch: If True, fetch before checking status
+        fetch_pr: If True, fetch PR information from GitHub
 
     Returns:
         ProjectStatus object with all status information
@@ -83,12 +89,38 @@ def get_project_status(project_dir: Path, meta_path: Path, fetch: bool = False) 
             # If we can't get status, create a not-exists status
             repo_statuses.append((repo_config, RepoStatus(exists=False)))
 
+    # Optionally fetch PR information
+    pr_infos: list[PrInfo] | None = None
+    if fetch_pr:
+        if not check_gh_installed():
+            # Silently skip PR fetching if gh is not installed
+            pr_infos = None
+        else:
+            pr_infos = []
+            for repo_config in repos:
+                repo_path = repo_config.local_path(project_dir)
+                if repo_path.exists():
+                    pr_info = get_pr_info_for_branch(repo_path, repo_config.branch, repo_config.url)
+                    pr_infos.append(pr_info)
+                else:
+                    # Repository not on disk
+                    pr_infos.append(
+                        PrInfo(
+                            repo_path=str(Path(repo_config.path).name),
+                            repo_url=repo_config.url,
+                            branch=repo_config.branch,
+                            has_pr=False,
+                            error="Repository not found on disk",
+                        )
+                    )
+
     return ProjectStatus(
         project_name=project_name,
         project_dir=project_dir,
         branch=branch,
         meta_status=meta_status,
         repo_statuses=repo_statuses,
+        pr_infos=pr_infos,
     )
 
 
@@ -158,6 +190,22 @@ def format_status_output(
                     lines.append(f"    Branch: {repo_status.branch}")
                     if repo_status.sync:
                         lines.append(f"    Sync:   {repo_status.sync.description()}")
+
+                    # Show PR information if available
+                    if status.pr_infos and idx <= len(status.pr_infos):
+                        pr_info = status.pr_infos[idx - 1]
+                        if pr_info.error:
+                            lines.append(f"    PR:     Error: {pr_info.error}")
+                        elif pr_info.has_pr:
+                            # Format: PR: #123 (open, checks passing)
+                            pr_parts = [f"#{pr_info.pr_number}"]
+                            if pr_info.pr_state:
+                                pr_parts.append(pr_info.pr_state)
+                            if pr_info.pr_checks:
+                                pr_parts.append(f"checks {pr_info.pr_checks}")
+                            lines.append(f"    PR:     {pr_parts[0]} ({', '.join(pr_parts[1:])})")
+                        else:
+                            lines.append("    PR:     -")
 
                     # Show detailed files if verbose and there are changes
                     if verbose and not repo_status.is_clean():
@@ -234,6 +282,7 @@ def fetch_all_repos(project_dir: Path, meta_path: Path, verbose: bool = False) -
 def show_project_status(
     project_name: str | None = None,
     fetch: bool = False,
+    fetch_pr: bool = False,
     verbose: bool = False,
     meta_only: bool = False,
     repos_only: bool = False,
@@ -244,6 +293,7 @@ def show_project_status(
     Args:
         project_name: Project name (None = use current project from config)
         fetch: If True, fetch before showing status
+        fetch_pr: If True, fetch PR information from GitHub
         verbose: If True, show detailed file lists
         meta_only: If True, only show meta repository
         repos_only: If True, only show sub-repositories
@@ -305,7 +355,7 @@ def show_project_status(
 
     # Get and display status
     try:
-        status = get_project_status(project_dir, meta_path, fetch=False)
+        status = get_project_status(project_dir, meta_path, fetch=False, fetch_pr=fetch_pr)
         output = format_status_output(
             status, verbose=verbose, meta_only=meta_only, repos_only=repos_only
         )
@@ -316,6 +366,7 @@ def show_project_status(
 
 @click.command("status")
 @click.option("--fetch", is_flag=True, help="Fetch from remotes before showing status")
+@click.option("--pr", is_flag=True, help="Include PR information from GitHub (requires gh CLI)")
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed file lists")
 @click.option("--project", help="Project name (default: current project)")
 @click.option("--meta-only", is_flag=True, help="Show only meta repository status")
@@ -324,6 +375,7 @@ def show_project_status(
 def status_command(
     ctx: click.Context,
     fetch: bool,
+    pr: bool,
     verbose: bool,
     project: str | None,
     meta_only: bool,
@@ -334,6 +386,8 @@ def status_command(
     Displays branch information, uncommitted changes, and sync status
     for both the meta repository and all sub-repositories.
 
+    Use --pr to include PR information (PR#, state, check status) for each repository.
+
     Repositories are shown with indices ([1], [2], etc.) based on their
     order in the project configuration.
 
@@ -342,6 +396,10 @@ def status_command(
     \b
         # Show status for current project
         $ qen status
+
+    \b
+        # Show status with PR information
+        $ qen status --pr
 
     \b
         # Show status with fetch
@@ -368,6 +426,7 @@ def status_command(
         show_project_status(
             project_name=project,
             fetch=fetch,
+            fetch_pr=pr,
             verbose=verbose,
             meta_only=meta_only,
             repos_only=repos_only,
