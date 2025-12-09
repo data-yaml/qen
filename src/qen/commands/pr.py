@@ -18,8 +18,9 @@ import click
 
 from qenvy.base import QenvyBase
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
 from ..git_utils import GitError, get_current_branch, is_git_repo
+from ..init_utils import ensure_initialized
 from ..pr_utils import parse_check_status
 from ..pyproject_utils import PyProjectNotFoundError, read_pyproject
 
@@ -552,22 +553,14 @@ def get_all_pr_infos(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Load configuration
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,
         current_project_override=current_project_override,
     )
 
-    if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
-
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        click.echo(f"Error reading configuration: {e}", err=True)
-        raise click.Abort() from e
+    main_config = config.read_main_config()
 
     # Get current project
     current_project = main_config.get("current_project")
@@ -670,7 +663,7 @@ def pr_status_command(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Get configuration to show project name
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,

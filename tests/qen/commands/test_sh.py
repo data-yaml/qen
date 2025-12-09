@@ -6,12 +6,13 @@ Tests shell command execution, directory navigation, and error handling.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from qen.cli import main
 from qen.commands.sh import execute_shell_command
-from qen.config import QenConfig, QenConfigError
+from qen.config import QenConfigError
 
 
 class TestShellCommand:
@@ -21,30 +22,27 @@ class TestShellCommand:
         """Test sh command when qen is not initialized."""
         runner = CliRunner()
 
-        # Use a fresh config directory that doesn't exist
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = False
-            mock_config_class.return_value = mock_config
+        # Simulate auto-init failure
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_ensure.side_effect = click.Abort()
 
             result = runner.invoke(main, ["sh", "ls"])
 
             assert result.exit_code != 0
-            assert "qen is not initialized" in result.output
+            mock_ensure.assert_called_once()
 
     def test_sh_no_active_project(self, tmp_path: Path) -> None:
         """Test sh command when no active project exists."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
                 "org": "testorg",
                 # No current_project
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -55,16 +53,15 @@ class TestShellCommand:
         """Test sh command when project config doesn't exist."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
                 "org": "testorg",
                 "current_project": "test-project",
             }
             mock_config.read_project_config.side_effect = QenConfigError("Project not found")
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -78,9 +75,8 @@ class TestShellCommand:
         meta_path = tmp_path / "meta"
         project_folder = "proj/2025-12-06-test-project"
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -91,7 +87,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -107,9 +103,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -120,7 +115,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "nonexistent", "ls"])
 
@@ -139,9 +134,8 @@ class TestShellCommand:
         # Create a test file to list
         (project_dir / "test.txt").write_text("test content")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -152,7 +146,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-y", "ls"])
 
@@ -173,9 +167,8 @@ class TestShellCommand:
         repos_dir.mkdir()
         (repos_dir / "subfile.txt").write_text("subdir content")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -186,7 +179,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "repos", "-y", "ls"])
 
@@ -202,9 +195,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -215,7 +207,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "--verbose", "-y", "echo hello"])
 
@@ -234,9 +226,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -247,7 +238,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Simulate user pressing enter (default Yes)
             result = runner.invoke(main, ["sh", "echo hello"], input="\n")
@@ -264,9 +255,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -277,7 +267,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Simulate user entering 'n'
             result = runner.invoke(main, ["sh", "echo hello"], input="n\n")
@@ -294,9 +284,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -307,7 +296,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Use a command that will fail
             result = runner.invoke(main, ["sh", "-y", "exit 1"])
@@ -324,9 +313,8 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -337,7 +325,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-other-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "--project", "other-project", "-y", "pwd"])
 
@@ -357,9 +345,8 @@ class TestShellCommand:
         # Create a file, not a directory
         (project_dir / "notadir.txt").write_text("I am a file")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -370,7 +357,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "notadir.txt", "ls"])
 
@@ -383,13 +370,12 @@ class TestExecuteShellCommand:
 
     def test_execute_with_config_error(self) -> None:
         """Test execution when config read fails."""
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+            mock_config = Mock()
             mock_config.read_main_config.side_effect = QenConfigError("Config error")
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(QenConfigError) as exc_info:
                 execute_shell_command("ls", yes=True)
 
-            assert "Error reading configuration" in str(exc_info.value)
+            assert "Config error" in str(exc_info.value)

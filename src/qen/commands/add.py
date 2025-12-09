@@ -15,6 +15,7 @@ from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, get_current_branch
+from ..init_utils import ensure_initialized
 from ..pyproject_utils import (
     PyProjectNotFoundError,
     PyProjectUpdateError,
@@ -115,22 +116,16 @@ def add_repository(
         QenConfigError: If configuration cannot be read
     """
     # 1. Load configuration and get current project
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,
         current_project_override=current_project_override,
+        verbose=verbose,
     )
 
-    # Try to read main config
-    # If it doesn't exist and we have overrides, that's OK - we'll create it
-    # If it doesn't exist and we don't have overrides, we'll fail when trying to read it
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        click.echo(f"Error reading configuration: {e}", err=True)
-        click.echo("Hint: Run 'qen init' first to initialize qen.", err=True)
-        raise click.Abort() from e
+    # Config is now guaranteed to exist
+    main_config = config.read_main_config()
 
     current_project = main_config.get("current_project")
     if not current_project:

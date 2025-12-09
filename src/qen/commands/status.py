@@ -10,7 +10,7 @@ from typing import Any
 
 import click
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
 from ..git_utils import (
     GitError,
     RepoStatus,
@@ -18,6 +18,7 @@ from ..git_utils import (
     get_repo_status,
     git_fetch,
 )
+from ..init_utils import ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_from_pyproject
 from .pr import PrInfo, check_gh_installed, get_pr_info_for_branch
 
@@ -303,21 +304,17 @@ def show_project_status(
         StatusError: If status cannot be retrieved
         click.ClickException: For user-facing errors
     """
-    # Load configuration with overrides
+    # Load configuration with overrides (auto-initialize if needed)
     overrides = config_overrides or {}
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=overrides.get("config_dir"),
         meta_path_override=overrides.get("meta_path"),
         current_project_override=overrides.get("current_project"),
+        verbose=verbose,
     )
 
-    if not config.main_config_exists():
-        raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
-
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        raise click.ClickException(f"Error reading configuration: {e}") from e
+    # Config is now guaranteed to exist
+    main_config = config.read_main_config()
 
     # Determine which project to use
     if project_name:

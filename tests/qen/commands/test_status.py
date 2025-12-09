@@ -6,6 +6,7 @@ Tests status detection, sync status, output formatting, and error handling.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import click
 from click.testing import CliRunner
 
 from qen.cli import main
@@ -374,56 +375,53 @@ class TestGetProjectStatus:
 class TestStatusCommand:
     """Test status CLI command."""
 
-    @patch("qen.commands.status.QenConfig")
-    def test_status_command_no_config(self, mock_config_class: Mock) -> None:
+    @patch("qen.commands.status.ensure_initialized")
+    def test_status_command_no_config(self, mock_ensure: Mock) -> None:
         """Test status command when qen is not initialized."""
         runner = CliRunner()
 
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = False
-        mock_config_class.return_value = mock_config
+        # Simulate auto-init failure
+        mock_ensure.side_effect = click.Abort()
 
         result = runner.invoke(main, ["status"])
 
         assert result.exit_code != 0
-        assert "not initialized" in result.output
+        mock_ensure.assert_called_once()
 
-    @patch("qen.commands.status.QenConfig")
-    def test_status_command_no_active_project(self, mock_config_class: Mock) -> None:
+    @patch("qen.commands.status.ensure_initialized")
+    def test_status_command_no_active_project(self, mock_ensure: Mock) -> None:
         """Test status command when no project is active."""
         runner = CliRunner()
 
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {"meta_path": "/tmp/meta"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         result = runner.invoke(main, ["status"])
 
         assert result.exit_code != 0
         assert "No active project" in result.output
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_success(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status command successful execution."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 
@@ -443,27 +441,26 @@ class TestStatusCommand:
         assert "Project: test" in result.output
         assert "Branch: main" in result.output
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_verbose(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status command with --verbose flag."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 
@@ -485,7 +482,7 @@ class TestStatusCommand:
         assert "Modified files:" in result.output
         assert "- README.md" in result.output
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.fetch_all_repos")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -494,20 +491,19 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_fetch: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status command with --fetch flag."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 
@@ -526,27 +522,26 @@ class TestStatusCommand:
         assert result.exit_code == 0
         mock_fetch.assert_called_once()
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_meta_only(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status command with --meta-only flag."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 
@@ -571,27 +566,26 @@ class TestStatusCommand:
         assert "Meta Repository" in result.output
         assert "Sub-repositories:" not in result.output
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_repos_only(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status command with --repos-only flag."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 
@@ -620,43 +614,41 @@ class TestStatusCommand:
 class TestStatusErrorHandling:
     """Test status command error handling."""
 
-    @patch("qen.commands.status.QenConfig")
-    def test_status_invalid_project_name(self, mock_config_class: Mock) -> None:
+    @patch("qen.commands.status.ensure_initialized")
+    def test_status_invalid_project_name(self, mock_ensure: Mock) -> None:
         """Test status with invalid project name."""
         runner = CliRunner()
 
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {"meta_path": "/tmp/meta"}
         mock_config.read_project_config.side_effect = QenConfigError("Project not found")
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         result = runner.invoke(main, ["status", "--project", "nonexistent"])
 
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
 
-    @patch("qen.commands.status.QenConfig")
+    @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_git_error(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test status when git error occurs."""
         runner = CliRunner()
 
         # Mock config
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/2025-01-01-test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
 

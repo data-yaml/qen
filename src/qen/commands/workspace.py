@@ -15,7 +15,8 @@ import click
 
 from qenvy.base import QenvyBase
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
+from ..init_utils import ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, read_pyproject
 
 
@@ -230,22 +231,16 @@ def workspace_command(
         WorkspaceError: If workspace creation fails
     """
     # Load configuration
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,
         current_project_override=current_project_override,
+        verbose=verbose,
     )
 
-    if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
-
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        click.echo(f"Error reading configuration: {e}", err=True)
-        raise click.Abort() from e
+    # Config is now guaranteed to exist
+    main_config = config.read_main_config()
 
     # Get current project
     current_project = main_config.get("current_project")

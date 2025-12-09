@@ -414,7 +414,7 @@ class TestPrStatusCommand:
 class TestPrStatusCommandFunction:
     """Test pr_status_command function directly."""
 
-    @patch("qen.commands.pr.QenConfig")
+    @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
     @patch("qen.commands.pr.get_pr_info_for_branch")
@@ -425,17 +425,16 @@ class TestPrStatusCommandFunction:
         mock_get_pr_info: Mock,
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test that pr_status_command returns list of PrInfo objects."""
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
         mock_check_gh.return_value = True
@@ -470,7 +469,7 @@ class TestPrStatusCommandFunction:
         assert len(result) == 1
         assert result[0] == expected_pr_info
 
-    @patch("qen.commands.pr.QenConfig")
+    @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
     @patch("pathlib.Path.exists")
@@ -479,17 +478,16 @@ class TestPrStatusCommandFunction:
         mock_exists: Mock,
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
     ) -> None:
         """Test pr status when repository doesn't exist on disk."""
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         # Project dir exists, but repo dir doesn't
         mock_exists.side_effect = lambda: mock_exists.call_count == 1
