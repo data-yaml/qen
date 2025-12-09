@@ -228,13 +228,13 @@ def prompt_for_action() -> str | None:
     """Prompt user to select an action.
 
     Returns:
-        Action name ('merge', 'close', 'create', 'restack', 'stack', or None if cancelled)
+        Action name ('merge', 'close', 'create', 'update', 'stack', or None if cancelled)
     """
     click.echo("\nWhat do you want to do?")
     click.echo("  [m] Merge PR(s)")
     click.echo("  [c] Close PR(s)")
     click.echo("  [n] Create new PR")
-    click.echo("  [r] Restack PR(s)")
+    click.echo("  [u] Update branch (sync with base)")
     click.echo("  [s] View stack relationships")
     click.echo("  [q] Cancel")
 
@@ -244,7 +244,7 @@ def prompt_for_action() -> str | None:
         "m": "merge",
         "c": "close",
         "n": "create",
-        "r": "restack",
+        "u": "update",
         "s": "stack",
         "q": None,
     }
@@ -489,8 +489,11 @@ def handle_create(
     return (success_count, failure_count)
 
 
-def handle_restack(selected_rows: list[PrTableRow], dry_run: bool = False) -> tuple[int, int]:
-    """Handle restack operation for selected repositories.
+def handle_update_branch(selected_rows: list[PrTableRow], dry_run: bool = False) -> tuple[int, int]:
+    """Handle branch update operation for selected repositories.
+
+    Updates the branch to sync with its base branch. When a PR exists, uses GitHub's
+    update-branch API to merge the latest base branch changes.
 
     Args:
         selected_rows: List of selected table rows
@@ -519,9 +522,11 @@ def handle_restack(selected_rows: list[PrTableRow], dry_run: bool = False) -> tu
             continue
 
         owner, repo = parsed
-        click.echo(f"[{row.index}] Restacking PR #{pr_info.pr_number} ({row.repo_name})...")
+        click.echo(
+            f"[{row.index}] Updating branch for PR #{pr_info.pr_number} ({row.repo_name})..."
+        )
 
-        # Call restack function
+        # Call update function
         success = restack_pr(owner, repo, pr_info.pr_number, dry_run=dry_run)
         if success:
             success_count += 1

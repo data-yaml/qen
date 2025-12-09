@@ -20,8 +20,8 @@ from qen.commands.pr_tui import (
     handle_close,
     handle_create,
     handle_merge,
-    handle_restack,
     handle_stack_view,
+    handle_update_branch,
     prompt_for_action,
 )
 
@@ -551,13 +551,13 @@ class TestHandleCreate:
         assert failure == 1
 
 
-class TestHandleRestack:
-    """Test restack action handler."""
+class TestHandleUpdateBranch:
+    """Test branch update action handler."""
 
     @patch("qen.commands.pr_tui.restack_pr")
     @patch("qen.commands.pr_tui.parse_repo_owner_and_name")
-    def test_handle_restack_success(self, mock_parse: Mock, mock_restack: Mock) -> None:
-        """Test successful restack operation."""
+    def test_handle_update_branch_success(self, mock_parse: Mock, mock_restack: Mock) -> None:
+        """Test successful branch update operation."""
         mock_parse.return_value = ("org", "repo1")
         mock_restack.return_value = True
 
@@ -570,7 +570,7 @@ class TestHandleRestack:
         )
         rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
-        success, failure = handle_restack(rows, dry_run=False)
+        success, failure = handle_update_branch(rows, dry_run=False)
 
         assert success == 1
         assert failure == 0
@@ -579,8 +579,8 @@ class TestHandleRestack:
 
     @patch("qen.commands.pr_tui.restack_pr")
     @patch("qen.commands.pr_tui.parse_repo_owner_and_name")
-    def test_handle_restack_no_pr(self, mock_parse: Mock, mock_restack: Mock) -> None:
-        """Test restack when no PR exists."""
+    def test_handle_update_branch_no_pr(self, mock_parse: Mock, mock_restack: Mock) -> None:
+        """Test branch update when no PR exists."""
         pr_info = PrInfo(
             repo_path="/tmp/repo1",
             repo_url="https://github.com/org/repo1",
@@ -589,7 +589,7 @@ class TestHandleRestack:
         )
         rows = [PrTableRow(1, "repo1", "feature", "-", "-", "-", "-", pr_info)]
 
-        success, failure = handle_restack(rows, dry_run=False)
+        success, failure = handle_update_branch(rows, dry_run=False)
 
         assert success == 0
         assert failure == 1
@@ -597,8 +597,8 @@ class TestHandleRestack:
         mock_restack.assert_not_called()
 
     @patch("qen.commands.pr_tui.parse_repo_owner_and_name")
-    def test_handle_restack_invalid_url(self, mock_parse: Mock) -> None:
-        """Test restack with invalid repo URL."""
+    def test_handle_update_branch_invalid_url(self, mock_parse: Mock) -> None:
+        """Test branch update with invalid repo URL."""
         mock_parse.return_value = None
 
         pr_info = PrInfo(
@@ -610,15 +610,15 @@ class TestHandleRestack:
         )
         rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
-        success, failure = handle_restack(rows, dry_run=False)
+        success, failure = handle_update_branch(rows, dry_run=False)
 
         assert success == 0
         assert failure == 1
 
     @patch("qen.commands.pr_tui.restack_pr")
     @patch("qen.commands.pr_tui.parse_repo_owner_and_name")
-    def test_handle_restack_failure(self, mock_parse: Mock, mock_restack: Mock) -> None:
-        """Test restack operation failure."""
+    def test_handle_update_branch_failure(self, mock_parse: Mock, mock_restack: Mock) -> None:
+        """Test branch update operation failure."""
         mock_parse.return_value = ("org", "repo1")
         mock_restack.return_value = False
 
@@ -631,15 +631,15 @@ class TestHandleRestack:
         )
         rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
-        success, failure = handle_restack(rows, dry_run=False)
+        success, failure = handle_update_branch(rows, dry_run=False)
 
         assert success == 0
         assert failure == 1
 
     @patch("qen.commands.pr_tui.restack_pr")
     @patch("qen.commands.pr_tui.parse_repo_owner_and_name")
-    def test_handle_restack_dry_run(self, mock_parse: Mock, mock_restack: Mock) -> None:
-        """Test restack in dry run mode."""
+    def test_handle_update_branch_dry_run(self, mock_parse: Mock, mock_restack: Mock) -> None:
+        """Test branch update in dry run mode."""
         mock_parse.return_value = ("org", "repo1")
         mock_restack.return_value = True
 
@@ -652,7 +652,7 @@ class TestHandleRestack:
         )
         rows = [PrTableRow(1, "repo1", "feature", "main", "#123", "open", "passing", pr_info)]
 
-        success, failure = handle_restack(rows, dry_run=True)
+        success, failure = handle_update_branch(rows, dry_run=True)
 
         assert success == 1
         assert failure == 0
@@ -765,13 +765,13 @@ class TestPromptForAction:
         assert result == "create"
 
     @patch("click.prompt")
-    def test_prompt_for_action_restack(self, mock_prompt: Mock) -> None:
-        """Test selecting restack action."""
-        mock_prompt.return_value = "r"
+    def test_prompt_for_action_update(self, mock_prompt: Mock) -> None:
+        """Test selecting branch update action."""
+        mock_prompt.return_value = "u"
 
         result = prompt_for_action()
 
-        assert result == "restack"
+        assert result == "update"
 
     @patch("click.prompt")
     def test_prompt_for_action_stack(self, mock_prompt: Mock) -> None:

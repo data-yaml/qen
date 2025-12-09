@@ -993,7 +993,7 @@ def pr_restack_command(
 
 @click.command(name="pr")
 @click.argument("indices", nargs=-1, type=int)
-@click.option("--action", type=click.Choice(["merge", "close", "create", "restack", "stack"]))
+@click.option("--action", type=click.Choice(["merge", "close", "create", "update", "stack"]))
 @click.option("--yes", is_flag=True, help="Skip all confirmations")
 @click.option("--strategy", type=click.Choice(["squash", "merge", "rebase"]), help="Merge strategy")
 @click.option("--title", help="PR title for create action")
@@ -1013,14 +1013,14 @@ def pr_command(
     """Interactive PR management across repositories.
 
     Launch an interactive TUI to select repositories and perform PR operations
-    (merge, close, create, restack, view stacks).
+    (merge, close, create, update branch, view stacks).
 
     You can also specify repository indices directly for quick operations:
 
     \b
         qen pr 1 3 --action merge --yes          # Merge PRs for repos 1 and 3
         qen pr 2 --action create --title "..."   # Create PR for repo 2
-        qen pr --action restack                  # Restack all PRs interactively
+        qen pr --action update                   # Update branches to sync with base
 
     Repositories are indexed ([1], [2], etc.) based on their order in the
     project configuration.
@@ -1050,8 +1050,8 @@ def pr_command(
         handle_close,
         handle_create,
         handle_merge,
-        handle_restack,
         handle_stack_view,
+        handle_update_branch,
         prompt_for_action,
     )
 
@@ -1097,8 +1097,8 @@ def pr_command(
             success, failure = handle_create(
                 selected_rows, skip_confirm=yes, title=title, body=body, base=base
             )
-        elif action == "restack":
-            success, failure = handle_restack(selected_rows, dry_run=not yes)
+        elif action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=not yes)
         elif action == "stack":
             handle_stack_view(selected_rows)
             return
@@ -1146,8 +1146,8 @@ def pr_command(
             success, failure = handle_create(
                 selected_rows, skip_confirm=yes, title=title, body=body, base=base
             )
-        elif selected_action == "restack":
-            success, failure = handle_restack(selected_rows, dry_run=False)
+        elif selected_action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=False)
         elif selected_action == "stack":
             handle_stack_view(selected_rows)
             return
@@ -1196,8 +1196,8 @@ def pr_command(
             success, failure = handle_create(
                 selected_rows, skip_confirm=yes, title=title, body=body, base=base
             )
-        elif selected_action == "restack":
-            success, failure = handle_restack(selected_rows, dry_run=False)
+        elif selected_action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=False)
         elif selected_action == "stack":
             handle_stack_view(selected_rows)
             return
