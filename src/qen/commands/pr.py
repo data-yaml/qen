@@ -68,6 +68,7 @@ class PrInfo:
     pr_commits: int | None = None
     pr_files_changed: int | None = None
     pr_file_paths: list[str] | None = None
+    is_draft: bool | None = None
     error: str | None = None
 
 
@@ -130,7 +131,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                 "view",
                 current_branch,
                 "--json",
-                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt,commits,files",
+                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt,commits,files,isDraft",
             ],
             cwd=repo_path,
             capture_output=True,
@@ -216,6 +217,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             pr_commits=pr_commits,
             pr_files_changed=pr_files_changed,
             pr_file_paths=pr_file_paths,
+            is_draft=pr_data.get("isDraft"),
         )
 
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:

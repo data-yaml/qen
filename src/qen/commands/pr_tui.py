@@ -139,7 +139,15 @@ def build_pr_table(pr_infos: list[PrInfo]) -> list[PrTableRow]:
 
         # Format PR number, state, checks, and base
         pr_number = f"#{pr_info.pr_number}" if pr_info.has_pr and pr_info.pr_number else "-"
-        pr_state = pr_info.pr_state if pr_info.has_pr and pr_info.pr_state else "-"
+
+        # Show draft status in state column
+        if pr_info.has_pr and pr_info.pr_state:
+            pr_state = pr_info.pr_state
+            if pr_info.is_draft:
+                pr_state = f"{pr_state} (draft)"
+        else:
+            pr_state = "-"
+
         checks = pr_info.pr_checks if pr_info.has_pr and pr_info.pr_checks else "-"
         pr_base = pr_info.pr_base if pr_info.has_pr and pr_info.pr_base else "-"
 
@@ -413,6 +421,7 @@ def handle_create(
     title: str | None = None,
     body: str | None = None,
     base: str | None = None,
+    draft: bool = True,
 ) -> tuple[int, int]:
     """Handle create PR operation for selected repositories.
 
@@ -422,6 +431,7 @@ def handle_create(
         title: PR title (if None, prompt user)
         body: PR body (if None, prompt user)
         base: Base branch (if None, use default)
+        draft: Create as draft PR (default: True)
 
     Returns:
         Tuple of (success_count, failure_count)
@@ -460,6 +470,8 @@ def handle_create(
             cmd = ["gh", "pr", "create", "--title", pr_title, "--base", pr_base]
             if pr_body:
                 cmd.extend(["--body", pr_body])
+            if draft:
+                cmd.append("--draft")
 
             result = subprocess.run(
                 cmd,
