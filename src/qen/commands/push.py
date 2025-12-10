@@ -12,7 +12,7 @@ import click
 
 from ..config import QenConfigError
 from ..git_utils import GitError, run_git_command
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, load_repos_from_pyproject
 
 
@@ -267,6 +267,9 @@ def push_project(
         current_project_override=overrides.get("current_project"),
         verbose=False,
     )
+
+    # Ensure the correct project branch is checked out
+    ensure_correct_branch(config, verbose=verbose)
 
     # Config is guaranteed to exist after ensure_initialized
     main_config = config.read_main_config()

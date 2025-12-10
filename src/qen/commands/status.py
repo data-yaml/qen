@@ -18,7 +18,7 @@ from ..git_utils import (
     get_repo_status,
     git_fetch,
 )
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_from_pyproject
 from .pr import PrInfo, check_gh_installed, get_pr_info_for_branch
 
@@ -312,6 +312,9 @@ def show_project_status(
         current_project_override=overrides.get("current_project"),
         verbose=verbose,
     )
+
+    # Ensure branch is correct
+    ensure_correct_branch(config, verbose=verbose)
 
     # Config is now guaranteed to exist
     main_config = config.read_main_config()

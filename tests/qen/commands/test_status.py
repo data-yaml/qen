@@ -375,8 +375,19 @@ class TestGetProjectStatus:
 class TestStatusCommand:
     """Test status CLI command."""
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
-    def test_status_command_no_config(self, mock_ensure: Mock) -> None:
+    def test_status_command_no_config(
+        self,
+        mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
+    ) -> None:
         """Test status command when qen is not initialized."""
         runner = CliRunner()
 
@@ -388,8 +399,19 @@ class TestStatusCommand:
         assert result.exit_code != 0
         mock_ensure.assert_called_once()
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
-    def test_status_command_no_active_project(self, mock_ensure: Mock) -> None:
+    def test_status_command_no_active_project(
+        self,
+        mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
+    ) -> None:
         """Test status command when no project is active."""
         runner = CliRunner()
 
@@ -402,6 +424,10 @@ class TestStatusCommand:
         assert result.exit_code != 0
         assert "No active project" in result.output
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -410,6 +436,10 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status command successful execution."""
         runner = CliRunner()
@@ -441,6 +471,10 @@ class TestStatusCommand:
         assert "Project: test" in result.output
         assert "Branch: main" in result.output
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -449,6 +483,10 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status command with --verbose flag."""
         runner = CliRunner()
@@ -482,6 +520,10 @@ class TestStatusCommand:
         assert "Modified files:" in result.output
         assert "- README.md" in result.output
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.fetch_all_repos")
     @patch("qen.commands.status.get_project_status")
@@ -492,6 +534,10 @@ class TestStatusCommand:
         mock_get_status: Mock,
         mock_fetch: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status command with --fetch flag."""
         runner = CliRunner()
@@ -522,6 +568,10 @@ class TestStatusCommand:
         assert result.exit_code == 0
         mock_fetch.assert_called_once()
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -530,6 +580,10 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status command with --meta-only flag."""
         runner = CliRunner()
@@ -566,6 +620,10 @@ class TestStatusCommand:
         assert "Meta Repository" in result.output
         assert "Sub-repositories:" not in result.output
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -574,6 +632,10 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status command with --repos-only flag."""
         runner = CliRunner()
@@ -614,8 +676,19 @@ class TestStatusCommand:
 class TestStatusErrorHandling:
     """Test status command error handling."""
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
-    def test_status_invalid_project_name(self, mock_ensure: Mock) -> None:
+    def test_status_invalid_project_name(
+        self,
+        mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
+    ) -> None:
         """Test status with invalid project name."""
         runner = CliRunner()
 
@@ -629,6 +702,10 @@ class TestStatusErrorHandling:
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
 
+    @patch("qen.git_utils.checkout_branch")
+    @patch("qen.git_utils.has_uncommitted_changes")
+    @patch("qen.git_utils.get_current_branch")
+    @patch("qen.commands.status.ensure_correct_branch")
     @patch("qen.commands.status.ensure_initialized")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -637,6 +714,10 @@ class TestStatusErrorHandling:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
+        mock_get_branch: Mock,
+        mock_has_uncommitted: Mock,
+        mock_checkout: Mock,
     ) -> None:
         """Test status when git error occurs."""
         runner = CliRunner()

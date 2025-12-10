@@ -30,7 +30,10 @@ class TestShellCommand:
         runner = CliRunner()
 
         # Simulate auto-init failure
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_ensure.side_effect = click.Abort()
 
             result = runner.invoke(main, ["sh", "ls"])
@@ -42,7 +45,10 @@ class TestShellCommand:
         """Test sh command when no active project exists."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
@@ -60,7 +66,10 @@ class TestShellCommand:
         """Test sh command when project config doesn't exist."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
@@ -82,7 +91,10 @@ class TestShellCommand:
         meta_path = tmp_path / "meta"
         project_folder = "proj/2025-12-06-test-project"
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -110,7 +122,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -141,7 +156,10 @@ class TestShellCommand:
         # Create a test file to list
         (project_dir / "test.txt").write_text("test content")
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -174,7 +192,10 @@ class TestShellCommand:
         repos_dir.mkdir()
         (repos_dir / "subfile.txt").write_text("subdir content")
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -202,7 +223,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -233,7 +257,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -262,7 +289,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -291,7 +321,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -320,7 +353,10 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -352,7 +388,10 @@ class TestShellCommand:
         # Create a file, not a directory
         (project_dir / "notadir.txt").write_text("I am a file")
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -377,7 +416,10 @@ class TestExecuteShellCommand:
 
     def test_execute_with_config_error(self) -> None:
         """Test execution when config read fails."""
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.side_effect = QenConfigError("Config error")
             mock_ensure.return_value = mock_config
@@ -402,6 +444,7 @@ class TestInteractiveShellMode:
 
         with (
             patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
             patch("qen.commands.sh.open_interactive_shell") as mock_open,
         ):
             mock_config = Mock()
@@ -432,7 +475,10 @@ class TestInteractiveShellMode:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -536,7 +582,10 @@ class TestPrepareShellContext:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -567,7 +616,10 @@ class TestPrepareShellContext:
         repos_dir = project_dir / "repos"
         repos_dir.mkdir()
 
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
@@ -589,7 +641,10 @@ class TestPrepareShellContext:
 
     def test_prepare_shell_context_no_project(self, tmp_path: Path) -> None:
         """Test error when no active project."""
-        with patch("qen.commands.sh.ensure_initialized") as mock_ensure:
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
             mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
@@ -616,6 +671,7 @@ class TestOpenInteractiveShell:
 
         with (
             patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
             patch("qen.commands.sh.detect_shell", return_value="/bin/bash"),
             patch("os.chdir") as mock_chdir,
             patch("os.execve") as mock_execve,
@@ -651,6 +707,7 @@ class TestOpenInteractiveShell:
 
         with (
             patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
             patch("qen.commands.sh.detect_shell", return_value="/bin/bash"),
             patch("os.chdir"),
             patch("os.execve", side_effect=OSError("exec failed")),

@@ -364,6 +364,8 @@ def switch_project(
 ) -> None:
     """Switch to a different project.
 
+    This now includes switching the git branch in the meta repository.
+
     Args:
         project_name: Name of project to switch to
         config: Optional QenConfig instance (for backward compatibility)
@@ -399,13 +401,44 @@ def switch_project(
         click.echo(f"  qen init {project_name}")
         raise click.Abort()
 
-    # Load project config to show details
+    # Load project config and get branch name
     try:
         project_config = config.read_project_config(project_name)
+        main_config = config.read_main_config()
+        actual_meta_path = Path(main_config["meta_path"])
     except QenConfigError as e:
-        raise click.ClickException(f"Error loading project configuration: {e}") from e
+        raise click.ClickException(f"Error loading configuration: {e}") from e
 
-    # Update current project in main config
+    expected_branch = project_config["branch"]
+
+    # Check current branch
+    from ..git_utils import GitError, checkout_branch, get_current_branch, has_uncommitted_changes
+
+    try:
+        current_branch = get_current_branch(actual_meta_path)
+    except GitError as e:
+        raise click.ClickException(f"Error getting current branch: {e}") from e
+
+    # If not on correct branch, switch it
+    if current_branch != expected_branch:
+        # Check for uncommitted changes
+        if has_uncommitted_changes(actual_meta_path):
+            click.echo(f"Error: Cannot switch to project '{project_name}'", err=True)
+            click.echo(
+                f"Currently on branch '{current_branch}', need '{expected_branch}'", err=True
+            )
+            click.echo("You have uncommitted changes in the meta repository.", err=True)
+            click.echo("Please commit or stash them first.", err=True)
+            raise click.Abort()
+
+        # Switch branch
+        try:
+            click.echo(f"Switching from branch '{current_branch}' to '{expected_branch}'...")
+            checkout_branch(actual_meta_path, expected_branch)
+        except GitError as e:
+            raise click.ClickException(f"Error checking out branch: {e}") from e
+
+    # Now update config (AFTER git checkout succeeds)
     try:
         config.update_current_project(project_name)
     except QenConfigError as e:
@@ -419,11 +452,9 @@ def switch_project(
 
     # Count repositories
     try:
-        main_config = config.read_main_config()
-        actual_meta_path = Path(main_config["meta_path"])
         repo_count = count_repositories(project_config, actual_meta_path)
         click.echo(f"  Repositories:  {repo_count}")
-    except QenConfigError:
+    except Exception:
         pass  # Skip repo count if we can't determine it
 
     click.echo("\nUse 'qen status' to see detailed status.")

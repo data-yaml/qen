@@ -583,3 +583,41 @@ def git_fetch(path: Path) -> None:
         raise NotAGitRepoError(f"Not a git repository: {path}")
 
     run_git_command(["fetch"], cwd=path)
+
+
+def has_uncommitted_changes(repo_path: Path) -> bool:
+    """Check if repository has uncommitted changes.
+
+    Returns True if there are staged or unstaged changes.
+
+    Args:
+        repo_path: Path to git repository
+
+    Returns:
+        True if uncommitted changes exist, False otherwise
+    """
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def checkout_branch(repo_path: Path, branch_name: str) -> None:
+    """Checkout an existing branch.
+
+    Args:
+        repo_path: Path to git repository
+        branch_name: Name of branch to checkout
+
+    Raises:
+        GitError: If branch doesn't exist or checkout fails
+    """
+    subprocess.run(
+        ["git", "checkout", branch_name],
+        cwd=repo_path,
+        check=True,
+    )

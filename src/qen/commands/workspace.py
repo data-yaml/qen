@@ -16,7 +16,7 @@ import click
 from qenvy.base import QenvyBase
 
 from ..config import QenConfigError
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, read_pyproject
 
 
@@ -238,6 +238,9 @@ def workspace_command(
         current_project_override=current_project_override,
         verbose=verbose,
     )
+
+    # Ensure we are on the correct branch for the current project
+    ensure_correct_branch(config, verbose=verbose)
 
     # Config is now guaranteed to exist
     main_config = config.read_main_config()

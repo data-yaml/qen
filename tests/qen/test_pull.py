@@ -522,7 +522,10 @@ class TestPullAllRepositories:
         import click
 
         # Don't create any config
-        with pytest.raises(click.exceptions.Abort):
+        with (
+            patch("qen.commands.pull.ensure_correct_branch"),
+            pytest.raises(click.exceptions.Abort),
+        ):
             pull_all_repositories(
                 project_name=None,
                 fetch_only=False,
@@ -543,7 +546,10 @@ class TestPullAllRepositories:
             },
         )
 
-        with pytest.raises(click.exceptions.Abort):
+        with (
+            pytest.raises(click.exceptions.Abort),
+            patch("qen.commands.pull.ensure_correct_branch"),
+        ):
             pull_all_repositories(
                 project_name=None,
                 fetch_only=False,
@@ -596,12 +602,13 @@ created = "2025-12-05T10:00:00Z"
         )
 
         # Should not raise, just output message
-        pull_all_repositories(
-            project_name=None,
-            fetch_only=False,
-            verbose=False,
-            storage=test_storage,
-        )
+        with patch("qen.commands.pull.ensure_correct_branch"):
+            pull_all_repositories(
+                project_name=None,
+                fetch_only=False,
+                verbose=False,
+                storage=test_storage,
+            )
 
     def test_pull_all_success(
         self,
@@ -664,12 +671,13 @@ path = "repos/main/child_repo"
         )
 
         # Execute pull
-        pull_all_repositories(
-            project_name=None,
-            fetch_only=False,
-            verbose=False,
-            storage=test_storage,
-        )
+        with patch("qen.commands.pull.ensure_correct_branch"):
+            pull_all_repositories(
+                project_name=None,
+                fetch_only=False,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Verify: Metadata was updated
         result = read_pyproject(project_dir)
@@ -737,12 +745,13 @@ path = "repos/main/child_repo"
         )
 
         # Execute fetch-only
-        pull_all_repositories(
-            project_name=None,
-            fetch_only=True,
-            verbose=False,
-            storage=test_storage,
-        )
+        with patch("qen.commands.pull.ensure_correct_branch"):
+            pull_all_repositories(
+                project_name=None,
+                fetch_only=True,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Should succeed without errors
         result = read_pyproject(project_dir)
@@ -850,12 +859,13 @@ path = "repos/main/child_repo2"
         )
 
         # Execute pull
-        pull_all_repositories(
-            project_name=None,
-            fetch_only=False,
-            verbose=False,
-            storage=test_storage,
-        )
+        with patch("qen.commands.pull.ensure_correct_branch"):
+            pull_all_repositories(
+                project_name=None,
+                fetch_only=False,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Verify both repos updated
         result = read_pyproject(project_dir)

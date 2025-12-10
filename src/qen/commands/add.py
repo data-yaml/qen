@@ -15,7 +15,7 @@ from qenvy.base import QenvyBase
 
 from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, get_current_branch
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import (
     PyProjectNotFoundError,
     PyProjectUpdateError,
@@ -123,6 +123,9 @@ def add_repository(
         current_project_override=current_project_override,
         verbose=verbose,
     )
+
+    # Ensure we're on the correct branch
+    ensure_correct_branch(config, verbose=verbose)
 
     # Config is now guaranteed to exist
     main_config = config.read_main_config()

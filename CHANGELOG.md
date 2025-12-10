@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Repository removal**: `qen rm` safely removes repositories with safety checks for unpushed commits, uncommitted changes, and unmerged PRs
+- **Interactive shell mode**: `qen sh` with no command opens an interactive subshell in the project directory with custom prompt
+
 ## [0.3.0] - 2025-12-08
 
 ### Added

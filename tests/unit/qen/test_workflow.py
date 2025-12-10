@@ -6,6 +6,7 @@ These are unit tests (not integration tests) - they use mocked fixtures.
 
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 from qen.commands.add import add_repository
 from qen.pyproject_utils import read_pyproject
@@ -68,13 +69,17 @@ class TestRepositoryManagement:
         test_storage.write_profile("main", main_config)
 
         # Test: Add repository using in-memory storage
-        add_repository(
-            repo=str(child_repo),
-            branch="main",
-            path=None,
-            verbose=False,
-            storage=test_storage,
-        )
+        with (
+            patch("qen.init_utils.ensure_initialized"),
+            patch("qen.commands.add.ensure_correct_branch"),
+        ):
+            add_repository(
+                repo=str(child_repo),
+                branch="main",
+                path=None,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Verify: Repository was cloned (new structure: repos/{branch}/{repo})
         cloned_path = project_dir / "repos" / "main" / "child_repo"
@@ -182,20 +187,28 @@ class TestRepositoryManagement:
         test_storage.write_profile("main", main_config)
 
         # Test: Add both repositories using in-memory storage
-        add_repository(
-            repo=str(child_repo1),
-            branch="main",
-            path=None,
-            verbose=False,
-            storage=test_storage,
-        )
-        add_repository(
-            repo=str(child_repo2),
-            branch="main",
-            path=None,
-            verbose=False,
-            storage=test_storage,
-        )
+        with (
+            patch("qen.init_utils.ensure_initialized"),
+            patch("qen.commands.add.ensure_correct_branch"),
+        ):
+            add_repository(
+                repo=str(child_repo1),
+                branch="main",
+                path=None,
+                verbose=False,
+                storage=test_storage,
+            )
+        with (
+            patch("qen.init_utils.ensure_initialized"),
+            patch("qen.commands.add.ensure_correct_branch"),
+        ):
+            add_repository(
+                repo=str(child_repo2),
+                branch="main",
+                path=None,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Verify: Both repositories were cloned (new structure: repos/{branch}/{repo})
         assert (project_dir / "repos" / "main" / "child1").exists()
@@ -258,13 +271,17 @@ class TestMetaTomlUpdates:
         test_storage.write_profile("main", main_config)
 
         # Test: Add repository and verify pyproject.toml is updated
-        add_repository(
-            repo=str(child_repo),
-            branch="main",
-            path=None,
-            verbose=False,
-            storage=test_storage,
-        )
+        with (
+            patch("qen.init_utils.ensure_initialized"),
+            patch("qen.commands.add.ensure_correct_branch"),
+        ):
+            add_repository(
+                repo=str(child_repo),
+                branch="main",
+                path=None,
+                verbose=False,
+                storage=test_storage,
+            )
 
         # Verify: pyproject.toml exists and is valid
         assert pyproject.exists()

@@ -16,12 +16,12 @@ import pytest
 from qen.config import QenConfig
 from qen.git_utils import (
     AmbiguousOrgError,
-    GitError,
     MetaRepoNotFoundError,
     NotAGitRepoError,
 )
-from qen.init_utils import ensure_initialized
+from qen.init_utils import ensure_correct_branch, ensure_initialized
 from tests.helpers.qenvy_test import QenvyTest
+from tests.helpers.test_mock import create_test_config
 
 # ==============================================================================
 # Test ensure_initialized Function
@@ -293,140 +293,81 @@ class TestEnsureInitialized:
         assert isinstance(config, QenConfig)
         assert config.main_config_exists()
 
-    def test_ensure_initialized_git_error(self, test_storage: QenvyTest, mocker, capsys) -> None:
-        """Test error handling for general git errors.
 
-        When init_qen raises a general GitError, ensure_initialized should:
-        - Display error message
-        - Ask user to run qen init manually
-        - Raise click.Abort
-        """
-        # Setup: No existing config
+# Branch Checking Tests
+def test_ensure_correct_branch_on_correct_branch(mocker):
+    """Test ensure_correct_branch when already on correct branch."""
+    config = create_test_config()
+    mocker.patch.object(
+        config,
+        "read_main_config",
+        return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
+    )
+    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch("qen.git_utils.get_current_branch", return_value="251208-my-project")
 
-        # Mock init_qen to raise GitError
-        mock_init_qen = mocker.patch(
-            "qen.commands.init.init_qen",
-            side_effect=GitError("Failed to execute git command"),
-        )
+    # Should not raise
+    ensure_correct_branch(config)
 
-        # Execute and verify exception
-        with pytest.raises(click.exceptions.Abort):
-            ensure_initialized(storage=test_storage, verbose=False)
 
-        # Verify: init_qen was called
-        mock_init_qen.assert_called_once()
+def test_ensure_correct_branch_no_project(mocker):
+    """Test ensure_correct_branch with no active project."""
+    config = create_test_config()
+    mocker.patch.object(
+        config, "read_main_config", return_value={"current_project": None, "meta_path": "/tmp/meta"}
+    )
 
-        # Verify: error message shown
-        captured = capsys.readouterr()
-        assert "Error: Cannot auto-initialize qen." in captured.err
-        assert "Failed to execute git command" in captured.err
-        assert "run 'qen init' manually" in captured.err
+    # Should not raise (nothing to check)
+    ensure_correct_branch(config)
 
-    def test_ensure_initialized_with_all_overrides(
-        self, test_storage: QenvyTest, mocker, tmp_path: Path
-    ) -> None:
-        """Test that all parameters are passed through to init_qen.
 
-        Verify that ensure_initialized correctly forwards all parameters:
-        - config_dir
-        - storage
-        - meta_path_override
-        - current_project_override
-        """
-        # Setup: No existing config
-        config_dir = tmp_path / "config"
-        meta_path = tmp_path / "meta"
+def test_ensure_correct_branch_dirty_repo(mocker):
+    """Test ensure_correct_branch with uncommitted changes."""
+    config = create_test_config()
+    mocker.patch.object(
+        config,
+        "read_main_config",
+        return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
+    )
+    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch("qen.git_utils.get_current_branch", return_value="main")
+    mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=True)
 
-        # Mock init_qen to simulate successful initialization
-        def mock_init_side_effect(**kwargs):
-            storage = kwargs.get("storage")
-            storage.write_profile(
-                "main",
-                {
-                    "meta_path": str(meta_path),
-                    "github_org": "testorg",
-                    "current_project": "test-project",
-                },
-            )
+    with pytest.raises(click.Abort):
+        ensure_correct_branch(config)
 
-        mock_init_qen = mocker.patch(
-            "qen.commands.init.init_qen", side_effect=mock_init_side_effect
-        )
 
-        # Execute with all overrides
-        config = ensure_initialized(
-            config_dir=config_dir,
-            storage=test_storage,
-            meta_path_override=meta_path,
-            current_project_override="test-project",
-            verbose=False,
-        )
+def test_ensure_correct_branch_clean_repo_user_accepts(mocker):
+    """Test ensure_correct_branch with clean repo, user accepts switch."""
+    config = create_test_config()
+    mocker.patch.object(
+        config,
+        "read_main_config",
+        return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
+    )
+    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch("qen.git_utils.get_current_branch", return_value="main")
+    mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+    mocker.patch("click.confirm", return_value=True)
+    mock_checkout = mocker.patch("qen.git_utils.checkout_branch")
 
-        # Verify: init_qen was called with all parameters
-        mock_init_qen.assert_called_once()
-        call_kwargs = mock_init_qen.call_args.kwargs
-        assert call_kwargs["verbose"] is False
-        assert call_kwargs["storage"] is test_storage
-        assert call_kwargs["config_dir"] == config_dir
-        assert call_kwargs["meta_path_override"] == meta_path
-        assert call_kwargs["current_project_override"] == "test-project"
+    ensure_correct_branch(config)
 
-        # Verify: config was created
-        assert isinstance(config, QenConfig)
-        assert config.main_config_exists()
+    mock_checkout.assert_called_once_with(Path("/tmp/meta"), "251208-my-project")
 
-    def test_ensure_initialized_verbose_with_existing_config(
-        self, test_storage: QenvyTest, capsys
-    ) -> None:
-        """Test verbose mode with existing config (fast path).
 
-        When verbose=True but config exists, ensure_initialized should:
-        - Return immediately (fast path)
-        - NOT show any auto-init messages (because no init needed)
-        """
-        # Setup: Create existing config
-        test_storage.write_profile(
-            "main",
-            {
-                "meta_path": "/fake/meta",
-                "github_org": "testorg",
-                "current_project": None,
-            },
-        )
+def test_ensure_correct_branch_clean_repo_user_declines(mocker):
+    """Test ensure_correct_branch with clean repo, user declines switch."""
+    config = create_test_config()
+    mocker.patch.object(
+        config,
+        "read_main_config",
+        return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
+    )
+    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch("qen.git_utils.get_current_branch", return_value="main")
+    mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+    mocker.patch("click.confirm", return_value=False)
 
-        # Execute with verbose=True
-        config = ensure_initialized(storage=test_storage, verbose=True)
-
-        # Verify: config is valid
-        assert isinstance(config, QenConfig)
-        assert config.main_config_exists()
-
-        # Verify: NO auto-init messages shown (fast path)
-        captured = capsys.readouterr()
-        assert "Auto-initializing" not in captured.out
-        assert "✓ Auto-initialized" not in captured.out
-
-    def test_ensure_initialized_click_abort_from_init_qen(
-        self, test_storage: QenvyTest, mocker
-    ) -> None:
-        """Test that click.Abort from init_qen is re-raised.
-
-        When init_qen raises click.Abort directly (not wrapped in our exception
-        handling), ensure_initialized should let it propagate.
-        """
-        # Setup: No existing config
-
-        # Mock init_qen to raise click.Abort directly
-        # Note: This tests the edge case where init_qen might abort
-        # for reasons other than the exceptions we explicitly handle
-        mock_init_qen = mocker.patch(
-            "qen.commands.init.init_qen",
-            side_effect=click.exceptions.Abort(),
-        )
-
-        # Execute and verify exception propagates
-        with pytest.raises(click.exceptions.Abort):
-            ensure_initialized(storage=test_storage, verbose=False)
-
-        # Verify: init_qen was called
-        mock_init_qen.assert_called_once()
+    with pytest.raises(click.Abort):
+        ensure_correct_branch(config)

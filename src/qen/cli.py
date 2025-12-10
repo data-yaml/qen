@@ -15,6 +15,7 @@ from .commands.init import init_project, init_qen
 from .commands.pr import pr_command
 from .commands.pull import pull_all_repositories
 from .commands.push import push_command
+from .commands.rm import rm
 from .commands.sh import sh_command
 from .commands.status import status_command
 from .commands.workspace import workspace_command
@@ -247,6 +248,7 @@ main.add_command(config_command)
 main.add_command(commit_command)
 main.add_command(pr_command)
 main.add_command(push_command)
+main.add_command(rm)
 main.add_command(sh_command)
 main.add_command(status_command)
 

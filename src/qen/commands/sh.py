@@ -12,7 +12,7 @@ from typing import Any
 import click
 
 from ..config import QenConfig, QenConfigError
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 
 
 class ShellError(Exception):
@@ -66,6 +66,7 @@ def prepare_shell_context(
     )
 
     # Config is now guaranteed to exist
+    ensure_correct_branch(config, verbose=verbose)
     main_config = config.read_main_config()
 
     # Determine which project to use

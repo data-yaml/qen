@@ -21,7 +21,7 @@ from qenvy.base import QenvyBase
 
 from ..config import QenConfigError
 from ..git_utils import GitError, get_current_branch, is_git_repo, run_git_command
-from ..init_utils import ensure_initialized
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pr_utils import parse_check_status
 from ..pyproject_utils import PyProjectNotFoundError, PyProjectUpdateError, read_pyproject
 
@@ -542,6 +542,9 @@ def pull_all_repositories(
         current_project_override=current_project_override,
         verbose=verbose,
     )
+
+    # Ensure correct branch configuration
+    ensure_correct_branch(config, verbose=verbose)
 
     # Config is now guaranteed to exist
     main_config = config.read_main_config()

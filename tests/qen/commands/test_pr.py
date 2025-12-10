@@ -414,6 +414,7 @@ class TestPrStatusCommand:
 class TestPrStatusCommandFunction:
     """Test pr_status_command function directly."""
 
+    @patch("qen.commands.pr.ensure_correct_branch")
     @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
@@ -426,6 +427,7 @@ class TestPrStatusCommandFunction:
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
     ) -> None:
         """Test that pr_status_command returns list of PrInfo objects."""
         mock_config = Mock()
@@ -469,6 +471,7 @@ class TestPrStatusCommandFunction:
         assert len(result) == 1
         assert result[0] == expected_pr_info
 
+    @patch("qen.commands.pr.ensure_correct_branch")
     @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
@@ -479,6 +482,7 @@ class TestPrStatusCommandFunction:
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
         mock_ensure: Mock,
+        mock_ensure_branch: Mock,
     ) -> None:
         """Test pr status when repository doesn't exist on disk."""
         mock_config = Mock()
