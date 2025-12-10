@@ -741,3 +741,215 @@ class TestStatusErrorHandling:
 
         assert result.exit_code != 0
         assert "Failed to get status" in result.output
+
+
+class TestBuildBranchUrl:
+    """Test build_branch_url function for generating GitHub branch URLs."""
+
+    def test_build_branch_url_basic(self) -> None:
+        """Test building branch URL from GitHub repository URL."""
+        from qen.commands.status import build_branch_url
+
+        url = build_branch_url("https://github.com/org/repo", "main")
+        assert url == "https://github.com/org/repo/tree/main"
+
+    def test_build_branch_url_feature_branch(self) -> None:
+        """Test building URL for feature branch with slash."""
+        from qen.commands.status import build_branch_url
+
+        url = build_branch_url("https://github.com/org/repo", "feature/new-thing")
+        assert url == "https://github.com/org/repo/tree/feature/new-thing"
+
+    def test_build_branch_url_trailing_slash(self) -> None:
+        """Test handling repository URL with trailing slash."""
+        from qen.commands.status import build_branch_url
+
+        url = build_branch_url("https://github.com/org/repo/", "main")
+        assert url == "https://github.com/org/repo/tree/main"
+
+    def test_build_branch_url_git_suffix(self) -> None:
+        """Test handling repository URL with .git suffix."""
+        from qen.commands.status import build_branch_url
+
+        url = build_branch_url("https://github.com/org/repo.git", "main")
+        assert url == "https://github.com/org/repo/tree/main"
+
+    def test_build_branch_url_trailing_slash_and_git(self) -> None:
+        """Test handling both trailing slash and .git suffix."""
+        from qen.commands.status import build_branch_url
+
+        url = build_branch_url("https://github.com/org/repo/.git", "main")
+        assert url == "https://github.com/org/repo/tree/main"
+
+    def test_build_branch_url_non_github(self) -> None:
+        """Test non-GitHub URLs return None."""
+        from qen.commands.status import build_branch_url
+
+        assert build_branch_url("https://gitlab.com/org/repo", "main") is None
+        assert build_branch_url("https://bitbucket.org/org/repo", "main") is None
+
+    def test_build_branch_url_local_path(self) -> None:
+        """Test local filesystem paths return None."""
+        from qen.commands.status import build_branch_url
+
+        assert build_branch_url("/local/path/repo", "main") is None
+        assert build_branch_url("file:///Users/user/repo", "main") is None
+
+    def test_build_branch_url_ssh_format(self) -> None:
+        """Test SSH format URLs return None (not supported)."""
+        from qen.commands.status import build_branch_url
+
+        assert build_branch_url("git@github.com:org/repo.git", "main") is None
+
+
+class TestFormatStatusOutputWithUrls:
+    """Test status output formatting with branch and PR URLs."""
+
+    def test_format_status_output_includes_branch_url(self) -> None:
+        """Test that branch URLs are included in status output."""
+        # Setup mock repo status with GitHub URL
+        repo_config = RepoConfig(
+            url="https://github.com/org/repo", branch="feature-branch", path="repos/repo"
+        )
+        repo_status = RepoStatus(
+            exists=True,
+            branch="feature-branch",
+            modified=[],
+            staged=[],
+            untracked=[],
+            sync=SyncStatus(has_upstream=True, ahead=0, behind=0),
+        )
+
+        meta_status = RepoStatus(exists=True, branch="main")
+        project_status = ProjectStatus(
+            project_name="test",
+            project_dir=Path("/tmp/test"),
+            branch="main",
+            meta_status=meta_status,
+            repo_statuses=[(repo_config, repo_status)],
+        )
+
+        output = format_status_output(project_status, verbose=False)
+
+        # Verify branch URL appears in output
+        assert "Branch: feature-branch → https://github.com/org/repo/tree/feature-branch" in output
+
+    def test_format_status_output_includes_pr_url(self) -> None:
+        """Test that PR URLs are included when PR exists."""
+        from qen.commands.pr import PrInfo
+
+        # Setup repo with PR info
+        repo_config = RepoConfig(
+            url="https://github.com/org/repo", branch="pr-branch", path="repos/repo"
+        )
+        repo_status = RepoStatus(
+            exists=True,
+            branch="pr-branch",
+            modified=[],
+            staged=[],
+            untracked=[],
+            sync=SyncStatus(has_upstream=True, ahead=0, behind=0),
+        )
+
+        pr_info = PrInfo(
+            repo_path="/tmp/test/repos/repo",
+            repo_url="https://github.com/org/repo",
+            branch="pr-branch",
+            has_pr=True,
+            pr_number=123,
+            pr_url="https://github.com/org/repo/pull/123",
+            pr_state="OPEN",
+            pr_checks="passing",
+        )
+
+        meta_status = RepoStatus(exists=True, branch="main")
+        project_status = ProjectStatus(
+            project_name="test",
+            project_dir=Path("/tmp/test"),
+            branch="main",
+            meta_status=meta_status,
+            repo_statuses=[(repo_config, repo_status)],
+            pr_infos=[pr_info],
+        )
+
+        output = format_status_output(project_status, verbose=False)
+
+        # Verify PR URL appears in output
+        assert "PR:     #123" in output
+        assert "→ https://github.com/org/repo/pull/123" in output
+
+    def test_format_status_output_no_url_for_non_github(self) -> None:
+        """Test that non-GitHub repos don't show branch URLs."""
+        repo_config = RepoConfig(
+            url="https://gitlab.com/org/repo", branch="main", path="repos/repo"
+        )
+        repo_status = RepoStatus(
+            exists=True,
+            branch="main",
+            modified=[],
+            staged=[],
+            untracked=[],
+            sync=SyncStatus(has_upstream=True, ahead=0, behind=0),
+        )
+
+        meta_status = RepoStatus(exists=True, branch="main")
+        project_status = ProjectStatus(
+            project_name="test",
+            project_dir=Path("/tmp/test"),
+            branch="main",
+            meta_status=meta_status,
+            repo_statuses=[(repo_config, repo_status)],
+        )
+
+        output = format_status_output(project_status, verbose=False)
+
+        # Verify no arrow or URL in branch line
+        assert "Branch: main" in output
+        # Get the branch line and check it doesn't have an arrow
+        branch_line = [line for line in output.split("\n") if "Branch: main" in line][0]
+        assert "→" not in branch_line
+
+    def test_format_status_output_handles_missing_pr_url(self) -> None:
+        """Test graceful handling when PR exists but pr_url is None."""
+        from qen.commands.pr import PrInfo
+
+        repo_config = RepoConfig(
+            url="https://github.com/org/repo", branch="pr-branch", path="repos/repo"
+        )
+        repo_status = RepoStatus(
+            exists=True,
+            branch="pr-branch",
+            modified=[],
+            staged=[],
+            untracked=[],
+            sync=SyncStatus(has_upstream=True, ahead=0, behind=0),
+        )
+
+        pr_info = PrInfo(
+            repo_path="/tmp/test/repos/repo",
+            repo_url="https://github.com/org/repo",
+            branch="pr-branch",
+            has_pr=True,
+            pr_number=123,
+            pr_url=None,  # Simulate missing PR URL
+            pr_state="OPEN",
+            pr_checks="passing",
+        )
+
+        meta_status = RepoStatus(exists=True, branch="main")
+        project_status = ProjectStatus(
+            project_name="test",
+            project_dir=Path("/tmp/test"),
+            branch="main",
+            meta_status=meta_status,
+            repo_statuses=[(repo_config, repo_status)],
+            pr_infos=[pr_info],
+        )
+
+        output = format_status_output(project_status, verbose=False)
+
+        # Verify PR info shown but no URL
+        assert "PR:     #123" in output
+        # Should not have arrow after PR line
+        pr_line = [line for line in output.split("\n") if "PR:" in line][0]
+        assert "→" not in pr_line

@@ -23,6 +23,44 @@ from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_fro
 from .pr import PrInfo, check_gh_installed, get_pr_info_for_branch
 
 
+def build_branch_url(repo_url: str, branch: str) -> str | None:
+    """Build a GitHub branch URL from repository URL and branch name.
+
+    Args:
+        repo_url: Repository URL (e.g., "https://github.com/org/repo")
+        branch: Branch name (e.g., "feature-branch")
+
+    Returns:
+        Branch URL in format: https://github.com/org/repo/tree/branch
+        Returns None if not a GitHub URL
+
+    Examples:
+        >>> build_branch_url("https://github.com/org/repo", "main")
+        "https://github.com/org/repo/tree/main"
+
+        >>> build_branch_url("https://github.com/org/repo/", "feature")
+        "https://github.com/org/repo/tree/feature"
+
+        >>> build_branch_url("https://github.com/org/repo.git", "dev")
+        "https://github.com/org/repo/tree/dev"
+
+        >>> build_branch_url("https://gitlab.com/org/repo", "main")
+        None
+
+        >>> build_branch_url("/local/path/repo", "main")
+        None
+    """
+    # Only handle GitHub URLs
+    if not repo_url.startswith("https://github.com/"):
+        return None
+
+    # Normalize URL: remove .git suffix first, then trailing slash
+    clean_url = repo_url.removesuffix(".git").rstrip("/")
+
+    # Build branch URL using GitHub's /tree/ path
+    return f"{clean_url}/tree/{branch}"
+
+
 class StatusError(Exception):
     """Base exception for status command errors."""
 
@@ -188,7 +226,13 @@ def format_status_output(
                     lines.append("    Warning: Repository not cloned. Run 'qen add' to clone.")
                 else:
                     lines.append(f"    Status: {repo_status.status_description()}")
-                    lines.append(f"    Branch: {repo_status.branch}")
+                    # Build branch line with optional URL
+                    branch_line = f"    Branch: {repo_status.branch}"
+                    if repo_status.branch:
+                        branch_url = build_branch_url(repo_config.url, repo_status.branch)
+                        if branch_url:
+                            branch_line += f" → {branch_url}"
+                    lines.append(branch_line)
                     if repo_status.sync:
                         lines.append(f"    Sync:   {repo_status.sync.description()}")
 
@@ -199,12 +243,16 @@ def format_status_output(
                             lines.append(f"    PR:     Error: {pr_info.error}")
                         elif pr_info.has_pr:
                             # Format: PR: #123 (open, checks passing)
-                            pr_parts = [f"#{pr_info.pr_number}"]
+                            pr_line = f"    PR:     #{pr_info.pr_number}"
                             if pr_info.pr_state:
-                                pr_parts.append(pr_info.pr_state)
-                            if pr_info.pr_checks:
-                                pr_parts.append(f"checks {pr_info.pr_checks}")
-                            lines.append(f"    PR:     {pr_parts[0]} ({', '.join(pr_parts[1:])})")
+                                pr_line += f" ({pr_info.pr_state}"
+                                if pr_info.pr_checks:
+                                    pr_line += f", checks {pr_info.pr_checks}"
+                                pr_line += ")"
+                            # Add PR URL if available
+                            if pr_info.pr_url:
+                                pr_line += f" → {pr_info.pr_url}"
+                            lines.append(pr_line)
                         else:
                             lines.append("    PR:     -")
 
