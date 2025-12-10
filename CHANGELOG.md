@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PR info in status**: `qen status --pr` displays PR number, state, checks, draft status, and base branch
 - **Draft PRs by default**: PRs created through TUI are drafts to prevent accidental merges
 - **Batch operations**: Continue-on-failure strategy for multi-repo operations with summary reporting
+- **Clickable URLs**: `qen status` now displays clickable GitHub URLs for repositories and PRs
+- **Branch validation**: All project commands now verify you're on the correct project branch before executing
 
 ### Changed
 
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Branch creation**: `qen init <project>` now always branches from main/master, not current branch
+- **Long project names**: Warn users when project names exceed 12 characters (may cause issues with some terminals)
 
 ## [0.2.1] - 2025-12-08
 
