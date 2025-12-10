@@ -10,7 +10,7 @@ def create_test_config() -> Any:
     Returns:
         A mocker.Mock with QenConfig spec and custom behavior
     """
-    config = Mock(spec=["read_main_config"])
+    config = Mock(spec=["read_main_config", "read_project_config"])
 
     def _read_main_config_mock(default: dict | None = None) -> dict:
         """Configurable main config mock."""

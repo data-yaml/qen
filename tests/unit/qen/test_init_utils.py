@@ -303,7 +303,11 @@ def test_ensure_correct_branch_on_correct_branch(mocker):
         "read_main_config",
         return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
     )
-    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch.object(
+        config,
+        "read_project_config",
+        return_value={"branch": "251208-my-project"},
+    )
     mocker.patch("qen.git_utils.get_current_branch", return_value="251208-my-project")
 
     # Should not raise
@@ -329,7 +333,11 @@ def test_ensure_correct_branch_dirty_repo(mocker):
         "read_main_config",
         return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
     )
-    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch.object(
+        config,
+        "read_project_config",
+        return_value={"branch": "251208-my-project"},
+    )
     mocker.patch("qen.git_utils.get_current_branch", return_value="main")
     mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=True)
 
@@ -345,7 +353,11 @@ def test_ensure_correct_branch_clean_repo_user_accepts(mocker):
         "read_main_config",
         return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
     )
-    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch.object(
+        config,
+        "read_project_config",
+        return_value={"branch": "251208-my-project"},
+    )
     mocker.patch("qen.git_utils.get_current_branch", return_value="main")
     mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
     mocker.patch("click.confirm", return_value=True)
@@ -364,7 +376,11 @@ def test_ensure_correct_branch_clean_repo_user_declines(mocker):
         "read_main_config",
         return_value={"current_project": "my-project", "meta_path": "/tmp/meta"},
     )
-    mocker.patch("qen.project.generate_branch_name", return_value="251208-my-project")
+    mocker.patch.object(
+        config,
+        "read_project_config",
+        return_value={"branch": "251208-my-project"},
+    )
     mocker.patch("qen.git_utils.get_current_branch", return_value="main")
     mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
     mocker.patch("click.confirm", return_value=False)

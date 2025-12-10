@@ -169,7 +169,6 @@ def ensure_correct_branch(
     """
     # Import here to avoid circular dependency
     from .git_utils import checkout_branch, get_current_branch, has_uncommitted_changes
-    from .project import generate_branch_name
 
     # 1. Get expected branch from config
     main_config = config.read_main_config()
@@ -179,7 +178,9 @@ def ensure_correct_branch(
         # No active project - nothing to check
         return
 
-    expected_branch = generate_branch_name(current_project)
+    # Read the stored branch name from project config (don't regenerate it)
+    project_config = config.read_project_config(current_project)
+    expected_branch = project_config["branch"]
 
     # 2. Check current branch
     meta_path = Path(main_config["meta_path"])
