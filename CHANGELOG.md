@@ -8,19 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Repository removal**: `qen rm` safely removes repositories with safety checks for unpushed commits, uncommitted changes, and unmerged PRs
-- **Interactive shell mode**: `qen sh` with no command opens an interactive subshell in the project directory with custom prompt
-
-### Fixed
-
-- **Branch validation bug**: Fixed bug where `ensure_correct_branch()` regenerated branch names with today's date instead of reading stored branch from project config
-
-### Removed
-
-- **Global install task**: Removed `./poe install` task to prevent accidental global installation during development (use `./qen` directly)
-
 ## [0.3.0] - 2025-12-08
 
 ### Added
@@ -32,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Batch operations**: Continue-on-failure strategy for multi-repo operations with summary reporting
 - **Clickable URLs**: `qen status` now displays clickable GitHub URLs for repositories and PRs
 - **Branch validation**: All project commands now verify you're on the correct project branch before executing
+- **Repository removal**: `qen rm` safely removes repositories with safety checks for unpushed commits, uncommitted changes, and unmerged PRs
+- **Interactive shell mode**: `qen sh` with no command opens an interactive subshell in the project directory with custom prompt
 
 ### Changed
 
@@ -41,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Branch creation**: `qen init <project>` now always branches from main/master, not current branch
 - **Long project names**: Warn users when project names exceed 12 characters (may cause issues with some terminals)
+- **Global install task**: Removed `./poe install` task to prevent accidental global installation during development (use `./qen` directly)
+- **Branch validation bug**: Fixed bug where `ensure_correct_branch()` regenerated branch names with today's date instead of reading stored branch from project config
 
 ## [0.2.1] - 2025-12-08
 
