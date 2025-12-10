@@ -483,12 +483,20 @@ class TestAddCommand:
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test full workflow of adding a repository."""
         # Setup: Create a meta repo with remote
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         # Add a remote to meta repo
         subprocess.run(
@@ -570,12 +578,20 @@ created = "2025-12-05T10:00:00Z"
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test adding repository with custom branch and path."""
         # Setup similar to previous test
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -650,12 +666,20 @@ created = "2025-12-05T10:00:00Z"
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test that adding duplicate repository fails."""
         # Setup
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -731,12 +755,20 @@ created = "2025-12-05T10:00:00Z"
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test adding same repository with different branches - full integration."""
         # Setup
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -866,12 +898,20 @@ created = "2025-12-05T10:00:00Z"
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test that add_repository defaults to meta repo's current branch."""
         # Setup: Create a meta repo with a feature branch
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="feature-branch")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -1085,6 +1125,7 @@ class TestAddCommandForce:
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test that adding duplicate repository fails WITHOUT --force flag."""
         import click
@@ -1093,6 +1134,13 @@ class TestAddCommandForce:
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-07-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -1168,6 +1216,7 @@ created = "2025-12-07T10:00:00Z"
         test_storage: QenvyTest,
         temp_git_repo: Path,
         child_repo: Path,
+        mocker,
     ) -> None:
         """Test that adding duplicate repository succeeds WITH --force flag."""
         from qenvy.formats import TOMLHandler
@@ -1176,6 +1225,13 @@ created = "2025-12-07T10:00:00Z"
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
         meta_repo = tmp_path / "meta"
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-07-test-project")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+        # Mock click.confirm to automatically proceed with branch switch if needed
+        mocker.patch("click.confirm", return_value=True)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],

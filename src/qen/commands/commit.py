@@ -13,6 +13,7 @@ import click
 
 from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, run_git_command
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, load_repos_from_pyproject
 
 
@@ -503,21 +504,20 @@ def commit_project(
     if not message and not interactive:
         interactive = True
 
-    # Load configuration
+    # Load configuration (auto-initialize if needed)
     overrides = config_overrides or {}
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=overrides.get("config_dir"),
         meta_path_override=overrides.get("meta_path"),
         current_project_override=overrides.get("current_project"),
+        verbose=False,
     )
 
-    if not config.main_config_exists():
-        raise click.ClickException("qen is not initialized. Run 'qen init' first.")
+    # Ensure correct project branch after initialization
+    ensure_correct_branch(config, verbose=False)
 
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        raise click.ClickException(f"Error reading configuration: {e}") from e
+    # Config is guaranteed to exist after ensure_initialized
+    main_config = config.read_main_config()
 
     # Determine which project to use
     if project_name:

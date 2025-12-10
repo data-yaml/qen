@@ -6,12 +6,20 @@ Tests shell command execution, directory navigation, and error handling.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from qen.cli import main
-from qen.commands.sh import execute_shell_command
-from qen.config import QenConfig, QenConfigError
+from qen.commands.sh import (
+    ShellContext,
+    create_shell_env,
+    detect_shell,
+    execute_shell_command,
+    open_interactive_shell,
+    prepare_shell_context,
+)
+from qen.config import QenConfigError
 
 
 class TestShellCommand:
@@ -21,30 +29,33 @@ class TestShellCommand:
         """Test sh command when qen is not initialized."""
         runner = CliRunner()
 
-        # Use a fresh config directory that doesn't exist
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = False
-            mock_config_class.return_value = mock_config
+        # Simulate auto-init failure
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_ensure.side_effect = click.Abort()
 
             result = runner.invoke(main, ["sh", "ls"])
 
             assert result.exit_code != 0
-            assert "qen is not initialized" in result.output
+            mock_ensure.assert_called_once()
 
     def test_sh_no_active_project(self, tmp_path: Path) -> None:
         """Test sh command when no active project exists."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
                 "org": "testorg",
                 # No current_project
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -55,16 +66,18 @@ class TestShellCommand:
         """Test sh command when project config doesn't exist."""
         runner = CliRunner()
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(tmp_path / "meta"),
                 "org": "testorg",
                 "current_project": "test-project",
             }
             mock_config.read_project_config.side_effect = QenConfigError("Project not found")
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -78,9 +91,11 @@ class TestShellCommand:
         meta_path = tmp_path / "meta"
         project_folder = "proj/2025-12-06-test-project"
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -91,7 +106,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "ls"])
 
@@ -107,9 +122,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -120,7 +137,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "nonexistent", "ls"])
 
@@ -139,9 +156,11 @@ class TestShellCommand:
         # Create a test file to list
         (project_dir / "test.txt").write_text("test content")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -152,7 +171,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-y", "ls"])
 
@@ -173,9 +192,11 @@ class TestShellCommand:
         repos_dir.mkdir()
         (repos_dir / "subfile.txt").write_text("subdir content")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -186,7 +207,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "repos", "-y", "ls"])
 
@@ -202,9 +223,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -215,7 +238,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "--verbose", "-y", "echo hello"])
 
@@ -234,9 +257,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -247,7 +272,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Simulate user pressing enter (default Yes)
             result = runner.invoke(main, ["sh", "echo hello"], input="\n")
@@ -264,9 +289,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -277,7 +304,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Simulate user entering 'n'
             result = runner.invoke(main, ["sh", "echo hello"], input="n\n")
@@ -294,9 +321,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -307,7 +336,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             # Use a command that will fail
             result = runner.invoke(main, ["sh", "-y", "exit 1"])
@@ -324,9 +353,11 @@ class TestShellCommand:
         project_dir = meta_path / project_folder
         project_dir.mkdir(parents=True)
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -337,7 +368,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-other-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "--project", "other-project", "-y", "pwd"])
 
@@ -357,9 +388,11 @@ class TestShellCommand:
         # Create a file, not a directory
         (project_dir / "notadir.txt").write_text("I am a file")
 
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.return_value = {
                 "meta_path": str(meta_path),
                 "org": "testorg",
@@ -370,7 +403,7 @@ class TestShellCommand:
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
             }
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
             result = runner.invoke(main, ["sh", "-c", "notadir.txt", "ls"])
 
@@ -383,13 +416,314 @@ class TestExecuteShellCommand:
 
     def test_execute_with_config_error(self) -> None:
         """Test execution when config read fails."""
-        with patch("qen.commands.sh.QenConfig") as mock_config_class:
-            mock_config = Mock(spec=QenConfig)
-            mock_config.main_config_exists.return_value = True
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
             mock_config.read_main_config.side_effect = QenConfigError("Config error")
-            mock_config_class.return_value = mock_config
+            mock_ensure.return_value = mock_config
 
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(QenConfigError) as exc_info:
                 execute_shell_command("ls", yes=True)
 
-            assert "Error reading configuration" in str(exc_info.value)
+            assert "Config error" in str(exc_info.value)
+
+
+class TestInteractiveShellMode:
+    """Test interactive shell mode functionality."""
+
+    def test_sh_no_command_calls_interactive_shell(self, tmp_path: Path) -> None:
+        """Test that qen sh with no command opens interactive shell."""
+        runner = CliRunner()
+
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+            patch("qen.commands.sh.open_interactive_shell") as mock_open,
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            runner.invoke(main, ["sh"])
+
+            # Should call open_interactive_shell, not execute_shell_command
+            mock_open.assert_called_once()
+            assert mock_open.call_args[1]["project_name"] is None
+
+    def test_sh_with_command_executes_single_command(self, tmp_path: Path) -> None:
+        """Test that qen sh with command executes single command."""
+        runner = CliRunner()
+
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            result = runner.invoke(main, ["sh", "-y", "echo hello"])
+
+            assert result.exit_code == 0
+            assert "hello" in result.output
+
+
+class TestDetectShell:
+    """Test detect_shell function."""
+
+    def test_detect_shell_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test shell detection from $SHELL environment variable."""
+        monkeypatch.setenv("SHELL", "/bin/zsh")
+        with patch("pathlib.Path.is_file", return_value=True):
+            assert detect_shell() == "/bin/zsh"
+
+    def test_detect_shell_fallback_bash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test shell detection falls back to /bin/bash."""
+        monkeypatch.delenv("SHELL", raising=False)
+        with patch("pathlib.Path.is_file", return_value=True):
+            assert detect_shell() == "/bin/bash"
+
+    def test_detect_shell_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test error when no shell found."""
+        monkeypatch.delenv("SHELL", raising=False)
+        with patch("pathlib.Path.is_file", return_value=False):
+            with pytest.raises(click.ClickException, match="Could not detect shell"):
+                detect_shell()
+
+
+class TestCreateShellEnv:
+    """Test create_shell_env function."""
+
+    def test_create_shell_env_basic(self, tmp_path: Path) -> None:
+        """Test environment creation with basic project."""
+        context = ShellContext(
+            project_name="my-project",
+            project_dir=tmp_path / "proj" / "my-project",
+            target_dir=tmp_path / "proj" / "my-project",
+            config=Mock(),
+        )
+
+        env = create_shell_env(context, chdir=None)
+
+        assert "QEN_PROJECT" in env
+        assert env["QEN_PROJECT"] == "my-project"
+        assert "QEN_PROJECT_DIR" in env
+        assert "QEN_TARGET_DIR" in env
+        assert "(my-project)" in env["PS1"]
+
+    def test_create_shell_env_with_subdir(self, tmp_path: Path) -> None:
+        """Test environment creation with subdirectory."""
+        context = ShellContext(
+            project_name="my-project",
+            project_dir=tmp_path / "proj" / "my-project",
+            target_dir=tmp_path / "proj" / "my-project" / "repos" / "api",
+            config=Mock(),
+        )
+
+        env = create_shell_env(context, chdir="repos/api")
+
+        assert "(my-project:repos/api)" in env["PS1"]
+
+    def test_create_shell_env_preserves_original_ps1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that original PS1 is preserved."""
+        monkeypatch.setenv("PS1", "custom> ")
+
+        context = ShellContext(
+            project_name="my-project",
+            project_dir=tmp_path / "proj" / "my-project",
+            target_dir=tmp_path / "proj" / "my-project",
+            config=Mock(),
+        )
+
+        env = create_shell_env(context, chdir=None)
+
+        assert "(my-project) custom> " == env["PS1"]
+
+
+class TestPrepareShellContext:
+    """Test prepare_shell_context function."""
+
+    def test_prepare_shell_context_success(self, tmp_path: Path) -> None:
+        """Test successful context preparation."""
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            context = prepare_shell_context(
+                project_name=None, chdir=None, yes=True, verbose=False, config_overrides=None
+            )
+
+            assert context.project_name == "test-project"
+            assert context.project_dir == project_dir
+            assert context.target_dir == project_dir
+
+    def test_prepare_shell_context_with_subdir(self, tmp_path: Path) -> None:
+        """Test context preparation with subdirectory."""
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+        repos_dir = project_dir / "repos"
+        repos_dir.mkdir()
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            context = prepare_shell_context(
+                project_name=None, chdir="repos", yes=True, verbose=False, config_overrides=None
+            )
+
+            assert context.target_dir == repos_dir
+
+    def test_prepare_shell_context_no_project(self, tmp_path: Path) -> None:
+        """Test error when no active project."""
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(tmp_path / "meta"),
+                "org": "testorg",
+                # No current_project
+            }
+            mock_ensure.return_value = mock_config
+
+            with pytest.raises(click.ClickException, match="No active project"):
+                prepare_shell_context(
+                    project_name=None, chdir=None, yes=True, verbose=False, config_overrides=None
+                )
+
+
+class TestOpenInteractiveShell:
+    """Test open_interactive_shell function."""
+
+    def test_open_interactive_shell_calls_execve(self, tmp_path: Path) -> None:
+        """Test that open_interactive_shell calls os.execve."""
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+            patch("qen.commands.sh.detect_shell", return_value="/bin/bash"),
+            patch("os.chdir") as mock_chdir,
+            patch("os.execve") as mock_execve,
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            open_interactive_shell(yes=True)
+
+            # Verify it changed to target directory
+            mock_chdir.assert_called_once_with(project_dir)
+
+            # Verify it called execve
+            mock_execve.assert_called_once()
+            assert mock_execve.call_args[0][0] == "/bin/bash"
+
+    def test_open_interactive_shell_exec_fails(self, tmp_path: Path) -> None:
+        """Test error handling when exec fails."""
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+            patch("qen.commands.sh.detect_shell", return_value="/bin/bash"),
+            patch("os.chdir"),
+            patch("os.execve", side_effect=OSError("exec failed")),
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+            }
+            mock_ensure.return_value = mock_config
+
+            with pytest.raises(click.ClickException, match="Failed to spawn shell"):
+                open_interactive_shell(yes=True)

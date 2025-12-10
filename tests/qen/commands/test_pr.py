@@ -8,9 +8,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from click.testing import CliRunner
-
-from qen.cli import main
 from qen.commands.pr import (
     PrInfo,
     check_gh_installed,
@@ -404,237 +401,21 @@ class TestFormatPrInfo:
 
 
 class TestPrStatusCommand:
-    """Test pr status command."""
+    """Test pr status command - removed CLI tests for removed 'qen pr status' subcommand.
 
-    @patch("qen.commands.pr.QenConfig")
-    def test_pr_status_no_config(self, mock_config_class: Mock) -> None:
-        """Test pr status when qen is not initialized."""
-        runner = CliRunner()
+    The 'qen pr status' subcommand was replaced with an interactive TUI ('qen pr').
+    CLI tests that invoked the old subcommand have been removed.
+    Unit tests for the underlying pr_status_command() function are preserved below.
+    """
 
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = False
-        mock_config_class.return_value = mock_config
-
-        result = runner.invoke(main, ["pr", "status"])
-
-        assert result.exit_code != 0
-        assert "not initialized" in result.output
-
-    @patch("qen.commands.pr.QenConfig")
-    def test_pr_status_no_active_project(self, mock_config_class: Mock) -> None:
-        """Test pr status when no project is active."""
-        runner = CliRunner()
-
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
-        mock_config.read_main_config.return_value = {"meta_path": "/tmp/meta"}
-        mock_config_class.return_value = mock_config
-
-        result = runner.invoke(main, ["pr", "status"])
-
-        assert result.exit_code != 0
-        assert "No active project" in result.output
-
-    @patch("qen.commands.pr.QenConfig")
-    @patch("qen.commands.pr.check_gh_installed")
-    def test_pr_status_no_gh_cli(self, mock_check_gh: Mock, mock_config_class: Mock) -> None:
-        """Test pr status when gh CLI is not installed."""
-        runner = CliRunner()
-
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config_class.return_value = mock_config
-
-        mock_check_gh.return_value = False
-
-        result = runner.invoke(main, ["pr", "status"])
-
-        assert result.exit_code != 0
-        assert "GitHub CLI" in result.output
-        assert "not installed" in result.output
-
-    @patch("qen.commands.pr.QenConfig")
-    @patch("qen.commands.pr.check_gh_installed")
-    @patch("qen.commands.pr.read_pyproject")
-    @patch("pathlib.Path.exists")
-    def test_pr_status_no_repos(
-        self,
-        mock_exists: Mock,
-        mock_read_pyproject: Mock,
-        mock_check_gh: Mock,
-        mock_config_class: Mock,
-    ) -> None:
-        """Test pr status when no repositories are configured."""
-        runner = CliRunner()
-
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
-
-        mock_exists.return_value = True
-        mock_check_gh.return_value = True
-        mock_read_pyproject.return_value = {"tool": {"qen": {"repos": []}}}
-
-        result = runner.invoke(main, ["pr", "status"])
-
-        assert result.exit_code == 0
-        assert "No repositories found" in result.output
-
-    @patch("qen.commands.pr.QenConfig")
-    @patch("qen.commands.pr.check_gh_installed")
-    @patch("qen.commands.pr.read_pyproject")
-    @patch("qen.commands.pr.get_pr_info_for_branch")
-    @patch("pathlib.Path.exists")
-    def test_pr_status_success(
-        self,
-        mock_exists: Mock,
-        mock_get_pr_info: Mock,
-        mock_read_pyproject: Mock,
-        mock_check_gh: Mock,
-        mock_config_class: Mock,
-    ) -> None:
-        """Test successful pr status execution."""
-        runner = CliRunner()
-
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
-
-        mock_exists.return_value = True
-        mock_check_gh.return_value = True
-
-        mock_read_pyproject.return_value = {
-            "tool": {
-                "qen": {
-                    "repos": [
-                        {
-                            "url": "https://github.com/org/repo1",
-                            "branch": "main",
-                            "path": "repos/repo1",
-                        },
-                        {
-                            "url": "https://github.com/org/repo2",
-                            "branch": "develop",
-                            "path": "repos/repo2",
-                        },
-                    ]
-                }
-            }
-        }
-
-        # Mock PR info for two repos: one with PR, one without
-        mock_get_pr_info.side_effect = [
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="main",
-                has_pr=True,
-                pr_number=123,
-                pr_title="Add feature",
-                pr_state="open",
-                pr_base="main",
-                pr_checks="passing",
-            ),
-            PrInfo(
-                repo_path="repo2",
-                repo_url="https://github.com/org/repo2",
-                branch="develop",
-                has_pr=False,
-            ),
-        ]
-
-        result = runner.invoke(main, ["pr", "status"])
-
-        assert result.exit_code == 0
-        assert "PR Status for project: test-project" in result.output
-        assert "📦 repo1" in result.output
-        assert "📋 PR #123: Add feature" in result.output
-        assert "📦 repo2" in result.output
-        assert "No PR for this branch" in result.output
-        assert "2 repositories checked" in result.output
-        assert "1 with PRs, 1 without PRs" in result.output
-
-    @patch("qen.commands.pr.QenConfig")
-    @patch("qen.commands.pr.check_gh_installed")
-    @patch("qen.commands.pr.read_pyproject")
-    @patch("qen.commands.pr.get_pr_info_for_branch")
-    @patch("pathlib.Path.exists")
-    def test_pr_status_verbose(
-        self,
-        mock_exists: Mock,
-        mock_get_pr_info: Mock,
-        mock_read_pyproject: Mock,
-        mock_check_gh: Mock,
-        mock_config_class: Mock,
-    ) -> None:
-        """Test pr status with verbose flag."""
-        runner = CliRunner()
-
-        mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
-
-        mock_exists.return_value = True
-        mock_check_gh.return_value = True
-
-        mock_read_pyproject.return_value = {
-            "tool": {
-                "qen": {
-                    "repos": [
-                        {
-                            "url": "https://github.com/org/repo1",
-                            "branch": "main",
-                            "path": "repos/repo1",
-                        }
-                    ]
-                }
-            }
-        }
-
-        mock_get_pr_info.return_value = PrInfo(
-            repo_path="repo1",
-            repo_url="https://github.com/org/repo1",
-            branch="main",
-            has_pr=True,
-            pr_number=123,
-            pr_title="Add feature",
-            pr_state="open",
-            pr_author="testuser",
-            pr_url="https://github.com/org/repo1/pull/123",
-            pr_created_at="2025-01-01T10:00:00Z",
-            pr_updated_at="2025-01-02T15:30:00Z",
-        )
-
-        result = runner.invoke(main, ["pr", "status", "-v"])
-
-        assert result.exit_code == 0
-        assert "👤 Author: testuser" in result.output
-        assert "🔗 URL: https://github.com/org/repo1/pull/123" in result.output
+    pass
 
 
 class TestPrStatusCommandFunction:
     """Test pr_status_command function directly."""
 
-    @patch("qen.commands.pr.QenConfig")
+    @patch("qen.commands.pr.ensure_correct_branch")
+    @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
     @patch("qen.commands.pr.get_pr_info_for_branch")
@@ -645,17 +426,17 @@ class TestPrStatusCommandFunction:
         mock_get_pr_info: Mock,
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
+        mock_ensure_branch: Mock,
     ) -> None:
         """Test that pr_status_command returns list of PrInfo objects."""
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
         mock_check_gh.return_value = True
@@ -690,7 +471,8 @@ class TestPrStatusCommandFunction:
         assert len(result) == 1
         assert result[0] == expected_pr_info
 
-    @patch("qen.commands.pr.QenConfig")
+    @patch("qen.commands.pr.ensure_correct_branch")
+    @patch("qen.commands.pr.ensure_initialized")
     @patch("qen.commands.pr.check_gh_installed")
     @patch("qen.commands.pr.read_pyproject")
     @patch("pathlib.Path.exists")
@@ -699,17 +481,17 @@ class TestPrStatusCommandFunction:
         mock_exists: Mock,
         mock_read_pyproject: Mock,
         mock_check_gh: Mock,
-        mock_config_class: Mock,
+        mock_ensure: Mock,
+        mock_ensure_branch: Mock,
     ) -> None:
         """Test pr status when repository doesn't exist on disk."""
         mock_config = Mock()
-        mock_config.main_config_exists.return_value = True
         mock_config.read_main_config.return_value = {
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
         mock_config.read_project_config.return_value = {"folder": "proj/test"}
-        mock_config_class.return_value = mock_config
+        mock_ensure.return_value = mock_config
 
         # Project dir exists, but repo dir doesn't
         mock_exists.side_effect = lambda: mock_exists.call_count == 1
@@ -1042,141 +824,15 @@ class TestGetStackSummary:
 
 
 class TestPrStackCommand:
-    """Test qen pr stack command."""
+    """Test qen pr stack command - removed CLI tests for removed 'qen pr stack' subcommand.
 
-    @patch("qen.commands.pr.get_all_pr_infos")
-    def test_stack_no_prs(self, mock_get_pr_infos: Mock) -> None:
-        """Test error when no PRs in project."""
-        runner = CliRunner()
+    The 'qen pr stack' subcommand was replaced with an interactive TUI ('qen pr --action stack').
+    CLI tests that invoked the old subcommand have been removed.
+    Unit tests for the underlying identify_stacks() and format_stack_display() functions
+    are preserved in TestIdentifyStacks and TestFormatStackDisplay.
+    """
 
-        # Mock get_all_pr_infos to return no PRs
-        mock_get_pr_infos.return_value = [
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="main",
-                has_pr=False,
-            )
-        ]
-
-        result = runner.invoke(main, ["pr", "stack"])
-
-        assert result.exit_code != 0
-        assert "No PRs found" in result.output
-
-    @patch("qen.commands.pr.get_all_pr_infos")
-    def test_stack_no_stacks_found(self, mock_get_pr_infos: Mock) -> None:
-        """Test when PRs exist but no stacks."""
-        runner = CliRunner()
-
-        # Mock get_all_pr_infos to return PRs all targeting main
-        mock_get_pr_infos.return_value = [
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="feature-1",
-                has_pr=True,
-                pr_number=1,
-                pr_base="main",
-            ),
-            PrInfo(
-                repo_path="repo2",
-                repo_url="https://github.com/org/repo2",
-                branch="feature-2",
-                has_pr=True,
-                pr_number=2,
-                pr_base="main",
-            ),
-        ]
-
-        result = runner.invoke(main, ["pr", "stack"])
-
-        assert result.exit_code == 0
-        assert "No stacks found" in result.output
-
-    @patch("qen.commands.pr.get_all_pr_infos")
-    def test_stack_display(self, mock_get_pr_infos: Mock) -> None:
-        """Test stack display output."""
-        runner = CliRunner()
-
-        # Mock get_all_pr_infos to return a stack
-        mock_get_pr_infos.return_value = [
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="feature-1",
-                has_pr=True,
-                pr_number=1,
-                pr_title="First PR",
-                pr_base="main",
-                pr_commits=5,
-                pr_files_changed=10,
-            ),
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="feature-2",
-                has_pr=True,
-                pr_number=2,
-                pr_title="Second PR",
-                pr_base="feature-1",
-                pr_commits=3,
-                pr_files_changed=7,
-            ),
-        ]
-
-        result = runner.invoke(main, ["pr", "stack"])
-
-        assert result.exit_code == 0
-        assert "Stacked PRs in project" in result.output
-        assert "Stack rooted at: feature-1" in result.output
-        assert "PR #1: First PR" in result.output
-        assert "PR #2: Second PR" in result.output
-        assert "5 commits" in result.output
-        assert "10 files" in result.output
-        assert "Summary:" in result.output
-        assert "1 stack found" in result.output
-        assert "2 PRs in stacks" in result.output
-        assert "Maximum stack depth: 2" in result.output
-
-    @patch("qen.commands.pr.get_all_pr_infos")
-    def test_stack_verbose(self, mock_get_pr_infos: Mock) -> None:
-        """Test verbose stack output."""
-        runner = CliRunner()
-
-        # Mock get_all_pr_infos to return a stack
-        mock_get_pr_infos.return_value = [
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="feature-1",
-                has_pr=True,
-                pr_number=1,
-                pr_title="First PR",
-                pr_base="main",
-                pr_author="testuser",
-                pr_url="https://github.com/org/repo1/pull/1",
-            ),
-            PrInfo(
-                repo_path="repo1",
-                repo_url="https://github.com/org/repo1",
-                branch="feature-2",
-                has_pr=True,
-                pr_number=2,
-                pr_title="Second PR",
-                pr_base="feature-1",
-                pr_author="testuser2",
-                pr_url="https://github.com/org/repo1/pull/2",
-            ),
-        ]
-
-        result = runner.invoke(main, ["pr", "stack", "-v"])
-
-        assert result.exit_code == 0
-        assert "testuser" in result.output
-        assert "testuser2" in result.output
-        assert "https://github.com/org/repo1/pull/1" in result.output
-        assert "https://github.com/org/repo1/pull/2" in result.output
+    pass
 
 
 class TestParseRepoOwnerAndName:
@@ -1264,244 +920,11 @@ class TestRestackPr:
 
 
 class TestPrRestackCommand:
-    """Test qen pr restack command."""
+    """Test qen pr restack command - removed CLI tests for removed 'qen pr restack' subcommand.
 
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_no_stacks(self, mock_stack: Mock) -> None:
-        """Test error when no stacks found."""
-        runner = CliRunner()
+    The 'qen pr restack' subcommand was replaced with an interactive TUI ('qen pr --action restack').
+    CLI tests that invoked the old subcommand have been removed.
+    Unit tests for the underlying restack_pr() function are preserved in TestRestackPr.
+    """
 
-        # Mock pr_stack_command to return empty dict
-        mock_stack.return_value = {}
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code != 0
-        assert "No stacks found to restack" in result.output
-
-    @patch("qen.commands.pr.restack_pr")
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_success(self, mock_stack: Mock, mock_restack: Mock) -> None:
-        """Test successful restacking."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return a stack
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=1,
-                    pr_title="First PR",
-                    pr_base="main",
-                ),
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-2",
-                    has_pr=True,
-                    pr_number=2,
-                    pr_title="Second PR",
-                    pr_base="feature-1",
-                ),
-            ]
-        }
-
-        # Mock successful restacking
-        mock_restack.return_value = True
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code == 0
-        assert "Restacking PRs" in result.output
-        assert "Stack: feature-1" in result.output
-        assert "PR #1: First PR" in result.output
-        assert "PR #2: Second PR" in result.output
-        assert "Total PRs processed: 2" in result.output
-        assert "Successfully updated: 2" in result.output
-
-        # Verify restack was called for both PRs in order
-        assert mock_restack.call_count == 2
-        mock_restack.assert_any_call("org", "repo1", 1, dry_run=False)
-        mock_restack.assert_any_call("org", "repo1", 2, dry_run=False)
-
-    @patch("qen.commands.pr.restack_pr")
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_dry_run(self, mock_stack: Mock, mock_restack: Mock) -> None:
-        """Test dry run mode."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return a stack
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=1,
-                    pr_title="First PR",
-                    pr_base="main",
-                ),
-            ]
-        }
-
-        # Mock successful dry run
-        mock_restack.return_value = True
-
-        result = runner.invoke(main, ["pr", "restack", "--dry-run"])
-
-        assert result.exit_code == 0
-        assert "DRY RUN MODE" in result.output
-        assert "No changes will be made" in result.output
-        assert "Would update: 1" in result.output
-
-        # Verify restack was called with dry_run=True
-        mock_restack.assert_called_once_with("org", "repo1", 1, dry_run=True)
-
-    @patch("qen.commands.pr.restack_pr")
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_partial_failure(self, mock_stack: Mock, mock_restack: Mock) -> None:
-        """Test when some PRs fail to restack."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return a stack
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=1,
-                    pr_title="First PR",
-                    pr_base="main",
-                ),
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-2",
-                    has_pr=True,
-                    pr_number=2,
-                    pr_title="Second PR",
-                    pr_base="feature-1",
-                ),
-            ]
-        }
-
-        # Mock first success, second failure
-        mock_restack.side_effect = [True, False]
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code == 0
-        assert "Total PRs processed: 2" in result.output
-        assert "Successfully updated: 1" in result.output
-        assert "Failed: 1" in result.output
-
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_missing_pr_number(self, mock_stack: Mock) -> None:
-        """Test handling of PR with missing number."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return a PR without number
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=None,  # Missing number
-                    pr_base="main",
-                ),
-            ]
-        }
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code == 0
-        assert "Skipping PR: missing number or URL" in result.output
-        assert "Failed: 1" in result.output
-
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_invalid_repo_url(self, mock_stack: Mock) -> None:
-        """Test handling of invalid repository URL."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return a PR with invalid URL
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="invalid-url",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=1,
-                    pr_base="main",
-                ),
-            ]
-        }
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code == 0
-        assert "failed to parse repo URL" in result.output
-        assert "Failed: 1" in result.output
-
-    @patch("qen.commands.pr.restack_pr")
-    @patch("qen.commands.pr.pr_stack_command")
-    def test_restack_multiple_stacks(self, mock_stack: Mock, mock_restack: Mock) -> None:
-        """Test restacking multiple independent stacks."""
-        runner = CliRunner()
-
-        # Mock pr_stack_command to return multiple stacks
-        mock_stack.return_value = {
-            "feature-1": [
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-1",
-                    has_pr=True,
-                    pr_number=1,
-                    pr_title="First PR",
-                    pr_base="main",
-                ),
-                PrInfo(
-                    repo_path="repo1",
-                    repo_url="https://github.com/org/repo1",
-                    branch="feature-2",
-                    has_pr=True,
-                    pr_number=2,
-                    pr_title="Second PR",
-                    pr_base="feature-1",
-                ),
-            ],
-            "feature-3": [
-                PrInfo(
-                    repo_path="repo2",
-                    repo_url="https://github.com/org/repo2",
-                    branch="feature-3",
-                    has_pr=True,
-                    pr_number=3,
-                    pr_title="Third PR",
-                    pr_base="main",
-                ),
-            ],
-        }
-
-        # Mock successful restacking for all PRs
-        mock_restack.return_value = True
-
-        result = runner.invoke(main, ["pr", "restack"])
-
-        assert result.exit_code == 0
-        assert "Stack: feature-1" in result.output
-        assert "Stack: feature-3" in result.output
-        assert "Total PRs processed: 3" in result.output
-        assert "Successfully updated: 3" in result.output
-
-        # Verify restack was called for all PRs
-        assert mock_restack.call_count == 3
+    pass

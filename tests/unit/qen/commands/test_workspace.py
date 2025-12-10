@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -260,13 +261,20 @@ path = "repos/repo1"
     (project_dir / "repos" / "repo1").mkdir(parents=True)
 
     # Run workspace command
-    workspace_command(
-        editor="vscode",
-        verbose=False,
-        storage=storage,
-        meta_path_override=meta_path,
-        current_project_override="test-project",
-    )
+    with (
+        patch("qen.init_utils.ensure_initialized"),
+        patch("qen.commands.workspace.ensure_correct_branch"),
+        patch("qen.git_utils.get_current_branch", return_value="2025-12-08-test-project"),
+        patch("qen.git_utils.has_uncommitted_changes", return_value=False),
+        patch("qen.git_utils.checkout_branch"),
+    ):
+        workspace_command(
+            editor="vscode",
+            verbose=False,
+            storage=storage,
+            meta_path_override=meta_path,
+            current_project_override="test-project",
+        )
 
     # Verify workspace was created
     workspace_file = project_dir / "workspaces" / "vscode.code-workspace"
@@ -293,13 +301,20 @@ created = "2025-12-08T10:00:00Z"
     (project_dir / "pyproject.toml").write_text(pyproject_content)
 
     # Should not raise error, just create workspace with project root only
-    workspace_command(
-        editor="vscode",
-        verbose=False,
-        storage=storage,
-        meta_path_override=meta_path,
-        current_project_override="test-project",
-    )
+    with (
+        patch("qen.init_utils.ensure_initialized"),
+        patch("qen.commands.workspace.ensure_correct_branch"),
+        patch("qen.git_utils.get_current_branch", return_value="2025-12-08-test-project"),
+        patch("qen.git_utils.has_uncommitted_changes", return_value=False),
+        patch("qen.git_utils.checkout_branch"),
+    ):
+        workspace_command(
+            editor="vscode",
+            verbose=False,
+            storage=storage,
+            meta_path_override=meta_path,
+            current_project_override="test-project",
+        )
 
     workspace_file = project_dir / "workspaces" / "vscode.code-workspace"
     assert workspace_file.exists()

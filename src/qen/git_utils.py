@@ -380,13 +380,46 @@ def get_current_branch(path: Path) -> str:
     return run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
 
 
-def create_branch(path: Path, branch_name: str, switch: bool = True) -> None:
+def get_default_branch(path: Path) -> str:
+    """Get the default branch name for a repository.
+
+    Checks refs/remotes/origin/HEAD to determine the default branch.
+    Falls back to current branch, then 'main' if unable to determine.
+
+    Args:
+        path: Path to git repository
+
+    Returns:
+        Name of the default branch (e.g., 'main', 'master')
+    """
+    if not is_git_repo(path):
+        return "main"
+
+    try:
+        result = run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], cwd=path)
+        # Extract branch name from refs/remotes/origin/HEAD
+        # Format: refs/remotes/origin/main -> main
+        return result.split("/")[-1]
+    except GitError:
+        # If we can't find the remote HEAD, try to use the current branch
+        # This handles cases where remote tracking isn't set up yet
+        try:
+            return get_current_branch(path)
+        except GitError:
+            # If even that fails, fall back to 'main'
+            return "main"
+
+
+def create_branch(
+    path: Path, branch_name: str, switch: bool = True, base_branch: str | None = None
+) -> None:
     """Create a new git branch.
 
     Args:
         path: Path to git repository
         branch_name: Name of branch to create
         switch: If True, switch to the new branch (default: True)
+        base_branch: Branch or ref to create from (default: repository's default branch)
 
     Raises:
         GitError: If branch creation fails
@@ -394,10 +427,24 @@ def create_branch(path: Path, branch_name: str, switch: bool = True) -> None:
     if not is_git_repo(path):
         raise NotAGitRepoError(f"Not a git repository: {path}")
 
+    # Determine base branch/ref
+    if base_branch is None:
+        default_branch = get_default_branch(path)
+        # Check if we have a remote tracking branch for the default
+        try:
+            run_git_command(
+                ["rev-parse", "--verify", f"refs/remotes/origin/{default_branch}"], cwd=path
+            )
+            # Remote tracking branch exists, use it
+            base_branch = f"origin/{default_branch}"
+        except GitError:
+            # No remote tracking branch, use local branch name
+            base_branch = default_branch
+
     if switch:
-        run_git_command(["checkout", "-b", branch_name], cwd=path)
+        run_git_command(["checkout", "-b", branch_name, base_branch], cwd=path)
     else:
-        run_git_command(["branch", branch_name], cwd=path)
+        run_git_command(["branch", branch_name, base_branch], cwd=path)
 
 
 def branch_exists(path: Path, branch_name: str) -> bool:
@@ -536,3 +583,41 @@ def git_fetch(path: Path) -> None:
         raise NotAGitRepoError(f"Not a git repository: {path}")
 
     run_git_command(["fetch"], cwd=path)
+
+
+def has_uncommitted_changes(repo_path: Path) -> bool:
+    """Check if repository has uncommitted changes.
+
+    Returns True if there are staged or unstaged changes.
+
+    Args:
+        repo_path: Path to git repository
+
+    Returns:
+        True if uncommitted changes exist, False otherwise
+    """
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def checkout_branch(repo_path: Path, branch_name: str) -> None:
+    """Checkout an existing branch.
+
+    Args:
+        repo_path: Path to git repository
+        branch_name: Name of branch to checkout
+
+    Raises:
+        GitError: If branch doesn't exist or checkout fails
+    """
+    subprocess.run(
+        ["git", "checkout", branch_name],
+        cwd=repo_path,
+        check=True,
+    )

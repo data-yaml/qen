@@ -887,6 +887,144 @@ class TestInitEdgeCases:
 
 
 # ==============================================================================
+# Test Branch Creation Behavior
+# ==============================================================================
+
+
+class TestInitProjectBranchCreation:
+    """Test that qen init creates branches from the correct base."""
+
+    def test_init_project_branches_from_main_not_current_branch(
+        self,
+        temp_git_repo: Path,
+        test_storage: QenvyTest,
+    ) -> None:
+        """Test that qen init creates project branch from main, not current branch.
+
+        This is a regression test for the bug where qen init would branch from
+        the current branch instead of main/master.
+        """
+        # Setup: Create meta repo and initialize qen
+        meta_repo = temp_git_repo.parent / "meta"
+        temp_git_repo.rename(meta_repo)
+
+        # Create an initial commit on main
+        initial_file = meta_repo / "README.md"
+        initial_file.write_text("Initial commit")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Get commit hash of main (current branch at this point)
+        main_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=meta_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        # Create remote tracking branch for main
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/main", main_commit],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Set refs/remotes/origin/HEAD to point to main
+        subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        config = QenConfig(storage=test_storage)
+        config.write_main_config(
+            meta_path=str(meta_repo),
+            org="testorg",
+            current_project=None,
+        )
+
+        # Create a feature branch and switch to it
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-branch"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Add a commit to the feature branch to differentiate it from main
+        feature_file = meta_repo / "feature.txt"
+        feature_file.write_text("This is only on feature branch")
+        subprocess.run(
+            ["git", "add", "feature.txt"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Add feature file"],
+            cwd=meta_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Execute: Create project while on feature-branch
+        project_name = "test-project"
+        init_project(project_name, verbose=False, yes=True, storage=test_storage)
+
+        # Verify: Project branch was created from main, not feature-branch
+        project_config = config.read_project_config(project_name)
+        project_branch = project_config["branch"]
+
+        # Get the merge-base of the project branch - it should be main, not feature-branch
+        merge_base = subprocess.run(
+            ["git", "merge-base", project_branch, "main"],
+            cwd=meta_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        # The merge-base should equal main's commit hash
+        # (meaning project branch started from main)
+        assert merge_base == main_commit, (
+            f"Project branch should have branched from main ({main_commit}), "
+            f"but merge-base is {merge_base}"
+        )
+
+        # Additionally verify: feature.txt should NOT exist on the project branch
+        result = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", project_branch],
+            cwd=meta_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "feature.txt" not in result.stdout, (
+            "Project branch should not contain feature.txt from feature-branch"
+        )
+
+
+# ==============================================================================
 # Test PR Creation Prompt
 # ==============================================================================
 

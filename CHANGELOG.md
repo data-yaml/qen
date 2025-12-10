@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-08
+
+### Added
+
+- **Interactive PR TUI**: New `prompt_toolkit`-based interface for PR operations with keyboard navigation
+- **Auto-initialization**: Commands automatically detect and initialize qen if not configured
+- **PR info in status**: `qen status --pr` displays PR number, state, checks, draft status, and base branch
+- **Draft PRs by default**: PRs created through TUI are drafts to prevent accidental merges
+- **Batch operations**: Continue-on-failure strategy for multi-repo operations with summary reporting
+- **Clickable URLs**: `qen status` now displays clickable GitHub URLs for repositories and PRs
+- **Branch validation**: All project commands now verify you're on the correct project branch before executing
+- **Repository removal**: `qen rm` safely removes repositories with safety checks for unpushed commits, uncommitted changes, and unmerged PRs
+- **Interactive shell mode**: `qen sh` with no command opens an interactive subshell in the project directory with custom prompt
+
+### Changed
+
+- **BREAKING**: Use `qen pr` interactive Terminal UI or `--action` instead of explicit commands
+
+### Fixed
+
+- **Branch creation**: `qen init <project>` now always branches from main/master, not current branch
+- **Long project names**: Warn users when project names exceed 12 characters (may cause issues with some terminals)
+- **Global install task**: Removed `./poe install` task to prevent accidental global installation during development (use `./qen` directly)
+- **Branch validation bug**: Fixed bug where `ensure_correct_branch()` regenerated branch names with today's date instead of reading stored branch from project config
+
 ## [0.2.1] - 2025-12-08
 
 ### Added

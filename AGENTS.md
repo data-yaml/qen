@@ -64,10 +64,10 @@ QEN uses a wrapper script at `./poe` that intelligently runs Poe the Poet tasks:
 git clone https://github.com/data-yaml/qen.git
 cd qen
 
-# Install with dev dependencies
-uv pip install -e ".[dev]"
+# IMPORTANT: DO NOT install qen globally during development
+# Always use ./qen to run the CLI during development
 
-# Run tests (auto-installs git hooks on first run)
+# Run tests (auto-installs git hooks and dependencies on first run)
 ./poe test
 ```
 
@@ -558,7 +558,8 @@ When implementing features, follow these principles:
 ### Import errors?
 
 ```bash
-uv pip install -e ".[dev]"
+# Install dependencies only (without global qen command)
+uv pip install -e . --no-binary :all: || ./poe setup-hooks
 ```
 
 ### Tests failing?

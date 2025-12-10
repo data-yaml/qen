@@ -332,10 +332,15 @@ class TestDisplayProjectList:
 class TestSwitchProject:
     """Test switching between projects."""
 
-    def test_switch_project_success(self, config_with_projects: QenConfig) -> None:
+    def test_switch_project_success(self, config_with_projects: QenConfig, mocker) -> None:
         """Test successfully switching to an existing project."""
         import io
         from contextlib import redirect_stdout
+
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-01-02-project-two")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
 
         output = io.StringIO()
         with redirect_stdout(output):
@@ -407,26 +412,41 @@ class TestDisplayGlobalConfig:
 class TestConfigCommand:
     """Test the config CLI command."""
 
-    def test_config_not_initialized(self, test_storage: QenvyTest, runner: CliRunner) -> None:
+    def test_config_not_initialized(
+        self, test_storage: QenvyTest, runner: CliRunner, mocker
+    ) -> None:
         """Test config command when qen is not initialized."""
         # Create a config without main config file
         config = QenConfig(storage=test_storage)
         # Don't call write_main_config - leave it uninitialized
+
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
 
         result = runner.invoke(config_command, obj={"config": config})
 
         assert result.exit_code != 0
         assert "not initialized" in result.output.lower()
 
-    def test_config_show_current(self, config_with_projects: QenConfig, runner: CliRunner) -> None:
+    def test_config_show_current(
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
+    ) -> None:
         """Test config command showing current project."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(config_command, obj={"config": config_with_projects})
 
         assert result.exit_code == 0
         assert "Current project: project-one" in result.output
 
-    def test_config_list_projects(self, config_with_projects: QenConfig, runner: CliRunner) -> None:
+    def test_config_list_projects(
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
+    ) -> None:
         """Test config command listing all projects."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(config_command, ["--list"], obj={"config": config_with_projects})
 
         assert result.exit_code == 0
@@ -435,8 +455,13 @@ class TestConfigCommand:
         assert "project-two" in result.output
         assert "project-three" in result.output
 
-    def test_config_list_compact(self, config_with_projects: QenConfig, runner: CliRunner) -> None:
+    def test_config_list_compact(
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
+    ) -> None:
         """Test config command listing projects in compact format."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(
             config_command, ["--list", "--compact"], obj={"config": config_with_projects}
         )
@@ -446,16 +471,26 @@ class TestConfigCommand:
         assert "repos" in result.output
         assert "2025-01-01" in result.output
 
-    def test_config_show_global(self, config_with_projects: QenConfig, runner: CliRunner) -> None:
+    def test_config_show_global(
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
+    ) -> None:
         """Test config command showing global configuration."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(config_command, ["--global"], obj={"config": config_with_projects})
 
         assert result.exit_code == 0
         assert "Global QEN Configuration:" in result.output
         assert "testorg" in result.output
 
-    def test_config_json_output(self, config_with_projects: QenConfig, runner: CliRunner) -> None:
+    def test_config_json_output(
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
+    ) -> None:
         """Test config command with JSON output."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(config_command, ["--json"], obj={"config": config_with_projects})
 
         assert result.exit_code == 0
@@ -463,9 +498,14 @@ class TestConfigCommand:
         assert data["current_project"] == "project-one"
 
     def test_config_switch_project(
-        self, config_with_projects: QenConfig, runner: CliRunner
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
     ) -> None:
         """Test config command switching projects."""
+        # Mock git operations for switch_project
+        mocker.patch("qen.git_utils.get_current_branch", return_value="2025-01-02-project-two")
+        mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
+        mocker.patch("qen.git_utils.checkout_branch")
+
         result = runner.invoke(
             config_command, ["project-two"], obj={"config": config_with_projects}
         )
@@ -478,9 +518,12 @@ class TestConfigCommand:
         assert current == "project-two"
 
     def test_config_switch_json_error(
-        self, config_with_projects: QenConfig, runner: CliRunner
+        self, config_with_projects: QenConfig, runner: CliRunner, mocker
     ) -> None:
         """Test that switching with --json flag produces an error."""
+        # Mock ensure_correct_branch
+        mocker.patch("qen.init_utils.ensure_correct_branch")
+
         result = runner.invoke(
             config_command, ["project-two", "--json"], obj={"config": config_with_projects}
         )

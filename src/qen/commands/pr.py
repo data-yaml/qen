@@ -18,8 +18,9 @@ import click
 
 from qenvy.base import QenvyBase
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
 from ..git_utils import GitError, get_current_branch, is_git_repo
+from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pr_utils import parse_check_status
 from ..pyproject_utils import PyProjectNotFoundError, read_pyproject
 
@@ -68,6 +69,7 @@ class PrInfo:
     pr_commits: int | None = None
     pr_files_changed: int | None = None
     pr_file_paths: list[str] | None = None
+    is_draft: bool | None = None
     error: str | None = None
 
 
@@ -130,7 +132,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
                 "view",
                 current_branch,
                 "--json",
-                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt,commits,files",
+                "number,title,state,baseRefName,url,statusCheckRollup,mergeable,author,createdAt,updatedAt,commits,files,isDraft",
             ],
             cwd=repo_path,
             capture_output=True,
@@ -216,6 +218,7 @@ def get_pr_info_for_branch(repo_path: Path, branch: str, url: str) -> PrInfo:
             pr_commits=pr_commits,
             pr_files_changed=pr_files_changed,
             pr_file_paths=pr_file_paths,
+            is_draft=pr_data.get("isDraft"),
         )
 
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
@@ -550,22 +553,17 @@ def get_all_pr_infos(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Load configuration
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,
         current_project_override=current_project_override,
     )
 
-    if not config.main_config_exists():
-        click.echo("Error: qen is not initialized. Run 'qen init' first.", err=True)
-        raise click.Abort()
+    # Ensure the project is on the correct branch
+    ensure_correct_branch(config, verbose=False)
 
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        click.echo(f"Error reading configuration: {e}", err=True)
-        raise click.Abort() from e
+    main_config = config.read_main_config()
 
     # Get current project
     current_project = main_config.get("current_project")
@@ -668,12 +666,15 @@ def pr_status_command(
         PyProjectNotFoundError: If pyproject.toml not found
     """
     # Get configuration to show project name
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=config_dir,
         storage=storage,
         meta_path_override=meta_path_override,
         current_project_override=current_project_override,
     )
+
+    # Ensure the project is on the correct branch
+    ensure_correct_branch(config, verbose=False)
     main_config = config.read_main_config()
     current_project = main_config.get("current_project")
 
@@ -991,115 +992,220 @@ def pr_restack_command(
     return results
 
 
-@click.group(name="pr", invoke_without_command=True)
+@click.command(name="pr")
+@click.argument("indices", nargs=-1, type=int)
+@click.option("--action", type=click.Choice(["merge", "close", "create", "update", "stack"]))
+@click.option("--yes", is_flag=True, help="Skip all confirmations")
+@click.option("--strategy", type=click.Choice(["squash", "merge", "rebase"]), help="Merge strategy")
+@click.option("--title", help="PR title for create action")
+@click.option("--body", help="PR body for create action")
+@click.option("--base", help="Base branch for create action (default: main)")
 @click.pass_context
-def pr_command(ctx: click.Context) -> None:
-    """Manage pull requests across repositories.
+def pr_command(
+    ctx: click.Context,
+    indices: tuple[int, ...],
+    action: str | None,
+    yes: bool,
+    strategy: str | None,
+    title: str | None,
+    body: str | None,
+    base: str | None,
+) -> None:
+    """Interactive PR management across repositories.
 
-    Commands for querying and managing pull requests in all repositories
-    within the current project.
+    Launch an interactive TUI to select repositories and perform PR operations
+    (merge, close, create, update branch, view stacks).
 
-    Repositories are displayed with indices ([1], [2], etc.) for easy reference.
+    You can also specify repository indices directly for quick operations:
 
-    If no subcommand is provided, defaults to 'status'.
-    """
-    # If no subcommand was provided, default to status
-    if ctx.invoked_subcommand is None:
-        ctx.invoke(pr_status, verbose=False)
+    \b
+        qen pr 1 3 --action merge --yes          # Merge PRs for repos 1 and 3
+        qen pr 2 --action create --title "..."   # Create PR for repo 2
+        qen pr --action update                   # Update branches to sync with base
 
-
-@pr_command.command("status")
-@click.option("-v", "--verbose", is_flag=True, help="Show detailed PR information")
-@click.pass_context
-def pr_status(ctx: click.Context, verbose: bool) -> None:
-    """Show PR status for all repositories in the current project.
-
-    Queries GitHub CLI (gh) to retrieve PR information for each repository,
-    including PR state, checks, and mergeable status.
-
-    Repositories are displayed with indices ([1], [2], etc.) based on their
-    order in the project configuration.
+    Repositories are indexed ([1], [2], etc.) based on their order in the
+    project configuration.
 
     Requires GitHub CLI (gh) to be installed and authenticated.
 
     Examples:
 
     \b
-        # Show PR status for all repos
-        $ qen pr status
+        # Launch interactive TUI
+        $ qen pr
 
     \b
-        # Show detailed PR information
-        $ qen pr status -v
+        # Pre-select repos and choose action interactively
+        $ qen pr 1 3
+
+    \b
+        # Direct merge with confirmation
+        $ qen pr 1 --action merge --strategy squash --yes
+
+    \b
+        # Create PR for repo 2
+        $ qen pr 2 --action create --title "Add feature X"
     """
+    from .pr_tui import (
+        display_interactive_table,
+        handle_close,
+        handle_create,
+        handle_merge,
+        handle_stack_view,
+        handle_update_branch,
+        prompt_for_action,
+    )
+
     overrides = ctx.obj.get("config_overrides", {})
-    pr_status_command(
-        verbose=verbose,
+
+    # Get all PR info
+    pr_infos = get_all_pr_infos(
         config_dir=overrides.get("config_dir"),
         meta_path_override=overrides.get("meta_path"),
         current_project_override=overrides.get("current_project"),
     )
 
+    if not pr_infos:
+        click.echo("No repositories found in project.")
+        return
 
-@pr_command.command("stack")
-@click.option("-v", "--verbose", is_flag=True, help="Show detailed stack information")
-@click.pass_context
-def pr_stack(ctx: click.Context, verbose: bool) -> None:
-    """Show stacked PRs across all repositories.
+    # Mode 1: Direct operation with indices and action
+    if indices and action:
+        # Validate indices
+        invalid_indices = [idx for idx in indices if idx < 1 or idx > len(pr_infos)]
+        if invalid_indices:
+            raise click.ClickException(
+                f"Invalid repository indices: {invalid_indices}. Valid range: 1-{len(pr_infos)}"
+            )
 
-    Identifies PR stacks by analyzing base branches. A PR is considered
-    "stacked" if its base branch is another feature branch (not main/master/develop).
+        # Build selected rows
+        from .pr_tui import build_pr_table
 
-    Requires GitHub CLI (gh) to be installed and authenticated.
+        rows = build_pr_table(pr_infos)
+        selected_rows = [rows[idx - 1] for idx in indices]
 
-    Examples:
+        click.echo(f"Selected {len(selected_rows)} repositories")
 
-    \b
-        # Show all stacked PRs
-        $ qen pr stack
+        # Execute action
+        success, failure = 0, 0
+        if action == "merge":
+            success, failure = handle_merge(
+                selected_rows, skip_confirm=yes, merge_strategy=strategy
+            )
+        elif action == "close":
+            success, failure = handle_close(selected_rows, skip_confirm=yes)
+        elif action == "create":
+            success, failure = handle_create(
+                selected_rows, skip_confirm=yes, title=title, body=body, base=base
+            )
+        elif action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=not yes)
+        elif action == "stack":
+            handle_stack_view(selected_rows)
+            return
 
-    \b
-        # Show detailed stack information
-        $ qen pr stack -v
-    """
-    overrides = ctx.obj.get("config_overrides", {})
-    pr_stack_command(
-        verbose=verbose,
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-    )
+        # Show summary
+        total = success + failure
+        click.echo(f"\n✓ {success}/{total} operations successful")
+        if failure > 0:
+            click.echo(f"✗ {failure}/{total} operations failed", err=True)
 
+    # Mode 2: Pre-selected indices, prompt for action
+    elif indices:
+        # Validate indices
+        invalid_indices = [idx for idx in indices if idx < 1 or idx > len(pr_infos)]
+        if invalid_indices:
+            raise click.ClickException(
+                f"Invalid repository indices: {invalid_indices}. Valid range: 1-{len(pr_infos)}"
+            )
 
-@pr_command.command("restack")
-@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
-@click.pass_context
-def pr_restack(ctx: click.Context, dry_run: bool) -> None:
-    """Update stacked PRs to be based on latest versions of their base branches.
+        # Build selected rows
+        from .pr_tui import build_pr_table
 
-    Finds all stacked PRs in the project and updates them in order (parent PRs first)
-    to ensure each PR is based on the latest version of its base branch.
+        rows = build_pr_table(pr_infos)
+        selected_rows = [rows[idx - 1] for idx in indices]
 
-    This is useful when changes are merged to parent PRs in a stack, and you want to
-    update all child PRs to include those changes.
+        click.echo(f"Selected {len(selected_rows)} repositories:")
+        for row in selected_rows:
+            click.echo(f"  [{row.index}] {row.repo_name} ({row.branch})")
 
-    Requires GitHub CLI (gh) to be installed and authenticated with appropriate
-    repository permissions.
+        # Prompt for action
+        selected_action = prompt_for_action()
+        if not selected_action:
+            click.echo("Cancelled.")
+            return
 
-    Examples:
+        # Execute action
+        success, failure = 0, 0
+        if selected_action == "merge":
+            success, failure = handle_merge(
+                selected_rows, skip_confirm=yes, merge_strategy=strategy
+            )
+        elif selected_action == "close":
+            success, failure = handle_close(selected_rows, skip_confirm=yes)
+        elif selected_action == "create":
+            success, failure = handle_create(
+                selected_rows, skip_confirm=yes, title=title, body=body, base=base
+            )
+        elif selected_action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=False)
+        elif selected_action == "stack":
+            handle_stack_view(selected_rows)
+            return
 
-    \b
-        # Update all stacked PRs
-        $ qen pr restack
+        # Show summary
+        total = success + failure
+        if total > 0:
+            click.echo(f"\n✓ {success}/{total} operations successful")
+            if failure > 0:
+                click.echo(f"✗ {failure}/{total} operations failed", err=True)
 
-    \b
-        # Preview what would be updated without making changes
-        $ qen pr restack --dry-run
-    """
-    overrides = ctx.obj.get("config_overrides", {})
-    pr_restack_command(
-        dry_run=dry_run,
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-    )
+    # Mode 3: Full interactive mode
+    else:
+        click.echo("Interactive PR Manager")
+        click.echo("=" * 40)
+        click.echo("")
+
+        # Display interactive table
+        selected_rows_result = display_interactive_table(pr_infos)
+
+        if not selected_rows_result:
+            click.echo("No repositories selected. Exiting.")
+            return
+
+        selected_rows = selected_rows_result
+
+        click.echo(f"\nSelected {len(selected_rows)} repositories:")
+        for row in selected_rows:
+            click.echo(f"  [{row.index}] {row.repo_name} ({row.branch})")
+
+        # Prompt for action
+        selected_action = prompt_for_action()
+        if not selected_action:
+            click.echo("Cancelled.")
+            return
+
+        # Execute action
+        success, failure = 0, 0
+        if selected_action == "merge":
+            success, failure = handle_merge(
+                selected_rows, skip_confirm=yes, merge_strategy=strategy
+            )
+        elif selected_action == "close":
+            success, failure = handle_close(selected_rows, skip_confirm=yes)
+        elif selected_action == "create":
+            success, failure = handle_create(
+                selected_rows, skip_confirm=yes, title=title, body=body, base=base
+            )
+        elif selected_action == "update":
+            success, failure = handle_update_branch(selected_rows, dry_run=False)
+        elif selected_action == "stack":
+            handle_stack_view(selected_rows)
+            return
+
+        # Show summary
+        total = success + failure
+        if total > 0:
+            click.echo(f"\n✓ {success}/{total} operations successful")
+            if failure > 0:
+                click.echo(f"✗ {failure}/{total} operations failed", err=True)

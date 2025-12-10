@@ -155,6 +155,23 @@ def init_project(
         QenConfigError: If config operations fail
         ProjectError: If project creation fails
     """
+    MAX_PROJECT_NAME_LENGTH = 12
+    # Warn if project name is too long (breaks some services)
+    if len(project_name) > MAX_PROJECT_NAME_LENGTH:
+        click.echo(
+            f"Warning: Project name '{project_name}' is {len(project_name)} characters long.",
+            err=True,
+        )
+        click.echo(
+            f"  Project names longer than {MAX_PROJECT_NAME_LENGTH} characters may break some services.",
+            err=True,
+        )
+        click.echo(
+            "  Consider using a shorter name.",
+            err=True,
+        )
+        click.echo()
+
     # Load configuration
     config = QenConfig(
         storage=storage,

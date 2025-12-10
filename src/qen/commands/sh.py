@@ -3,13 +3,16 @@
 Executes shell commands in the project directory as defined in stored QEN configuration.
 """
 
+import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import click
 
 from ..config import QenConfig, QenConfigError
+from ..init_utils import ensure_correct_branch, ensure_initialized
 
 
 class ShellError(Exception):
@@ -18,47 +21,57 @@ class ShellError(Exception):
     pass
 
 
-def execute_shell_command(
-    command: str,
-    project_name: str | None = None,
-    chdir: str | None = None,
-    yes: bool = False,
-    verbose: bool = False,
-    config_overrides: dict[str, Any] | None = None,
-) -> None:
-    """Execute a shell command in the project directory.
+@dataclass
+class ShellContext:
+    """Shell execution context."""
+
+    project_name: str
+    project_dir: Path
+    target_dir: Path
+    config: QenConfig
+
+
+def prepare_shell_context(
+    project_name: str | None,
+    chdir: str | None,
+    yes: bool,
+    verbose: bool,
+    config_overrides: dict[str, Any] | None,
+) -> ShellContext:
+    """Prepare context for shell execution.
+
+    Validates configuration, resolves project directory, shows confirmation.
+    Reused by both execute_shell_command() and open_interactive_shell().
 
     Args:
-        command: Shell command to execute
-        project_name: Project name (None = use current project from config)
+        project_name: Project name (None = use current project)
         chdir: Subdirectory to change to (relative to project root)
         yes: Skip confirmation prompt
         verbose: Show additional context information
         config_overrides: Configuration overrides from CLI
 
+    Returns:
+        ShellContext with validated paths and config
+
     Raises:
-        click.ClickException: For user-facing errors
-        ShellError: For shell execution errors
+        click.ClickException: For validation errors or user abort
     """
     # Load configuration with overrides
     overrides = config_overrides or {}
-    config = QenConfig(
+    config = ensure_initialized(
         config_dir=overrides.get("config_dir"),
         meta_path_override=overrides.get("meta_path"),
         current_project_override=overrides.get("current_project"),
+        verbose=verbose,
     )
 
-    if not config.main_config_exists():
-        raise click.ClickException("qen is not initialized. Run 'qen init' first to configure qen.")
-
-    try:
-        main_config = config.read_main_config()
-    except QenConfigError as e:
-        raise click.ClickException(f"Error reading configuration: {e}") from e
+    # Config is now guaranteed to exist
+    ensure_correct_branch(config, verbose=verbose)
+    main_config = config.read_main_config()
 
     # Determine which project to use
     if project_name:
-        target_project: str = project_name
+        target_project = project_name
     else:
         target_project_raw = main_config.get("current_project")
         if not target_project_raw:
@@ -100,7 +113,6 @@ def execute_shell_command(
         click.echo(f"Project: {target_project}")
         click.echo(f"Project path (from config): {project_dir}")
         click.echo(f"Target directory: {target_dir}")
-        click.echo(f"Command: {command}")
         click.echo("")
 
     # Confirmation prompt (unless --yes)
@@ -111,12 +123,56 @@ def execute_shell_command(
             raise click.Abort()
         click.echo("")
 
+    return ShellContext(
+        project_name=target_project,
+        project_dir=project_dir,
+        target_dir=target_dir,
+        config=config,
+    )
+
+
+def execute_shell_command(
+    command: str,
+    project_name: str | None = None,
+    chdir: str | None = None,
+    yes: bool = False,
+    verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
+) -> None:
+    """Execute a shell command in the project directory.
+
+    Args:
+        command: Shell command to execute
+        project_name: Project name (None = use current project from config)
+        chdir: Subdirectory to change to (relative to project root)
+        yes: Skip confirmation prompt
+        verbose: Show additional context information
+        config_overrides: Configuration overrides from CLI
+
+    Raises:
+        click.ClickException: For user-facing errors
+        ShellError: For shell execution errors
+    """
+    # Prepare context (validation, config, confirmation)
+    context = prepare_shell_context(
+        project_name=project_name,
+        chdir=chdir,
+        yes=yes,
+        verbose=verbose,
+        config_overrides=config_overrides,
+    )
+
+    # Show command if verbose
+    if verbose:
+        click.echo(f"Command: {command}")
+        click.echo("")
+
     # Execute the command
     try:
         result = subprocess.run(
             command,
             shell=True,
-            cwd=target_dir,
+            cwd=context.target_dir,
             check=False,  # Don't raise on non-zero exit
             capture_output=True,  # Capture output for proper display
             text=True,
@@ -136,8 +192,120 @@ def execute_shell_command(
         raise ShellError(f"Failed to execute command: {e}") from e
 
 
+def detect_shell() -> str:
+    """Detect user's preferred shell.
+
+    Detection order:
+    1. $SHELL environment variable
+    2. /bin/bash (fallback)
+
+    Returns:
+        Absolute path to shell executable
+
+    Raises:
+        click.ClickException: If shell not found
+    """
+    shell_path = os.environ.get("SHELL")
+    if shell_path and Path(shell_path).is_file():
+        return shell_path
+
+    bash_path = "/bin/bash"
+    if Path(bash_path).is_file():
+        return bash_path
+
+    raise click.ClickException("Could not detect shell. Set $SHELL environment variable.")
+
+
+def create_shell_env(context: ShellContext, chdir: str | None) -> dict[str, str]:
+    """Create environment variables for subshell.
+
+    Sets PS1 to show project context in prompt.
+
+    Args:
+        context: Shell context with project info
+        chdir: Subdirectory path (for prompt display)
+
+    Returns:
+        Environment dict with custom prompt
+    """
+    env = os.environ.copy()
+
+    # Build prompt prefix
+    if chdir:
+        prompt_prefix = f"({context.project_name}:{chdir})"
+    else:
+        prompt_prefix = f"({context.project_name})"
+
+    # Customize PS1 (bash/sh-compatible)
+    original_ps1 = env.get("PS1", "\\$ ")
+    env["PS1"] = f"{prompt_prefix} {original_ps1}"
+
+    # Store project context for scripts
+    env["QEN_PROJECT"] = context.project_name
+    env["QEN_PROJECT_DIR"] = str(context.project_dir)
+    env["QEN_TARGET_DIR"] = str(context.target_dir)
+
+    return env
+
+
+def open_interactive_shell(
+    project_name: str | None = None,
+    chdir: str | None = None,
+    yes: bool = False,
+    verbose: bool = False,
+    config_overrides: dict[str, Any] | None = None,
+) -> None:
+    """Open an interactive shell in the project directory.
+
+    Uses os.execve() to replace the Python process with a shell.
+    This function NEVER RETURNS - the process is replaced.
+
+    Args:
+        project_name: Project name (None = use current project)
+        chdir: Subdirectory to open shell in
+        yes: Skip confirmation prompt
+        verbose: Show additional context
+        config_overrides: Config overrides from CLI
+
+    Raises:
+        click.ClickException: For validation errors or shell spawn failure
+    """
+    # Prepare context (validation, config, confirmation)
+    context = prepare_shell_context(
+        project_name=project_name,
+        chdir=chdir,
+        yes=yes,
+        verbose=verbose,
+        config_overrides=config_overrides,
+    )
+
+    # Detect shell
+    shell_path = detect_shell()
+
+    if verbose:
+        click.echo(f"Shell: {shell_path}")
+        click.echo("")
+
+    # Create environment with custom prompt
+    env = create_shell_env(context, chdir=chdir)
+
+    # Show entry message
+    click.echo(f"Opening shell in: {context.target_dir}")
+    click.echo(f"Type 'exit' to return to {Path.cwd()}")
+    click.echo("")
+
+    # Change to target directory
+    os.chdir(context.target_dir)
+
+    # Replace current process with shell (NEVER RETURNS)
+    try:
+        os.execve(shell_path, [shell_path], env)
+    except OSError as e:
+        raise click.ClickException(f"Failed to spawn shell: {e}") from e
+
+
 @click.command("sh")
-@click.argument("command")
+@click.argument("command", required=False)
 @click.option(
     "-c",
     "--chdir",
@@ -161,21 +329,32 @@ def execute_shell_command(
 @click.pass_context
 def sh_command(
     ctx: click.Context,
-    command: str,
+    command: str | None,
     chdir: str | None,
     yes: bool,
     verbose: bool,
     project: str | None,
 ) -> None:
-    """Run shell commands in project context.
+    """Run shell commands or open interactive shell in project context.
 
-    Executes COMMAND in the project directory as defined in stored QEN configuration.
-    The command is executed in the project folder, NOT your current working directory.
+    If COMMAND is provided, executes it in the project directory and exits.
+    If COMMAND is omitted, opens an interactive shell in the project directory.
+
+    The command/shell runs in the project folder as defined in QEN configuration,
+    NOT your current working directory.
 
     Examples:
 
     \b
-        # Run command in project root
+        # Open interactive shell in project root
+        $ qen sh
+
+    \b
+        # Open interactive shell in subdirectory
+        $ qen sh -c repos/api
+
+    \b
+        # Run single command in project root
         $ qen sh "ls -la"
 
     \b
@@ -196,14 +375,25 @@ def sh_command(
     """
     overrides = ctx.obj.get("config_overrides", {})
     try:
-        execute_shell_command(
-            command=command,
-            project_name=project,
-            chdir=chdir,
-            yes=yes,
-            verbose=verbose,
-            config_overrides=overrides,
-        )
+        if command:
+            # Execute single command (existing behavior)
+            execute_shell_command(
+                command=command,
+                project_name=project,
+                chdir=chdir,
+                yes=yes,
+                verbose=verbose,
+                config_overrides=overrides,
+            )
+        else:
+            # Open interactive shell (NEW behavior)
+            open_interactive_shell(
+                project_name=project,
+                chdir=chdir,
+                yes=yes,
+                verbose=verbose,
+                config_overrides=overrides,
+            )
     except click.ClickException:
         raise
     except Exception as e:
