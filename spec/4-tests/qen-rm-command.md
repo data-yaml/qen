@@ -467,6 +467,7 @@ Updated workspace files
 **IMPORTANT:** Integration tests MUST use real GitHub API, no mocks.
 
 1. **Setup Test Environment**
+
    ```python
    @pytest.fixture
    def test_project_with_repos(tmp_path, real_test_repo):
@@ -477,6 +478,7 @@ Updated workspace files
    ```
 
 2. **Test Safe Removal**
+
    ```python
    def test_rm_clean_repo(test_project_with_repos):
        """Remove repository with no uncommitted changes."""
@@ -486,6 +488,7 @@ Updated workspace files
    ```
 
 3. **Test Uncommitted Changes Warning**
+
    ```python
    def test_rm_warns_uncommitted(test_project_with_repos):
        """Warn when removing repo with uncommitted changes."""
@@ -495,6 +498,7 @@ Updated workspace files
    ```
 
 4. **Test Unpushed Commits Warning**
+
    ```python
    def test_rm_warns_unpushed(test_project_with_repos):
        """Warn when removing repo with unpushed commits."""
@@ -504,6 +508,7 @@ Updated workspace files
    ```
 
 5. **Test Unmerged PR Detection**
+
    ```python
    def test_rm_warns_unmerged_pr(test_project_with_repos):
        """Warn when removing repo with unmerged PR."""
@@ -514,6 +519,7 @@ Updated workspace files
    ```
 
 6. **Test Batch Removal**
+
    ```python
    def test_rm_multiple_repos(test_project_with_repos):
        """Remove multiple repositories in one command."""
@@ -523,6 +529,7 @@ Updated workspace files
    ```
 
 7. **Test Index-Based Removal**
+
    ```python
    def test_rm_by_index(test_project_with_repos):
        """Remove repository by 1-based index."""
@@ -532,6 +539,7 @@ Updated workspace files
    ```
 
 8. **Test Error Recovery**
+
    ```python
    def test_rm_handles_missing_directory(test_project_with_repos):
        """Handle case where directory already deleted."""

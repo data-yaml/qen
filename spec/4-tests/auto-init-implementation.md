@@ -333,6 +333,7 @@ Please run 'qen init' manually to configure.
 **Trigger:** User runs command outside any git repository
 
 **Behavior:**
+
 - Auto-init fails with `NotAGitRepoError`
 - Show error: "Not in a git repository"
 - Guide user to navigate to meta repo or use `--meta`
@@ -344,6 +345,7 @@ Please run 'qen init' manually to configure.
 **Trigger:** User in git repo without `proj/` directory
 
 **Behavior:**
+
 - Auto-init fails with `MetaRepoNotFoundError`
 - Show error explaining meta repo requirements
 - Guide user to correct location
@@ -355,6 +357,7 @@ Please run 'qen init' manually to configure.
 **Trigger:** Meta repo has remotes from different GitHub organizations
 
 **Behavior:**
+
 - Auto-init fails with `AmbiguousOrgError`
 - Ask user to run `qen init` manually to select org
 - Cannot auto-determine which org to use
@@ -366,6 +369,7 @@ Please run 'qen init' manually to configure.
 **Trigger:** First run auto-inits, but no project created yet
 
 **Behavior:**
+
 - Config created successfully (meta_path, org stored)
 - Command proceeds, may fail with "No active project"
 - This is expected - user needs to run `qen init <project>`
@@ -377,6 +381,7 @@ Please run 'qen init' manually to configure.
 **Trigger:** User provides `--meta /invalid/path`
 
 **Behavior:**
+
 - Auto-init fails with `NotAGitRepoError`
 - Show error with the invalid path
 - Guide user to correct path
@@ -509,6 +514,7 @@ Please run 'qen init' manually to configure.
 **Pros:** Completely automatic, no command changes needed
 
 **Cons:**
+
 - Hidden behavior, harder to debug
 - Difficult to provide good error messages
 - Doesn't fit Click's error handling model
@@ -521,6 +527,7 @@ Please run 'qen init' manually to configure.
 **Pros:** Declarative, apply once per command
 
 **Cons:**
+
 - Decorator needs access to all config parameters
 - Complex parameter passing
 - Less explicit than direct function call
@@ -532,6 +539,7 @@ Please run 'qen init' manually to configure.
 **Pros:** Simple, no new abstractions
 
 **Cons:**
+
 - Code duplication across 8+ files
 - Hard to maintain consistent error messages
 - Bug fixes need to be applied everywhere
