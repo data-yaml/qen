@@ -375,9 +375,13 @@ def init_project(
                             f"  Note: Remote branch '{old_branch}' was not deleted (delete manually if needed)"
                         )
 
-            except QenConfigError:
-                # If can't read old config, just continue
-                pass
+            except (QenConfigError, KeyError):
+                # Legacy config missing 'repo' field or can't read config
+                if verbose:
+                    click.echo(
+                        "  Legacy or invalid project config detected, cleaning up config only"
+                    )
+                config.delete_project_config(project_name)
 
     if verbose:
         click.echo(f"Creating project: {project_name}")
