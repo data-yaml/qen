@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-12-10
+
+### Added
+
+- **Per-project meta clones**: Each project now gets its own physical clone of meta repository (`meta-{project}/`)
+- **Auto-upgrade legacy configs**: Existing configs automatically upgraded to include `meta_remote`, `meta_parent`, `meta_default_branch`
+
+### Changed
+
+- **BREAKING**: Projects now use per-project meta clones instead of shared meta repository
+- **BREAKING**: Global config requires `meta_remote`, `meta_parent`, `meta_default_branch` fields
+- **BREAKING**: Project config requires `repo` field pointing to per-project meta clone
+- **Migration**: Run `qen init --force <project>` to migrate existing projects, or use `uvx qen@0.3.0` for old behavior
+
+### Fixed
+
+- Enhanced error messages for meta repository not found, remote unreachable, and directory conflicts
+- Added safety checks for force mode with warnings for uncommitted changes and unpushed commits
+
 ## [0.3.0] - 2025-12-08
 
 ### Added
@@ -130,7 +149,9 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/data-yaml/qen/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/data-yaml/qen/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/data-yaml/qen/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/data-yaml/qen/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/data-yaml/qen/compare/v0.1.4...v0.1.5
