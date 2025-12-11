@@ -83,7 +83,57 @@ This clones your meta prime repository to create a per-project meta clone with:
   - `repos/` - Gitignored directory for sub-repositories
   - `workspaces/` - IDE multi-repo configuration
 
-The project branch is automatically pushed to the remote, making it visible to your team and ready for eventual PR/merge into main.
+**Note:** `qen init` does NOT automatically push the branch to the remote. You control when to push using standard git commands.
+
+### Discovery-First Project Setup
+
+`qen init` uses a **discovery-first approach** that works for both new and existing projects:
+
+**First Machine (Project Creator):**
+
+```bash
+uvx qen init myproject
+# Creates new per-project meta clone
+# Creates new branch: 251210-myproject
+# You push manually when ready
+```
+
+**Second Machine (Project Collaborator):**
+
+```bash
+uvx qen init myproject
+# Discovers existing remote branch 251210-myproject
+# Clones per-project meta with that branch
+# Pulls latest changes
+# You're ready to work!
+```
+
+The command automatically:
+
+1. **Checks for remote branches** matching the project name
+2. **Checks for local config** in `$XDG_CONFIG_HOME/qen/projects/`
+3. **Checks for local repo** at `meta-{project}/`
+4. **Shows you what exists** and what will happen
+5. **Prompts for confirmation** before taking action
+
+This means `qen init myproject` is idempotent and safe to run multiple times. It will:
+
+- **Create new** if nothing exists
+- **Clone existing** if remote branch exists
+- **Do nothing** if already configured locally
+- **Prompt for choice** if multiple remote branches match
+
+**Fully-Qualified Project Names:**
+
+You can also specify exact branch names to avoid ambiguity:
+
+```bash
+# Short name (auto-generates YYMMDD prefix)
+uvx qen init myproject          # Uses 251210-myproject (or finds existing)
+
+# Fully-qualified name (use exact branch)
+uvx qen init 251210-myproject   # Uses exactly 251210-myproject
+```
 
 ### Using the Project Wrapper
 
@@ -254,6 +304,51 @@ Workspace files are created in the `workspaces/` directory and include:
 - All sub-repositories
 - PR numbers in folder names (when available)
 - Sensible file exclusions (.git, **pycache**, etc.)
+
+### 8. Delete Projects
+
+Remove projects with safety checks and warnings:
+
+```bash
+# Delete project (config + local repo)
+uvx qen del myproject
+
+# Delete only config, keep local repo
+uvx qen del myproject --config-only
+
+# Delete only local repo, keep config
+uvx qen del myproject --repo-only
+
+# Delete everything including remote branch (WARNING)
+uvx qen del myproject --remote
+
+# Skip confirmation prompts
+uvx qen del myproject --yes
+```
+
+The `del` command includes safety checks:
+
+- **Uncommitted changes detection** - Warns if files are modified
+- **Unpushed commits detection** - Warns if commits haven't been pushed
+- **Remote branch protection** - Never deletes remote by default
+- **Interactive confirmation** - Shows what will be deleted before proceeding
+
+Example output:
+
+```text
+Delete project 'myproject':
+  ✓ Config: ~/.config/qen/projects/myproject.toml
+  ✓ Repo: ~/GitHub/meta-myproject (branch: 251210-myproject)
+  ✗ Remote: origin/251210-myproject (will NOT be deleted)
+
+⚠️  Warning: Uncommitted changes:
+  • 3 uncommitted file(s)
+  • 2 unpushed commit(s)
+
+Delete config and repo? [y/N]:
+```
+
+**Important:** The `--remote` flag is dangerous and requires explicit confirmation. Use it only when you're certain you want to delete the remote branch permanently.
 
 ## Repository Indices
 
