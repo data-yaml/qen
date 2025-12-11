@@ -214,8 +214,12 @@ class TestInitQenFunction:
         captured = capsys.readouterr()
         assert "Searching for meta repository" in captured.out
         assert "Found meta repository" in captured.out
-        assert "Extracting organization" in captured.out
+        assert "Extracting metadata" in captured.out
         assert "Organization: testorg" in captured.out
+        assert "Remote URL:" in captured.out
+        assert "Meta parent directory:" in captured.out
+        assert "Detecting default branch" in captured.out
+        assert "Default branch:" in captured.out
 
     def test_init_qen_idempotent(
         self,
@@ -269,6 +273,7 @@ class TestInitProjectFunction:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test successful project creation."""
         # Setup: Create meta repo and initialize qen
@@ -282,10 +287,70 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Setup: Create per-project meta (mock clone operation)
+        per_project_meta = temp_git_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+
+        # Initialize git repo in per-project meta
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+        # Create initial commit on main branch
+        (per_project_meta / "README.md").write_text("# Test Repo")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "branch", "-M", "main"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta to return our test repo
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
+        # Mock git push to avoid network calls
+        original_run = subprocess.run
+        mocker.patch(
+            "subprocess.run",
+            side_effect=lambda *args, **kwargs: (
+                subprocess.CompletedProcess(args=args[0], returncode=0, stdout="", stderr="")
+                if "push" in args[0]
+                else original_run(*args, **kwargs)
+            ),
+        )
+
         # Initialize qen config
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -300,11 +365,13 @@ class TestInitProjectFunction:
         assert project_config["name"] == project_name
         assert "branch" in project_config
         assert "folder" in project_config
+        assert "repo" in project_config
         assert "created" in project_config
+        assert project_config["repo"] == str(per_project_meta)
 
-        # Verify: Project directory exists
+        # Verify: Project directory exists in per-project meta
         folder_path = Path(project_config["folder"])
-        project_dir = meta_repo / folder_path
+        project_dir = per_project_meta / folder_path
         assert project_dir.exists()
         assert (project_dir / "README.md").exists()
         assert (project_dir / "pyproject.toml").exists()
@@ -315,10 +382,10 @@ class TestInitProjectFunction:
         main_config = config.read_main_config()
         assert main_config["current_project"] == project_name
 
-        # Verify: Branch was created
+        # Verify: Branch was created in per-project meta
         result = subprocess.run(
             ["git", "branch", "--list", project_config["branch"]],
-            cwd=meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
         )
@@ -333,6 +400,7 @@ class TestInitProjectFunction:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test that init_project fails if project already exists."""
         # Setup
@@ -346,9 +414,31 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Create per-project meta repo for first initialization
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta to return our test repo
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -365,6 +455,7 @@ class TestInitProjectFunction:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test that init_project with --force recreates existing project."""
         # Setup
@@ -378,9 +469,39 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Mock clone_per_project_meta to create a fresh repo each time (handles force mode)
+        def create_per_project_meta(remote, project_name, parent, default_branch):
+            per_project_meta = meta_repo.parent / "meta-test-project"
+            # Recreate if it was deleted by force mode
+            if not per_project_meta.exists():
+                per_project_meta.mkdir()
+            if not (per_project_meta / ".git").exists():
+                subprocess.run(
+                    ["git", "init"], cwd=per_project_meta, check=True, capture_output=True
+                )
+                (per_project_meta / "README.md").write_text("# Test Project")
+                subprocess.run(
+                    ["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", "Initial commit"],
+                    cwd=per_project_meta,
+                    check=True,
+                    capture_output=True,
+                )
+            return per_project_meta
+
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            side_effect=create_per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -400,10 +521,11 @@ class TestInitProjectFunction:
         assert config.project_config_exists(project_name)
         assert second_config["name"] == project_name
 
-        # Verify new branch exists
+        # Verify new branch exists (in per-project meta, not meta prime)
+        per_project_meta_path = Path(second_config["repo"])
         result = subprocess.run(
             ["git", "branch", "--list", second_branch],
-            cwd=meta_repo,
+            cwd=per_project_meta_path,
             capture_output=True,
             text=True,
         )
@@ -414,6 +536,7 @@ class TestInitProjectFunction:
         temp_git_repo: Path,
         test_storage: QenvyTest,
         capsys,
+        mocker,
     ) -> None:
         """Test that verbose mode produces output."""
         # Setup
@@ -427,9 +550,31 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -440,7 +585,7 @@ class TestInitProjectFunction:
         # Verify: Verbose output was produced
         captured = capsys.readouterr()
         assert "Creating project: test-project" in captured.out
-        assert "Meta repository:" in captured.out
+        assert "Created per-project meta:" in captured.out  # Updated for per-project meta
         assert "Created branch:" in captured.out
         assert "Created directory:" in captured.out
 
@@ -448,6 +593,7 @@ class TestInitProjectFunction:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test that project structure is created correctly."""
         # Setup
@@ -461,9 +607,31 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -474,7 +642,9 @@ class TestInitProjectFunction:
 
         # Verify: Check all files and their content
         project_config = config.read_project_config(project_name)
-        project_dir = meta_repo / project_config["folder"]
+        # Project is now in per-project meta, not meta prime
+        per_project_meta_path = Path(project_config["repo"])
+        project_dir = per_project_meta_path / project_config["folder"]
 
         # Check README.md
         readme_content = (project_dir / "README.md").read_text()
@@ -497,6 +667,7 @@ class TestInitProjectFunction:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test project creation with custom date."""
         # Setup
@@ -510,9 +681,31 @@ class TestInitProjectFunction:
             capture_output=True,
         )
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -547,6 +740,9 @@ class TestQenConfigIntegration:
         # Write main config
         config.write_main_config(
             meta_path="/path/to/meta",
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent="/path/to/meta/../",
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -566,6 +762,9 @@ class TestQenConfigIntegration:
 
         config.write_main_config(
             meta_path="/path/to/meta",
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent="/path/to/meta/../",
+            meta_default_branch="main",
             org="testorg",
             current_project="my-project",
         )
@@ -580,6 +779,9 @@ class TestQenConfigIntegration:
         # Create initial config
         config.write_main_config(
             meta_path="/path/to/meta",
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent="/path/to/meta/../",
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -611,6 +813,7 @@ class TestQenConfigIntegration:
             project_name=project_name,
             branch="2025-12-05-test-project",
             folder="proj/2025-12-05-test-project",
+            repo="/tmp/meta-test-project",
             created="2025-12-05T10:00:00Z",
         )
 
@@ -633,6 +836,7 @@ class TestQenConfigIntegration:
             project_name=project_name,
             branch="2025-12-05-test-project",
             folder="proj/2025-12-05-test-project",
+            repo="/tmp/meta-test-project",
             created="2025-12-05T10:00:00Z",
         )
 
@@ -642,6 +846,7 @@ class TestQenConfigIntegration:
                 project_name=project_name,
                 branch="2025-12-05-test-project",
                 folder="proj/2025-12-05-test-project",
+                repo="/tmp/meta-test-project",
                 created="2025-12-05T10:00:00Z",
             )
 
@@ -654,6 +859,9 @@ class TestQenConfigIntegration:
         # Create main config
         config.write_main_config(
             meta_path="/path/to/meta",
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent="/path/to/meta/../",
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -667,12 +875,14 @@ class TestQenConfigIntegration:
             project_name="project1",
             branch="2025-12-05-project1",
             folder="proj/2025-12-05-project1",
+            repo="/tmp/meta-project1",
         )
 
         config.write_project_config(
             project_name="project2",
             branch="2025-12-05-project2",
             folder="proj/2025-12-05-project2",
+            repo="/tmp/meta-project2",
         )
 
         # List should not include main profile
@@ -693,6 +903,7 @@ class TestQenConfigIntegration:
             project_name=project_name,
             branch="2025-12-05-test-project",
             folder="proj/2025-12-05-test-project",
+            repo="/tmp/meta-test-project",
         )
 
         assert config.project_config_exists(project_name)
@@ -786,6 +997,7 @@ class TestInitEdgeCases:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test project names with hyphens and underscores."""
         # Setup
@@ -799,9 +1011,34 @@ class TestInitEdgeCases:
             capture_output=True,
         )
 
+        # Mock clone_per_project_meta for all calls
+        def create_per_project_meta(remote, project_name, parent, default_branch):
+            per_project_meta = meta_repo.parent / f"meta-{project_name}"
+            per_project_meta.mkdir(exist_ok=True)
+            subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+            (per_project_meta / "README.md").write_text(f"# {project_name}")
+            subprocess.run(
+                ["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "Initial commit"],
+                cwd=per_project_meta,
+                check=True,
+                capture_output=True,
+            )
+            return per_project_meta
+
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            side_effect=create_per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -874,6 +1111,7 @@ class TestInitEdgeCases:
             project_name="test-project",
             branch="2025-12-05-test-project",
             folder="proj/2025-12-05-test-project",
+            repo="/tmp/meta-test-project",
             created=None,  # Should use current time
         )
 
@@ -898,6 +1136,7 @@ class TestInitProjectBranchCreation:
         self,
         temp_git_repo: Path,
         test_storage: QenvyTest,
+        mocker,
     ) -> None:
         """Test that qen init creates project branch from main, not current branch.
 
@@ -956,9 +1195,31 @@ class TestInitProjectBranchCreation:
             capture_output=True,
         )
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -995,26 +1256,37 @@ class TestInitProjectBranchCreation:
         project_config = config.read_project_config(project_name)
         project_branch = project_config["branch"]
 
-        # Get the merge-base of the project branch - it should be main, not feature-branch
+        # Get the merge-base of the project branch in per_project_meta
+        # It should be main (the initial commit), not feature-branch
         merge_base = subprocess.run(
             ["git", "merge-base", project_branch, "main"],
-            cwd=meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
 
-        # The merge-base should equal main's commit hash
-        # (meaning project branch started from main)
-        assert merge_base == main_commit, (
-            f"Project branch should have branched from main ({main_commit}), "
+        # Get the main branch's current commit hash in per_project_meta
+        per_project_main_commit = subprocess.run(
+            ["git", "rev-parse", "main"],
+            cwd=per_project_meta,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        # The merge-base should equal per_project_meta's main commit hash
+        # (meaning project branch started from main in the per-project meta)
+        assert merge_base == per_project_main_commit, (
+            f"Project branch should have branched from main ({per_project_main_commit}), "
             f"but merge-base is {merge_base}"
         )
 
         # Additionally verify: feature.txt should NOT exist on the project branch
+        # (per-project meta was cloned from remote, not from meta_repo with feature-branch)
         result = subprocess.run(
             ["git", "ls-tree", "-r", "--name-only", project_branch],
-            cwd=meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
@@ -1050,9 +1322,31 @@ class TestInitProjectPRCreation:
             capture_output=True,
         )
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -1088,6 +1382,9 @@ class TestInitProjectPRCreation:
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -1110,6 +1407,25 @@ class TestInitProjectPRCreation:
 
         # Mock click.confirm to return False (user doesn't want to create PR)
         mock_confirm = mocker.patch("click.confirm", return_value=False)
+
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
 
         # Execute
         project_name = "test-project"
@@ -1139,6 +1455,9 @@ class TestInitProjectPRCreation:
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -1184,6 +1503,25 @@ class TestInitProjectPRCreation:
         # Mock click.confirm to return True (user wants to create PR)
         mocker.patch("click.confirm", return_value=True)
 
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
+
         # Execute
         project_name = "test-project"
         init_project(project_name, verbose=False, yes=False, storage=test_storage)
@@ -1218,6 +1556,9 @@ class TestInitProjectPRCreation:
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -1237,6 +1578,25 @@ class TestInitProjectPRCreation:
 
         # Mock click.confirm to ensure it's not called
         mock_confirm = mocker.patch("click.confirm")
+
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
 
         # Execute
         project_name = "test-project"
@@ -1266,6 +1626,9 @@ class TestInitProjectPRCreation:
         config = QenConfig(storage=test_storage)
         config.write_main_config(
             meta_path=str(meta_repo),
+            meta_remote="https://github.com/testorg/meta",
+            meta_parent=str(meta_repo.parent),
+            meta_default_branch="main",
             org="testorg",
             current_project=None,
         )
@@ -1299,6 +1662,25 @@ class TestInitProjectPRCreation:
 
         # Mock click.confirm to return True (user wants to create PR)
         mocker.patch("click.confirm", return_value=True)
+
+        # Create per-project meta repo
+        per_project_meta = meta_repo.parent / "meta-test-project"
+        per_project_meta.mkdir()
+        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
+        (per_project_meta / "README.md").write_text("# Test Project")
+        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=per_project_meta,
+            check=True,
+            capture_output=True,
+        )
+
+        # Mock clone_per_project_meta
+        mocker.patch(
+            "qen.git_utils.clone_per_project_meta",
+            return_value=per_project_meta,
+        )
 
         # Execute - should not raise exception despite PR creation failure
         project_name = "test-project"

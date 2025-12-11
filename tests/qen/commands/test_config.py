@@ -45,6 +45,9 @@ def config_with_projects(test_storage: QenvyTest, tmp_path: Path) -> QenConfig:
     meta_path.mkdir()
     config.write_main_config(
         meta_path=str(meta_path),
+        meta_remote="git@github.com:testorg/meta.git",
+        meta_parent=str(meta_path / ".."),
+        meta_default_branch="main",
         org="testorg",
         current_project="project-one",
     )
@@ -89,6 +92,7 @@ path = "repos/repo3"
             project_name=project_name,
             branch=branch,
             folder=folder,
+            repo=str(meta_path),
             created=f"2025-01-0{i + 1}T10:00:00Z",
         )
 
@@ -101,7 +105,14 @@ class TestGetCurrentProjectName:
     def test_get_current_project_none(self, test_storage: QenvyTest) -> None:
         """Test when no current project is set."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config(meta_path="/tmp/meta", org="testorg", current_project=None)
+        config.write_main_config(
+            meta_path="/tmp/meta",
+            meta_remote="git@github.com:testorg/meta.git",
+            meta_parent="/tmp",
+            meta_default_branch="main",
+            org="testorg",
+            current_project=None,
+        )
 
         result = get_current_project_name(config)
         assert result is None
@@ -109,7 +120,14 @@ class TestGetCurrentProjectName:
     def test_get_current_project_set(self, test_storage: QenvyTest) -> None:
         """Test when current project is set."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config(meta_path="/tmp/meta", org="testorg", current_project="my-project")
+        config.write_main_config(
+            meta_path="/tmp/meta",
+            meta_remote="git@github.com:testorg/meta.git",
+            meta_parent="/tmp",
+            meta_default_branch="main",
+            org="testorg",
+            current_project="my-project",
+        )
 
         result = get_current_project_name(config)
         assert result == "my-project"
@@ -173,7 +191,13 @@ class TestListAllProjects:
     def test_list_all_projects_empty(self, test_storage: QenvyTest) -> None:
         """Test listing projects when none exist."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config(meta_path="/tmp/meta", org="testorg")
+        config.write_main_config(
+            meta_path="/tmp/meta",
+            meta_remote="git@github.com:testorg/meta.git",
+            meta_parent="/tmp",
+            meta_default_branch="main",
+            org="testorg",
+        )
 
         result = list_all_projects(config)
         assert result == []
@@ -268,7 +292,13 @@ class TestDisplayProjectList:
     def test_display_list_empty(self, test_storage: QenvyTest) -> None:
         """Test displaying list when no projects exist."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config(meta_path="/tmp/meta", org="testorg")
+        config.write_main_config(
+            meta_path="/tmp/meta",
+            meta_remote="git@github.com:testorg/meta.git",
+            meta_parent="/tmp",
+            meta_default_branch="main",
+            org="testorg",
+        )
 
         import io
         from contextlib import redirect_stdout

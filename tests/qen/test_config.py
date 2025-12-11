@@ -104,7 +104,9 @@ class TestConfigExistence:
     def test_main_config_exists_true(self, test_storage: QenvyTest) -> None:
         """Test main_config_exists returns True after creation."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         assert config.main_config_exists()
 
@@ -116,7 +118,7 @@ class TestConfigExistence:
     def test_project_config_exists_true(self, test_storage: QenvyTest) -> None:
         """Test project_config_exists returns True after creation."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         assert config.project_config_exists("test-project")
 
@@ -127,7 +129,9 @@ class TestMainConfig:
     def test_write_main_config_minimal(self, test_storage: QenvyTest) -> None:
         """Test writing main config with required fields only."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         assert config.main_config_exists()
 
@@ -140,7 +144,14 @@ class TestMainConfig:
     def test_write_main_config_with_current_project(self, test_storage: QenvyTest) -> None:
         """Test writing main config with current_project set."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", "my-project")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "my-project",
+        )
 
         stored = test_storage.read_profile("main")
         assert stored["meta_path"] == "/tmp/meta"
@@ -152,10 +163,24 @@ class TestMainConfig:
         config = QenConfig(storage=test_storage)
 
         # Write initial config
-        config.write_main_config("/tmp/meta1", "org1", "project1")
+        config.write_main_config(
+            "/tmp/meta1",
+            "git@github.com:org1/meta.git",
+            "/tmp/meta1/../",
+            "main",
+            "org1",
+            "project1",
+        )
 
         # Overwrite with new config
-        config.write_main_config("/tmp/meta2", "org2", "project2")
+        config.write_main_config(
+            "/tmp/meta2",
+            "git@github.com:org2/meta.git",
+            "/tmp/meta2/../",
+            "main",
+            "org2",
+            "project2",
+        )
 
         stored = test_storage.read_profile("main")
         assert stored["meta_path"] == "/tmp/meta2"
@@ -165,7 +190,14 @@ class TestMainConfig:
     def test_read_main_config_success(self, test_storage: QenvyTest) -> None:
         """Test reading main config successfully."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", "my-project")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "my-project",
+        )
 
         data = config.read_main_config()
 
@@ -193,7 +225,9 @@ class TestMainConfig:
         monkeypatch.setattr(test_storage, "create_profile", mock_create_profile)
 
         with pytest.raises(QenConfigError) as exc_info:
-            config.write_main_config("/tmp/meta", "testorg")
+            config.write_main_config(
+                "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+            )
 
         assert "Failed to write main config" in str(exc_info.value)
 
@@ -204,7 +238,9 @@ class TestCurrentProjectUpdate:
     def test_update_current_project_set(self, test_storage: QenvyTest) -> None:
         """Test setting current_project to a new value."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         config.update_current_project("new-project")
 
@@ -214,7 +250,14 @@ class TestCurrentProjectUpdate:
     def test_update_current_project_change(self, test_storage: QenvyTest) -> None:
         """Test changing current_project to a different value."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", "project1")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "project1",
+        )
 
         config.update_current_project("project2")
 
@@ -224,7 +267,14 @@ class TestCurrentProjectUpdate:
     def test_update_current_project_to_none(self, test_storage: QenvyTest) -> None:
         """Test clearing current_project by setting to None."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", "my-project")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "my-project",
+        )
 
         config.update_current_project(None)
 
@@ -234,7 +284,9 @@ class TestCurrentProjectUpdate:
     def test_update_current_project_already_none(self, test_storage: QenvyTest) -> None:
         """Test setting current_project to None when already None."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         config.update_current_project(None)
 
@@ -255,7 +307,9 @@ class TestCurrentProjectUpdate:
     ) -> None:
         """Test error handling in update_current_project."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         # Make write_profile raise an exception
         def mock_write_profile(*args, **kwargs):
@@ -278,7 +332,7 @@ class TestProjectConfig:
 
         # Capture time before writing
         before = datetime.now(UTC)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
         after = datetime.now(UTC)
 
         assert config.project_config_exists("test-project")
@@ -298,7 +352,9 @@ class TestProjectConfig:
         config = QenConfig(storage=test_storage)
         custom_time = "2024-01-15T10:30:00+00:00"
 
-        config.write_project_config("test-project", "main", "projects/test", created=custom_time)
+        config.write_project_config(
+            "test-project", "main", "projects/test", "/tmp/meta", created=custom_time
+        )
 
         stored = test_storage.read_profile("test-project")
         assert stored["created"] == custom_time
@@ -308,11 +364,11 @@ class TestProjectConfig:
         config = QenConfig(storage=test_storage)
 
         # Create project
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         # Try to create again
         with pytest.raises(ProjectAlreadyExistsError) as exc_info:
-            config.write_project_config("test-project", "dev", "projects/test2")
+            config.write_project_config("test-project", "dev", "projects/test2", "/tmp/meta")
 
         assert exc_info.value.project_name == "test-project"
         assert "test-project" in exc_info.value.config_path
@@ -322,9 +378,9 @@ class TestProjectConfig:
         """Test writing multiple project configs."""
         config = QenConfig(storage=test_storage)
 
-        config.write_project_config("project1", "main", "projects/project1")
-        config.write_project_config("project2", "dev", "projects/project2")
-        config.write_project_config("project3", "feature", "projects/project3")
+        config.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
+        config.write_project_config("project2", "dev", "projects/project2", "/tmp/meta")
+        config.write_project_config("project3", "feature", "projects/project3", "/tmp/meta")
 
         assert config.project_config_exists("project1")
         assert config.project_config_exists("project2")
@@ -333,7 +389,7 @@ class TestProjectConfig:
     def test_read_project_config_success(self, test_storage: QenvyTest) -> None:
         """Test reading project config successfully."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         data = config.read_project_config("test-project")
 
@@ -360,6 +416,7 @@ class TestProjectConfig:
             "my-project_123",
             "feature/add-support",
             "projects/my-project_123",
+            "/tmp/meta",
         )
 
         data = config.read_project_config("my-project_123")
@@ -381,7 +438,9 @@ class TestListProjects:
     def test_list_projects_excludes_main(self, test_storage: QenvyTest) -> None:
         """Test that list_projects excludes the main profile."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
 
         projects = config.list_projects()
 
@@ -391,7 +450,7 @@ class TestListProjects:
     def test_list_projects_single(self, test_storage: QenvyTest) -> None:
         """Test listing projects with one project."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("project1", "main", "projects/project1")
+        config.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
 
         projects = config.list_projects()
 
@@ -400,9 +459,9 @@ class TestListProjects:
     def test_list_projects_multiple(self, test_storage: QenvyTest) -> None:
         """Test listing projects with multiple projects."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("project1", "main", "projects/project1")
-        config.write_project_config("project2", "dev", "projects/project2")
-        config.write_project_config("project3", "feature", "projects/project3")
+        config.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
+        config.write_project_config("project2", "dev", "projects/project2", "/tmp/meta")
+        config.write_project_config("project3", "feature", "projects/project3", "/tmp/meta")
 
         projects = config.list_projects()
 
@@ -412,9 +471,11 @@ class TestListProjects:
     def test_list_projects_with_main_config(self, test_storage: QenvyTest) -> None:
         """Test listing projects when main config also exists."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg")
-        config.write_project_config("project1", "main", "projects/project1")
-        config.write_project_config("project2", "dev", "projects/project2")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
+        config.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
+        config.write_project_config("project2", "dev", "projects/project2", "/tmp/meta")
 
         projects = config.list_projects()
 
@@ -428,7 +489,7 @@ class TestDeleteProjectConfig:
     def test_delete_project_config_success(self, test_storage: QenvyTest) -> None:
         """Test deleting an existing project config."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         assert config.project_config_exists("test-project")
 
@@ -450,9 +511,9 @@ class TestDeleteProjectConfig:
     def test_delete_project_config_multiple(self, test_storage: QenvyTest) -> None:
         """Test deleting one project doesn't affect others."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("project1", "main", "projects/project1")
-        config.write_project_config("project2", "dev", "projects/project2")
-        config.write_project_config("project3", "feature", "projects/project3")
+        config.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
+        config.write_project_config("project2", "dev", "projects/project2", "/tmp/meta")
+        config.write_project_config("project3", "feature", "projects/project3", "/tmp/meta")
 
         config.delete_project_config("project2")
 
@@ -465,7 +526,7 @@ class TestDeleteProjectConfig:
     ) -> None:
         """Test error handling in delete_project_config."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         # Make delete_profile raise an exception
         def mock_delete_profile(*args, **kwargs):
@@ -488,12 +549,14 @@ class TestConfigIntegration:
         config = QenConfig(storage=test_storage)
 
         # Initialize main config
-        config.write_main_config("/tmp/meta", "myorg")
+        config.write_main_config(
+            "/tmp/meta", "git@github.com:myorg/meta.git", "/tmp/meta/../", "main", "myorg"
+        )
         assert config.main_config_exists()
 
         # Add projects
-        config.write_project_config("proj1", "main", "projects/proj1")
-        config.write_project_config("proj2", "dev", "projects/proj2")
+        config.write_project_config("proj1", "main", "projects/proj1", "/tmp/meta")
+        config.write_project_config("proj2", "dev", "projects/proj2", "/tmp/meta")
 
         # Set current project
         config.update_current_project("proj1")
@@ -520,8 +583,10 @@ class TestConfigIntegration:
         config2 = QenConfig(storage=test_storage)
 
         # Write with config1
-        config1.write_main_config("/tmp/meta", "testorg")
-        config1.write_project_config("project1", "main", "projects/project1")
+        config1.write_main_config(
+            "/tmp/meta", "git@github.com:testorg/meta.git", "/tmp/meta/../", "main", "testorg"
+        )
+        config1.write_project_config("project1", "main", "projects/project1", "/tmp/meta")
 
         # Read with config2
         assert config2.main_config_exists()
@@ -542,7 +607,9 @@ class TestConfigIntegration:
         config2 = QenConfig(storage=storage2)
 
         # Write to config1
-        config1.write_main_config("/tmp/meta1", "org1")
+        config1.write_main_config(
+            "/tmp/meta1", "git@github.com:org1/meta.git", "/tmp/meta1/../", "main", "org1"
+        )
 
         # Should not exist in config2
         assert config1.main_config_exists()
@@ -553,7 +620,7 @@ class TestConfigIntegration:
         config = QenConfig(storage=test_storage)
 
         # Empty strings should be allowed (validation is not enforced by Config)
-        config.write_project_config("", "", "")
+        config.write_project_config("", "", "", "/tmp/meta")
 
         data = config.read_project_config("")
         assert data["name"] == ""
@@ -567,8 +634,9 @@ class TestConfigIntegration:
         long_name = "a" * 1000
         long_branch = "b" * 1000
         long_folder = "c" * 1000
+        repo_path = "/fake/repo"
 
-        config.write_project_config(long_name, long_branch, long_folder)
+        config.write_project_config(long_name, long_branch, long_folder, repo_path)
 
         data = config.read_project_config(long_name)
         assert data["name"] == long_name
@@ -600,10 +668,10 @@ class TestExceptionTypes:
     def test_project_already_exists_error_raised(self, test_storage: QenvyTest) -> None:
         """Test ProjectAlreadyExistsError is raised with correct attributes."""
         config = QenConfig(storage=test_storage)
-        config.write_project_config("test-project", "main", "projects/test")
+        config.write_project_config("test-project", "main", "projects/test", "/tmp/meta")
 
         with pytest.raises(ProjectAlreadyExistsError) as exc_info:
-            config.write_project_config("test-project", "dev", "projects/test2")
+            config.write_project_config("test-project", "dev", "projects/test2", "/tmp/meta")
 
         error = exc_info.value
         assert error.project_name == "test-project"
@@ -617,7 +685,13 @@ class TestConfigOverrides:
         """Test meta_path_override parameter."""
         # Create config with stored meta_path
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/original/meta", "testorg")
+        config.write_main_config(
+            "/original/meta",
+            "git@github.com:testorg/meta.git",
+            "/original/meta/../",
+            "main",
+            "testorg",
+        )
 
         # Create new config with override
         config_with_override = QenConfig(storage=test_storage, meta_path_override="/override/meta")
@@ -635,7 +709,14 @@ class TestConfigOverrides:
         """Test current_project_override parameter."""
         # Create config with stored current_project
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", current_project="original-proj")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "original-proj",
+        )
 
         # Create new config with override
         config_with_override = QenConfig(
@@ -672,7 +753,14 @@ class TestConfigOverrides:
         """Test multiple overrides applied together."""
         # Create config with stored values
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/original/meta", "testorg", current_project="orig-proj")
+        config.write_main_config(
+            "/original/meta",
+            "git@github.com:testorg/meta.git",
+            "/original/meta/../",
+            "main",
+            "testorg",
+            "orig-proj",
+        )
 
         # Create new config with both overrides
         config_with_overrides = QenConfig(
@@ -704,7 +792,14 @@ class TestConfigOverrides:
     def test_override_none_values(self, test_storage: QenvyTest) -> None:
         """Test overrides with None values (no override)."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", current_project="proj")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "proj",
+        )
 
         # Create config with None overrides (should use stored values)
         config_no_override = QenConfig(
@@ -720,7 +815,14 @@ class TestConfigOverrides:
     def test_override_only_meta_path(self, test_storage: QenvyTest) -> None:
         """Test overriding only meta_path, leaving other values unchanged."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/original/meta", "testorg", current_project="proj")
+        config.write_main_config(
+            "/original/meta",
+            "git@github.com:testorg/meta.git",
+            "/original/meta/../",
+            "main",
+            "testorg",
+            "proj",
+        )
 
         config_with_override = QenConfig(storage=test_storage, meta_path_override="/override/meta")
 
@@ -732,7 +834,14 @@ class TestConfigOverrides:
     def test_override_only_current_project(self, test_storage: QenvyTest) -> None:
         """Test overriding only current_project, leaving other values unchanged."""
         config = QenConfig(storage=test_storage)
-        config.write_main_config("/tmp/meta", "testorg", current_project="orig")
+        config.write_main_config(
+            "/tmp/meta",
+            "git@github.com:testorg/meta.git",
+            "/tmp/meta/../",
+            "main",
+            "testorg",
+            "orig",
+        )
 
         config_with_override = QenConfig(storage=test_storage, current_project_override="override")
 
