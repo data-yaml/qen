@@ -11,6 +11,7 @@ from . import __version__
 from .commands.add import add_repository
 from .commands.commit import commit_command
 from .commands.config import config_command
+from .commands.delete import del_command
 from .commands.init import init_project, init_qen
 from .commands.pr import pr_command
 from .commands.pull import pull_all_repositories
@@ -246,6 +247,7 @@ def pull(ctx: click.Context, fetch_only: bool, verbose: bool) -> None:
 # Register commands
 main.add_command(config_command)
 main.add_command(commit_command)
+main.add_command(del_command)
 main.add_command(pr_command)
 main.add_command(push_command)
 main.add_command(rm)

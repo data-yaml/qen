@@ -5,6 +5,7 @@ Two modes:
 2. qen init <proj-name> - Create new project
 """
 
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,10 +19,101 @@ from ..git_utils import (
     GitError,
     MetaRepoNotFoundError,
     NotAGitRepoError,
+    RemoteBranchInfo,
     extract_org_from_remotes,
     find_meta_repo,
+    find_remote_branches,
 )
 from ..project import ProjectError, create_project
+
+
+@dataclass
+class DiscoveryState:
+    """State discovered about a project before initialization.
+
+    This dataclass captures what exists locally and remotely before
+    we decide what action to take for project initialization.
+
+    Attributes:
+        remote_branches: List of remote branches matching the project pattern
+        local_config: Loaded project config dict if exists, None otherwise
+        local_repo: Path to per-project meta clone if exists, None otherwise
+    """
+
+    remote_branches: list[RemoteBranchInfo]
+    local_config: dict[str, str] | None
+    local_repo: Path | None
+
+
+@dataclass
+class ActionPlan:
+    """Plan of actions to take for project initialization.
+
+    This dataclass describes what will happen based on the discovered state.
+
+    Attributes:
+        scenario: Name of the scenario (e.g., "create_new", "clone_existing")
+        actions: List of human-readable action descriptions
+        warnings: List of warning messages to show user
+        target_branch: Branch name that will be used/created
+    """
+
+    scenario: str
+    actions: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    target_branch: str = ""
+
+
+def discover_project_state(
+    config: QenConfig,
+    config_name: str,
+    meta_parent: Path,
+    meta_remote: str,
+) -> DiscoveryState:
+    """Discover existing project state from remote, local config, and local repo.
+
+    This function performs a comprehensive check of three sources:
+    1. Remote branches matching the project pattern
+    2. Local project configuration file
+    3. Local per-project meta clone
+
+    Args:
+        config: QenConfig instance for config file access
+        config_name: Project config name (what user typed)
+        meta_parent: Parent directory where per-project metas are cloned
+        meta_remote: Remote URL to query for branches
+
+    Returns:
+        DiscoveryState with findings from all three sources
+
+    Example:
+        >>> state = discover_project_state(config, "myproj", Path("~/GitHub"), "git@...")
+        >>> if state.remote_branches:
+        ...     print(f"Found {len(state.remote_branches)} remote branches")
+    """
+    # 1. Check for remote branches matching pattern
+    remote_branches = find_remote_branches(meta_remote, f"*-{config_name}")
+
+    # 2. Check if local config exists
+    local_config: dict[str, str] | None = None
+    if config.project_config_exists(config_name):
+        try:
+            local_config = config.read_project_config(config_name)
+        except QenConfigError:
+            # Config file exists but can't be read - treat as None
+            local_config = None
+
+    # 3. Check if local repo exists
+    local_repo: Path | None = None
+    repo_path = meta_parent / f"meta-{config_name}"
+    if repo_path.exists() and (repo_path / ".git").exists():
+        local_repo = repo_path
+
+    return DiscoveryState(
+        remote_branches=remote_branches,
+        local_config=local_config,
+        local_repo=local_repo,
+    )
 
 
 def extract_remote_and_org(meta_path: Path) -> tuple[str, str]:

@@ -4,6 +4,9 @@ Manages QEN configuration including viewing and switching between projects.
 """
 
 import json
+
+# Use tomllib for Python 3.11+, tomli for older versions
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -157,6 +160,7 @@ def display_current_project(
     meta_path: Path | None = None,
     current_project: str | None = None,
     json_output: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Display current project configuration.
 
@@ -166,6 +170,7 @@ def display_current_project(
         meta_path: Optional meta path override
         current_project: Optional current project override
         json_output: If True, output in JSON format
+        verbose: If True, show config file paths and contents
 
     Raises:
         click.ClickException: If display fails
@@ -258,6 +263,36 @@ def display_current_project(
         }
         click.echo(json.dumps(output, indent=2))
         return
+
+    # Show config file info if verbose
+    if verbose:
+        global_config_path = config.get_main_config_path()
+        project_config_path = config.get_project_config_path(project_name)
+
+        click.echo("Configuration Files:\n")
+        click.echo(f"Global config: {global_config_path}")
+
+        # Read and display global config
+        try:
+            with open(global_config_path, "rb") as f:
+                global_config_content = tomllib.load(f)
+            click.echo("\nGlobal config contents:")
+            click.echo(json.dumps(global_config_content, indent=2))
+        except Exception as e:
+            click.echo(f"  (Could not read: {e})")
+
+        click.echo(f"\nProject config: {project_config_path}")
+
+        # Read and display project config
+        try:
+            with open(project_config_path, "rb") as f:
+                project_config_content = tomllib.load(f)
+            click.echo("\nProject config contents:")
+            click.echo(json.dumps(project_config_content, indent=2))
+        except Exception as e:
+            click.echo(f"  (Could not read: {e})")
+
+        click.echo("\n" + "=" * 60 + "\n")
 
     # Human-readable output
     click.echo(f"Current project: {project_name}\n")
@@ -600,6 +635,7 @@ def display_global_config(
 @click.option("--compact", is_flag=True, help="Compact list format (with --list)")
 @click.option("--global", "show_global", is_flag=True, help="Show global configuration")
 @click.option("--json", "json_output", is_flag=True, help="Output in JSON format")
+@click.option("--verbose", is_flag=True, help="Show config file paths and contents")
 @click.pass_context
 def config_command(
     ctx: click.Context,
@@ -608,6 +644,7 @@ def config_command(
     compact: bool,
     show_global: bool,
     json_output: bool,
+    verbose: bool,
 ) -> None:
     """Manage QEN configuration and projects.
 
@@ -619,6 +656,10 @@ def config_command(
     \b
         # Show current project
         $ qen config
+
+    \b
+        # Show current project with config file paths and contents
+        $ qen config --verbose
 
     \b
         # List all projects
@@ -699,6 +740,17 @@ def config_command(
                 meta_path=meta_path,
                 current_project=current_project_override,
             )
+            # If verbose, show detailed config after switching
+            if verbose:
+                click.echo("\n" + "=" * 60 + "\n")
+                display_current_project(
+                    config=config,
+                    config_dir=config_dir,
+                    meta_path=meta_path,
+                    current_project=project_name,  # Use the just-switched project
+                    json_output=False,
+                    verbose=True,
+                )
             return
 
         # Show current project (default)
@@ -708,6 +760,7 @@ def config_command(
             meta_path=meta_path,
             current_project=current_project_override,
             json_output=json_output,
+            verbose=verbose,
         )
 
     except (click.ClickException, click.Abort):
