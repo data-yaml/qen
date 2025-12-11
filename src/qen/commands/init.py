@@ -5,6 +5,7 @@ Two modes:
 2. qen init <proj-name> - Create new project
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,7 +14,7 @@ import click
 
 from qenvy.base import QenvyBase
 
-from ..config import ProjectAlreadyExistsError, QenConfig, QenConfigError
+from ..config import QenConfig, QenConfigError
 from ..git_utils import (
     AmbiguousOrgError,
     GitError,
@@ -24,7 +25,7 @@ from ..git_utils import (
     find_meta_repo,
     find_remote_branches,
 )
-from ..project import ProjectError, create_project
+from ..project import ProjectError, create_project, parse_project_name
 
 
 @dataclass
@@ -114,6 +115,227 @@ def discover_project_state(
         local_config=local_config,
         local_repo=local_repo,
     )
+
+
+def build_action_plan(
+    state: DiscoveryState,
+    config_name: str,
+    explicit_branch: str | None,
+    generate_branch_fn: Callable[[str], str],
+) -> ActionPlan:
+    """Build an action plan based on discovered project state.
+
+    Implements the decision matrix from the spec to determine what actions
+    to take based on what exists (remote branches, local config, local repo).
+
+    Args:
+        state: Discovered project state
+        config_name: Project config name (what user typed)
+        explicit_branch: Explicit branch name if user provided one
+        generate_branch_fn: Function to generate new branch name if needed
+
+    Returns:
+        ActionPlan describing what will happen
+    """
+    from ..git_utils import get_current_branch
+
+    has_remote = len(state.remote_branches) > 0
+    has_config = state.local_config is not None
+    has_repo = state.local_repo is not None
+
+    # Scenario C: Already setup (all exist)
+    if has_remote and has_config and has_repo:
+        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
+        return ActionPlan(
+            scenario="already_setup",
+            actions=[],
+            warnings=[],
+            target_branch=branch,
+        )
+
+    # Determine target branch
+    if explicit_branch:
+        target_branch = explicit_branch
+    elif len(state.remote_branches) == 1:
+        target_branch = state.remote_branches[0].name
+    elif len(state.remote_branches) > 1:
+        return ActionPlan(
+            scenario="multiple_remotes",
+            actions=["Prompt user to choose from multiple remote branches"],
+            warnings=[],
+            target_branch="",
+        )
+    else:
+        target_branch = generate_branch_fn(config_name)
+
+    # Scenario B: Remote exists, nothing local - clone existing
+    if has_remote and not has_config and not has_repo:
+        return ActionPlan(
+            scenario="clone_existing",
+            actions=[
+                f"Clone meta-{config_name} from origin/{target_branch}",
+                f"Checkout existing branch {target_branch}",
+                "Pull latest changes",
+                f"Create config at projects/{config_name}.toml",
+            ],
+            warnings=[],
+            target_branch=target_branch,
+        )
+
+    # Scenario A: Nothing exists - create new
+    if not has_remote and not has_config and not has_repo:
+        return ActionPlan(
+            scenario="create_new",
+            actions=[
+                f"Clone meta-{config_name} from remote",
+                f"Create new branch {target_branch} from main",
+                f"Create project folder proj/{target_branch}/",
+                f"Create config at projects/{config_name}.toml",
+            ],
+            warnings=[],
+            target_branch=target_branch,
+        )
+
+    # Edge case: Config exists but repo missing
+    if has_config and not has_repo:
+        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
+        return ActionPlan(
+            scenario="config_orphaned",
+            actions=[
+                "Config exists but repo is missing",
+                "Recommend deleting config and recreating",
+            ],
+            warnings=["Config file exists but repository is missing"],
+            target_branch=branch,
+        )
+
+    # Edge case: Repo exists but config missing
+    if has_repo and not has_config:
+        try:
+            # We know state.local_repo is not None because has_repo is True
+            assert state.local_repo is not None
+            branch = get_current_branch(state.local_repo)
+        except Exception:
+            branch = "unknown"
+
+        return ActionPlan(
+            scenario="repo_orphaned",
+            actions=[
+                f"Found existing repo at {state.local_repo}",
+                f"Create config for existing repo (branch: {branch})",
+            ],
+            warnings=["Repository exists without config"],
+            target_branch=branch,
+        )
+
+    # Default fallback
+    return ActionPlan(
+        scenario="unknown",
+        actions=["Unknown state - please report this as a bug"],
+        warnings=["Unexpected state combination detected"],
+        target_branch="",
+    )
+
+
+def show_discovery_state(state: DiscoveryState, config_name: str) -> None:
+    """Display discovered project state with clear visual formatting.
+
+    Args:
+        state: Discovered project state
+        config_name: Project config name
+    """
+    click.echo(f"\nProject: {config_name}")
+    click.echo()
+
+    # Remote branches
+    if state.remote_branches:
+        click.echo(f"  ✓ Remote branches: Found {len(state.remote_branches)}")
+        for branch in state.remote_branches:
+            click.echo(f"    • {branch.name} ({branch.last_commit[:8]})")
+    else:
+        click.echo("  ✗ Remote branches: Not found")
+
+    # Local config
+    if state.local_config:
+        click.echo("  ✓ Local config: Found")
+    else:
+        click.echo("  ✗ Local config: Not found")
+
+    # Local repo
+    if state.local_repo:
+        click.echo(f"  ✓ Local repo: Found at {state.local_repo}")
+    else:
+        click.echo("  ✗ Local repo: Not found")
+
+    click.echo()
+
+
+def show_action_plan(plan: ActionPlan) -> None:
+    """Display action plan with clear visual formatting.
+
+    Args:
+        plan: Action plan to display
+    """
+    if plan.scenario == "already_setup":
+        click.echo("Already configured:")
+        click.echo(f"  Branch: {plan.target_branch}")
+        click.echo()
+        click.echo("Nothing to do. Project is ready to use.")
+        click.echo()
+        return
+
+    if plan.warnings:
+        click.echo("⚠️  Warnings:")
+        for warning in plan.warnings:
+            click.echo(f"  • {warning}")
+        click.echo()
+
+    click.echo("Actions to perform:")
+    for action in plan.actions:
+        click.echo(f"  • {action}")
+    click.echo()
+
+
+def prompt_branch_choice(branches: list[RemoteBranchInfo], config_name: str) -> str:
+    """Prompt user to choose from multiple remote branches.
+
+    Args:
+        branches: List of remote branches to choose from
+        config_name: Project config name
+
+    Returns:
+        Selected branch name
+    """
+    from ..project import generate_branch_name
+
+    click.echo(f"\nFound multiple branches for project '{config_name}':")
+    click.echo()
+
+    for idx, branch in enumerate(branches, start=1):
+        commit_short = branch.last_commit[:8] if branch.last_commit else "unknown"
+        click.echo(f"  [{idx}] {branch.name} ({commit_short})")
+
+    # Option to create new branch
+    new_branch_idx = len(branches) + 1
+    new_branch_name = generate_branch_name(config_name)
+    click.echo(f"  [{new_branch_idx}] Create new branch ({new_branch_name})")
+    click.echo()
+
+    while True:
+        choice_val = click.prompt(
+            "Which branch should be used?",
+            type=int,
+            default=1,
+            show_default=True,
+        )
+        choice: int = int(choice_val)  # Ensure it's an int
+
+        if 1 <= choice <= len(branches):
+            return branches[choice - 1].name
+        elif choice == new_branch_idx:
+            return new_branch_name
+        else:
+            click.echo(f"Invalid choice. Please enter a number between 1 and {new_branch_idx}.")
 
 
 def extract_remote_and_org(meta_path: Path) -> tuple[str, str]:
@@ -291,52 +513,52 @@ def init_project(
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> None:
-    """Create a new project in the meta repository.
+    """Setup a project (discover existing or create new) - discovery-first approach.
 
-    Behavior:
-    1. Check if project config already exists (error if yes, unless --force)
-    2. Create branch YYMMDD-<proj-name> in meta repo
-    3. Create directory proj/YYMMDD-<proj-name>/ with:
-       - README.md (stub)
-       - meta.toml (empty repos list)
-       - repos/ (gitignored)
-    4. Create project config
-    5. Update main config: set current_project
-    6. Prompt to create PR (unless --yes is specified)
+    This function implements the discovery-first philosophy:
+    1. Parse project name to determine config name and explicit branch (if any)
+    2. Discover existing state (remote branches, local config, local repo)
+    3. Build action plan based on discovered state
+    4. Show user what exists and what will happen
+    5. Prompt for confirmation (unless --yes)
+    6. Execute plan
 
     Args:
-        project_name: Name of the project
+        project_name: Name of the project (short or fully-qualified with YYMMDD prefix)
         verbose: Enable verbose output
-        yes: Auto-confirm prompts (skip PR creation prompt)
-        force: Force recreate if project already exists
+        yes: Auto-confirm prompts (skip all confirmation prompts)
+        force: Force recreate if project already exists (delete and recreate)
         storage: Optional storage backend for testing
         config_dir: Override configuration directory
         meta_path_override: Override meta repository path
         current_project_override: Override current project name
 
     Raises:
-        ProjectAlreadyExistsError: If project already exists and force is False
         QenConfigError: If config operations fail
         ProjectError: If project creation fails
+        GitError: If git operations fail
     """
+    import shutil
+
+    from ..project import generate_branch_name
+
+    # Step 1: Parse project name
+    config_name, explicit_branch = parse_project_name(project_name)
+
     MAX_PROJECT_NAME_LENGTH = 12
-    # Warn if project name is too long (breaks some services)
-    if len(project_name) > MAX_PROJECT_NAME_LENGTH:
+    # Warn if project name is too long
+    if len(config_name) > MAX_PROJECT_NAME_LENGTH:
         click.echo(
-            f"Warning: Project name '{project_name}' is {len(project_name)} characters long.",
+            f"Warning: Project name '{config_name}' is {len(config_name)} characters long.",
             err=True,
         )
         click.echo(
             f"  Project names longer than {MAX_PROJECT_NAME_LENGTH} characters may break some services.",
             err=True,
         )
-        click.echo(
-            "  Consider using a shorter name.",
-            err=True,
-        )
         click.echo()
 
-    # Load configuration
+    # Step 2: Ensure global config exists
     config = QenConfig(
         storage=storage,
         config_dir=config_dir,
@@ -344,13 +566,9 @@ def init_project(
         current_project_override=current_project_override,
     )
 
-    # Auto-initialize if main config doesn't exist
-    # This allows commands like `qen --meta <path> init <project>` to work
-    # without requiring a separate `qen init` call first
     if not config.main_config_exists():
         if verbose:
             click.echo("Auto-initializing qen configuration...")
-        # Silently initialize (verbose=False to avoid cluttering output)
         init_qen(
             verbose=False,
             storage=storage,
@@ -359,305 +577,176 @@ def init_project(
             current_project_override=current_project_override,
         )
 
-    # Read main config to get meta repository metadata
+    # Read main config
     try:
         main_config = config.read_main_config()
         meta_remote = main_config["meta_remote"]
         meta_parent = Path(main_config["meta_parent"])
         meta_default_branch = main_config["meta_default_branch"]
-        github_org = main_config.get("org")  # Get org from config
-    except QenConfigError as e:
+        github_org = main_config.get("org")
+    except (QenConfigError, KeyError) as e:
         click.echo(f"Error reading configuration: {e}", err=True)
-        raise click.Abort() from e
-    except KeyError as e:
-        click.echo(
-            f"Error: Configuration is missing required field: {e}\n"
-            f"Please reinitialize with: qen init",
-            err=True,
-        )
+        click.echo("Please reinitialize with: qen init", err=True)
         raise click.Abort() from e
 
-    # Check if project already exists
-    if config.project_config_exists(project_name):
-        if not force:
-            project_config_path = config.get_project_config_path(project_name)
-            click.echo(
-                f"Error: Project '{project_name}' already exists at {project_config_path}.\n"
-                f"Use --force to delete and recreate the project.",
-                err=True,
-            )
-            raise click.Abort()
-        else:
-            # Force mode: clean up existing project artifacts
-            if verbose:
-                click.echo(f"Force mode: Cleaning up existing project '{project_name}'")
-
-            # Get existing project config to find per-project meta path
-            try:
-                import shutil
-                import subprocess
-
-                old_config = config.read_project_config(project_name)
-                per_project_meta = Path(old_config["repo"])
-                old_branch = old_config.get("branch")
-
-                if not per_project_meta.exists():
-                    # Directory already gone, just delete config
-                    if verbose:
-                        click.echo(f"  Per-project meta already deleted: {per_project_meta}")
-                    config.delete_project_config(project_name)
-                else:
-                    # Check for uncommitted changes
-                    result = subprocess.run(
-                        ["git", "status", "--porcelain"],
-                        cwd=per_project_meta,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    uncommitted_files = [line for line in result.stdout.split("\n") if line.strip()]
-
-                    # Check for unpushed commits
-                    unpushed_commits: list[str] = []
-                    if old_branch:
-                        result = subprocess.run(
-                            ["git", "log", f"origin/{old_branch}..{old_branch}", "--oneline"],
-                            cwd=per_project_meta,
-                            capture_output=True,
-                            text=True,
-                            check=False,
-                        )
-                        unpushed_commits = [
-                            line for line in result.stdout.split("\n") if line.strip()
-                        ]
-
-                    # Display warnings
-                    warnings = []
-                    if uncommitted_files:
-                        warnings.append(f"  • {len(uncommitted_files)} uncommitted file(s)")
-                    if unpushed_commits:
-                        warnings.append(f"  • {len(unpushed_commits)} unpushed commit(s)")
-
-                    if warnings:
-                        click.echo("⚠️  Warning: The following will be lost:", err=True)
-                        for warning in warnings:
-                            click.echo(warning, err=True)
-                        click.echo()
-
-                    # Confirm deletion (unless --yes flag)
-                    if not yes:
-                        click.echo(f"This will permanently delete: {per_project_meta}")
-                        if not click.confirm("Continue?", default=False):
-                            click.echo("Aborted.")
-                            raise click.Abort()
-
-                    # Delete directory
-                    shutil.rmtree(per_project_meta)
-                    if verbose:
-                        click.echo(f"  Deleted per-project meta: {per_project_meta}")
-
-                    # Delete the config file
-                    config.delete_project_config(project_name)
-                    if verbose:
-                        click.echo(f"  Deleted config for project '{project_name}'")
-
-                    # Note: Leave remote branch alone (user can delete manually)
-                    if old_branch and verbose:
-                        click.echo(
-                            f"  Note: Remote branch '{old_branch}' was not deleted (delete manually if needed)"
-                        )
-
-            except (QenConfigError, KeyError):
-                # Legacy config missing 'repo' field or can't read config
-                if verbose:
-                    click.echo(
-                        "  Legacy or invalid project config detected, cleaning up config only"
-                    )
-                config.delete_project_config(project_name)
-
-    if verbose:
-        click.echo(f"Creating project: {project_name}")
-        click.echo(f"Cloning from remote: {meta_remote}")
-
-    # Clone from remote to create per-project meta
-    from ..git_utils import clone_per_project_meta
-
-    try:
-        per_project_meta = clone_per_project_meta(
-            meta_remote,
-            project_name,
-            meta_parent,
-            meta_default_branch,
-        )
+    # Step 3: Handle force mode (delete existing project)
+    if force and config.project_config_exists(config_name):
         if verbose:
-            click.echo(f"Created per-project meta: {per_project_meta}")
-    except GitError as e:
-        click.echo(f"Error cloning per-project meta: {e}", err=True)
-        # Provide helpful context for common failure scenarios
-        error_str = str(e).lower()
-        if any(x in error_str for x in ["could not resolve", "connection", "network", "timeout"]):
-            click.echo(
-                "\nThis appears to be a network connectivity issue.\n"
-                "Please check your internet connection and try again.",
-                err=True,
-            )
-        elif any(x in error_str for x in ["authentication", "permission", "denied", "credentials"]):
-            click.echo(
-                "\nThis appears to be an authentication issue.\n"
-                "Please check your git credentials and remote access permissions.",
-                err=True,
-            )
-        raise click.Abort() from e
+            click.echo(f"Force mode: Cleaning up existing project '{config_name}'")
 
-    # Create project in the clone
-    # Use UTC for ISO8601 timestamps (machine-facing)
-    # But branch names will use local time (user-facing)
+        try:
+            old_config = config.read_project_config(config_name)
+            per_project_meta = Path(old_config["repo"])
+
+            if per_project_meta.exists():
+                # Delete repo directory
+                shutil.rmtree(per_project_meta)
+                if verbose:
+                    click.echo(f"  Deleted: {per_project_meta}")
+
+            # Delete config
+            config.delete_project_config(config_name)
+            if verbose:
+                click.echo(f"  Deleted config for '{config_name}'")
+        except (QenConfigError, KeyError):
+            # Can't read config - just delete it
+            config.delete_project_config(config_name)
+
+    # Step 4: Discover existing state
+    if verbose:
+        click.echo("Discovering project state...")
+
+    state = discover_project_state(config, config_name, meta_parent, meta_remote)
+
+    # Step 5: Build action plan
+    def branch_generator(name: str) -> str:
+        return generate_branch_name(name)
+
+    plan = build_action_plan(state, config_name, explicit_branch, branch_generator)
+
+    # Handle multiple remotes - prompt user
+    if plan.scenario == "multiple_remotes":
+        selected_branch = prompt_branch_choice(state.remote_branches, config_name)
+        # Rebuild plan with selected branch
+        plan = build_action_plan(state, config_name, selected_branch, branch_generator)
+
+    # Step 6: Show discovery state and action plan
+    show_discovery_state(state, config_name)
+    show_action_plan(plan)
+
+    # Step 7: Handle already_setup scenario
+    if plan.scenario == "already_setup":
+        click.echo(f"Use: qen config {config_name}")
+        return
+
+    # Step 8: Prompt for confirmation (unless --yes)
+    if not yes:
+        if not click.confirm("Continue?", default=True):
+            click.echo("Aborted.")
+            raise click.Abort()
+
+    # Step 9: Execute plan based on scenario
     now = datetime.now(UTC)
 
-    try:
-        branch_name, folder_path = create_project(
-            per_project_meta,  # Use per-project meta, not meta prime
-            project_name,
-            date=None,  # Let create_project use local time for branch names
-            github_org=github_org,  # Pass org to create_project
-        )
-    except ProjectError as e:
-        click.echo(f"Error creating project: {e}", err=True)
-        # Cleanup: delete the per-project meta clone
-        import shutil
+    if plan.scenario in ["create_new", "clone_existing"]:
+        # Clone per-project meta
+        from ..git_utils import clone_per_project_meta
 
-        if per_project_meta.exists():
-            shutil.rmtree(per_project_meta)
-        raise click.Abort() from e
+        try:
+            per_project_meta = clone_per_project_meta(
+                meta_remote,
+                config_name,
+                meta_parent,
+                meta_default_branch,
+            )
+            if verbose:
+                click.echo(f"Cloned: {per_project_meta}")
+        except GitError as e:
+            click.echo(f"Error cloning: {e}", err=True)
+            raise click.Abort() from e
 
-    if verbose:
-        click.echo(f"Created branch: {branch_name}")
-        click.echo(f"Created directory: {folder_path}")
+        # For create_new: create project structure and commit
+        if plan.scenario == "create_new":
+            try:
+                branch_name, folder_path = create_project(
+                    per_project_meta,
+                    config_name,
+                    date=None,
+                    github_org=github_org,
+                )
+                if verbose:
+                    click.echo(f"Created branch: {branch_name}")
+                    click.echo(f"Created directory: {folder_path}")
+            except ProjectError as e:
+                click.echo(f"Error creating project: {e}", err=True)
+                if per_project_meta.exists():
+                    shutil.rmtree(per_project_meta)
+                raise click.Abort() from e
+        else:
+            # clone_existing: branch already exists, just use it
+            branch_name = plan.target_branch
+            folder_path = f"proj/{branch_name}"
 
-    # Push branch to remote
-    import subprocess
+        # Write config
+        try:
+            config.write_project_config(
+                project_name=config_name,
+                branch=branch_name,
+                folder=folder_path,
+                repo=str(per_project_meta),
+                created=now.isoformat(),
+            )
+        except QenConfigError as e:
+            click.echo(f"Error writing config: {e}", err=True)
+            raise click.Abort() from e
 
-    try:
-        if verbose:
-            click.echo(f"Pushing branch {branch_name} to remote...")
+        # Set as current project
+        try:
+            config.update_current_project(config_name)
+        except QenConfigError:
+            pass  # Non-critical
 
-        subprocess.run(
-            ["git", "push", "-u", "origin", branch_name],
-            cwd=per_project_meta,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        # Success message
+        click.echo(f"\nProject '{config_name}' ready at {per_project_meta}")
+        click.echo(f"  Branch: {branch_name}")
+        click.echo(f"  Directory: {per_project_meta / folder_path}")
+        click.echo()
+        click.echo("Next steps:")
+        click.echo(f"  cd {per_project_meta / folder_path}")
+        click.echo("  # Add repositories with: qen add <repo-url>")
 
-        if verbose:
-            click.echo("Branch pushed successfully")
-    except subprocess.CalledProcessError as e:
-        click.echo(f"\nWarning: Failed to push branch: {e.stderr}", err=True)
-        if verbose:
-            click.echo(f"Error details: {e}", err=True)
-        # Continue anyway - user can push manually later
-    except Exception as e:
-        click.echo(f"\nWarning: Failed to push branch: {e}", err=True)
-        # Continue anyway
+    elif plan.scenario == "repo_orphaned":
+        # Repo exists but config missing - create config
+        from ..git_utils import get_current_branch
 
-    # Create project configuration with per-project meta path
-    try:
+        try:
+            # We know state.local_repo is not None in this scenario
+            assert state.local_repo is not None
+            branch = get_current_branch(state.local_repo)
+        except Exception:
+            branch = "unknown"
+
+        folder_path = f"proj/{branch}"
+
         config.write_project_config(
-            project_name=project_name,
-            branch=branch_name,
+            project_name=config_name,
+            branch=branch,
             folder=folder_path,
-            repo=str(per_project_meta),  # Store per-project meta path
+            repo=str(state.local_repo),
             created=now.isoformat(),
         )
-    except ProjectAlreadyExistsError as e:
-        click.echo(f"Error: {e}", err=True)
-        raise click.Abort() from e
-    except QenConfigError as e:
-        click.echo(f"Error creating project configuration: {e}", err=True)
-        raise click.Abort() from e
 
-    if verbose:
-        project_config_path = config.get_project_config_path(project_name)
-        click.echo(f"Created project config: {project_config_path}")
+        config.update_current_project(config_name)
 
-    # Update main config to set current_project
-    try:
-        config.update_current_project(project_name)
-    except QenConfigError as e:
-        click.echo(f"Warning: Failed to update current_project: {e}", err=True)
-        # Don't abort - project was created successfully
+        click.echo(f"\nConfig created for existing repo at {state.local_repo}")
 
-    # Success message
-    click.echo(f"\nProject '{project_name}' created successfully!")
-    click.echo(f"  Branch: {branch_name}")
-    click.echo(f"  Directory: {per_project_meta / folder_path}")
-    click.echo(f"  Config: {config.get_project_config_path(project_name)}")
-    click.echo()
+    elif plan.scenario == "config_orphaned":
+        # Config exists but repo missing - recommend recreation
+        click.echo("Config exists but repository is missing.")
+        click.echo(f"Run: qen init {config_name} --force")
+        raise click.Abort()
 
-    # Prompt to create PR unless --yes was specified
-    if not yes:
-        # Check if gh CLI is available
-        try:
-            subprocess.run(
-                ["gh", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            gh_available = True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-            gh_available = False
-
-        if gh_available:
-            create_pr = click.confirm("Would you like to create a pull request for this project?")
-            if create_pr:
-                try:
-                    # Use the default branch from config
-                    base_branch = meta_default_branch
-
-                    if verbose:
-                        click.echo(f"Creating PR with base branch: {base_branch}")
-
-                    # Create PR with gh CLI
-                    pr_title = f"Project: {project_name}"
-                    pr_body = (
-                        f"Initialize project {project_name}\n\n"
-                        f"This PR creates the project structure for {project_name}."
-                    )
-
-                    result = subprocess.run(
-                        [
-                            "gh",
-                            "pr",
-                            "create",
-                            "--base",
-                            base_branch,
-                            "--head",
-                            branch_name,
-                            "--title",
-                            pr_title,
-                            "--body",
-                            pr_body,
-                        ],
-                        cwd=per_project_meta,
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-
-                    pr_url = result.stdout.strip()
-                    click.echo(f"\n✓ Pull request created: {pr_url}")
-                except subprocess.CalledProcessError as e:
-                    click.echo(f"\nWarning: Failed to create PR: {e.stderr}", err=True)
-                    if verbose:
-                        click.echo(f"Error details: {e}", err=True)
-                except Exception as e:
-                    click.echo(f"\nWarning: Failed to create PR: {e}", err=True)
-        else:
-            if verbose:
-                click.echo("gh CLI not available, skipping PR creation prompt")
-
-    click.echo()
-    click.echo("Next steps:")
-    click.echo(f"  cd {per_project_meta / folder_path}")
-    click.echo("  # Add repositories with: qen add <repo-url>")
+    else:
+        # Unknown scenario
+        click.echo(f"Unexpected scenario: {plan.scenario}")
+        raise click.Abort()
