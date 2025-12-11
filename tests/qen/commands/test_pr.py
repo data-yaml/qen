@@ -435,7 +435,10 @@ class TestPrStatusCommandFunction:
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
-        mock_config.read_project_config.return_value = {"folder": "proj/test"}
+        mock_config.read_project_config.return_value = {
+            "folder": "proj/test",
+            "repo": "/tmp/meta",
+        }
         mock_ensure.return_value = mock_config
 
         mock_exists.return_value = True
@@ -490,7 +493,10 @@ class TestPrStatusCommandFunction:
             "meta_path": "/tmp/meta",
             "current_project": "test-project",
         }
-        mock_config.read_project_config.return_value = {"folder": "proj/test"}
+        mock_config.read_project_config.return_value = {
+            "folder": "proj/test",
+            "repo": "/tmp/meta",
+        }
         mock_ensure.return_value = mock_config
 
         # Project dir exists, but repo dir doesn't

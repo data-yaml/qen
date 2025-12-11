@@ -83,12 +83,23 @@ def prepare_shell_context(
     # Get project directory from config
     try:
         project_config = config.read_project_config(target_project)
-        meta_path = Path(main_config["meta_path"])
-        project_dir = meta_path / project_config["folder"]
     except QenConfigError as e:
         raise click.ClickException(
             f"Project '{target_project}' not found in qen configuration: {e}"
         ) from e
+
+    # Check for per-project meta (new format)
+    if "repo" not in project_config:
+        click.echo(
+            f"Error: Project '{target_project}' uses old configuration format.\n"
+            f"This version requires per-project meta clones.\n"
+            f"To migrate: qen init --force {target_project}",
+            err=True,
+        )
+        raise click.Abort()
+
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
 
     # Verify project directory exists
     if not project_dir.exists():

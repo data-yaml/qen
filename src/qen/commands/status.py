@@ -383,8 +383,19 @@ def show_project_status(
     # Get project directory from config
     try:
         project_config = config.read_project_config(target_project)
-        meta_path = Path(main_config["meta_path"])
-        project_dir = meta_path / project_config["folder"]
+
+        # Check for per-project meta repo field
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{target_project}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {target_project}",
+                err=True,
+            )
+            raise click.Abort()
+
+        per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
     except QenConfigError as e:
         raise click.ClickException(
             f"Project '{target_project}' not found in qen configuration: {e}"
@@ -397,13 +408,13 @@ def show_project_status(
     # Fetch if requested
     if fetch:
         try:
-            fetch_all_repos(project_dir, meta_path, verbose=verbose)
+            fetch_all_repos(project_dir, per_project_meta, verbose=verbose)
         except StatusError as e:
             click.echo(f"Warning: Fetch failed: {e}", err=True)
 
     # Get and display status
     try:
-        status = get_project_status(project_dir, meta_path, fetch=False, fetch_pr=fetch_pr)
+        status = get_project_status(project_dir, per_project_meta, fetch=False, fetch_pr=fetch_pr)
         output = format_status_output(
             status, verbose=verbose, meta_only=meta_only, repos_only=repos_only
         )

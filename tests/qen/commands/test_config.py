@@ -151,8 +151,8 @@ class TestCountRepositories:
         # Create empty pyproject.toml
         (project_dir / "pyproject.toml").write_text("[tool.qen]\n")
 
-        project_config = {"folder": "project"}
-        result = count_repositories(project_config, tmp_path)
+        project_config = {"folder": "project", "repo": str(tmp_path)}
+        result = count_repositories(project_config)
         assert result == 0
 
     def test_count_repositories_multiple(self, tmp_path: Path) -> None:
@@ -174,14 +174,14 @@ path = "repos/repo2"
 """
         )
 
-        project_config = {"folder": "project"}
-        result = count_repositories(project_config, tmp_path)
+        project_config = {"folder": "project", "repo": str(tmp_path)}
+        result = count_repositories(project_config)
         assert result == 2
 
     def test_count_repositories_missing_pyproject(self, tmp_path: Path) -> None:
         """Test counting repositories when pyproject.toml is missing."""
-        project_config = {"folder": "nonexistent"}
-        result = count_repositories(project_config, tmp_path)
+        project_config = {"folder": "nonexistent", "repo": str(tmp_path)}
+        result = count_repositories(project_config)
         assert result == 0
 
 

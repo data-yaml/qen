@@ -1084,6 +1084,7 @@ path = "repos/repo2"
                 "name": "test-project",
                 "branch": "251208-test-project",
                 "folder": "proj/test-project",
+                "repo": str(meta_path),
                 "created": "2025-12-08T10:00:00Z",
             },
         )

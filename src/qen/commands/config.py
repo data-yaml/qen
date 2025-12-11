@@ -68,17 +68,21 @@ def get_current_project_name(
         return None
 
 
-def count_repositories(project_config: dict[str, str], meta_path: Path) -> int:
+def count_repositories(project_config: dict[str, str]) -> int:
     """Count repositories in a project.
 
     Args:
         project_config: Project configuration dictionary
-        meta_path: Path to meta repository
 
     Returns:
         Number of repositories in project
     """
-    project_dir = meta_path / project_config["folder"]
+    # Use per-project meta from project config
+    if "repo" not in project_config:
+        return 0
+
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
 
     try:
         repos = load_repos_from_pyproject(project_dir)
@@ -115,21 +119,19 @@ def list_all_projects(
     project_names = config.list_projects()
     current_project_name = get_current_project_name(config, config_dir, meta_path, current_project)
 
-    # Get meta_path for counting repositories
-    try:
-        main_config = config.read_main_config()
-        meta_path = Path(main_config["meta_path"])
-    except QenConfigError:
-        meta_path = Path(".")  # Fallback, won't be able to count repos
-
     projects: list[ProjectSummary] = []
     for project_name in project_names:
         try:
             project_config = config.read_project_config(project_name)
-            repo_count = count_repositories(project_config, meta_path)
+            repo_count = count_repositories(project_config)
 
-            # Build full path
-            project_path = str(meta_path / project_config["folder"])
+            # Build full path using per-project meta
+            if "repo" in project_config:
+                per_project_meta = Path(project_config["repo"])
+                project_path = str(per_project_meta / project_config["folder"])
+            else:
+                # Old format - skip
+                continue
 
             projects.append(
                 ProjectSummary(
@@ -205,12 +207,21 @@ def display_current_project(
     # Load project configuration
     try:
         project_config = config.read_project_config(project_name)
-        main_config = config.read_main_config()
-        actual_meta_path = Path(main_config["meta_path"])
     except QenConfigError as e:
         raise click.ClickException(f"Error loading project configuration: {e}") from e
 
-    project_dir = actual_meta_path / project_config["folder"]
+    # Check for per-project meta (new format)
+    if "repo" not in project_config:
+        click.echo(
+            f"Error: Project '{project_name}' uses old configuration format.\n"
+            f"This version requires per-project meta clones.\n"
+            f"To migrate: qen init --force {project_name}",
+            err=True,
+        )
+        raise click.Abort()
+
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
 
     # Load repositories
     repos = []
@@ -240,7 +251,7 @@ def display_current_project(
                 "name": project_config["name"],
                 "branch": project_config["branch"],
                 "folder": project_config["folder"],
-                "meta_path": str(actual_meta_path),
+                "meta_path": str(per_project_meta),
                 "created": project_config["created"],
                 "repositories": repos,
             },
@@ -254,7 +265,7 @@ def display_current_project(
     click.echo(f"  Name:          {project_config['name']}")
     click.echo(f"  Branch:        {project_config['branch']}")
     click.echo(f"  Created:       {project_config['created']}")
-    click.echo(f"  Meta path:     {actual_meta_path}")
+    click.echo(f"  Meta path:     {per_project_meta}")
     click.echo(f"  Project path:  {project_dir}")
 
     if repos:
@@ -404,25 +415,34 @@ def switch_project(
     # Load project config and get branch name
     try:
         project_config = config.read_project_config(project_name)
-        main_config = config.read_main_config()
-        actual_meta_path = Path(main_config["meta_path"])
     except QenConfigError as e:
         raise click.ClickException(f"Error loading configuration: {e}") from e
 
+    # Check for per-project meta (new format)
+    if "repo" not in project_config:
+        click.echo(
+            f"Error: Project '{project_name}' uses old configuration format.\n"
+            f"This version requires per-project meta clones.\n"
+            f"To migrate: qen init --force {project_name}",
+            err=True,
+        )
+        raise click.Abort()
+
+    per_project_meta = Path(project_config["repo"])
     expected_branch = project_config["branch"]
 
     # Check current branch
     from ..git_utils import GitError, checkout_branch, get_current_branch, has_uncommitted_changes
 
     try:
-        current_branch = get_current_branch(actual_meta_path)
+        current_branch = get_current_branch(per_project_meta)
     except GitError as e:
         raise click.ClickException(f"Error getting current branch: {e}") from e
 
     # If not on correct branch, switch it
     if current_branch != expected_branch:
         # Check for uncommitted changes
-        if has_uncommitted_changes(actual_meta_path):
+        if has_uncommitted_changes(per_project_meta):
             click.echo(f"Error: Cannot switch to project '{project_name}'", err=True)
             click.echo(
                 f"Currently on branch '{current_branch}', need '{expected_branch}'", err=True
@@ -434,7 +454,7 @@ def switch_project(
         # Switch branch
         try:
             click.echo(f"Switching from branch '{current_branch}' to '{expected_branch}'...")
-            checkout_branch(actual_meta_path, expected_branch)
+            checkout_branch(per_project_meta, expected_branch)
         except GitError as e:
             raise click.ClickException(f"Error checking out branch: {e}") from e
 
@@ -452,7 +472,7 @@ def switch_project(
 
     # Count repositories
     try:
-        repo_count = count_repositories(project_config, actual_meta_path)
+        repo_count = count_repositories(project_config)
         click.echo(f"  Repositories:  {repo_count}")
     except Exception:
         pass  # Skip repo count if we can't determine it

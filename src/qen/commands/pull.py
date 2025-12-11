@@ -568,9 +568,19 @@ def pull_all_repositories(
         click.echo(f"Error reading project configuration: {e}", err=True)
         raise click.Abort() from e
 
-    meta_path = Path(main_config["meta_path"])
+    # Check for per-project meta repo field
+    if "repo" not in project_config:
+        click.echo(
+            f"Error: Project '{current_project}' uses old configuration format.\n"
+            f"This version requires per-project meta clones.\n"
+            f"To migrate: qen init --force {current_project}",
+            err=True,
+        )
+        raise click.Abort()
+
+    per_project_meta = Path(project_config["repo"])
     folder = project_config["folder"]
-    project_dir = meta_path / folder
+    project_dir = per_project_meta / folder
 
     if not project_dir.exists():
         click.echo(f"Error: Project directory not found: {project_dir}", err=True)

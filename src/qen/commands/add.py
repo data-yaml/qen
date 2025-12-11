@@ -148,9 +148,19 @@ def add_repository(
         click.echo(f"Error reading project configuration: {e}", err=True)
         raise click.Abort() from e
 
-    meta_path = Path(main_config["meta_path"])
+    # Check for per-project meta repo field
+    if "repo" not in project_config:
+        click.echo(
+            f"Error: Project '{current_project}' uses old configuration format.\n"
+            f"This version requires per-project meta clones.\n"
+            f"To migrate: qen init --force {current_project}",
+            err=True,
+        )
+        raise click.Abort()
+
+    per_project_meta = Path(project_config["repo"])
     folder = project_config["folder"]
-    project_dir = meta_path / folder
+    project_dir = per_project_meta / folder
 
     if verbose:
         click.echo(f"Project directory: {project_dir}")
@@ -174,9 +184,9 @@ def add_repository(
 
     # 4. Apply defaults for branch and path
     if branch is None:
-        # Default to the current branch of the meta repo
+        # Default to the current branch of the per-project meta repo
         try:
-            branch = get_current_branch(meta_path)
+            branch = get_current_branch(per_project_meta)
             if verbose:
                 click.echo(f"Using meta branch: {branch}")
         except GitError as e:

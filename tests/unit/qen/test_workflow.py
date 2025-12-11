@@ -60,6 +60,7 @@ class TestRepositoryManagement:
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -178,6 +179,7 @@ class TestRepositoryManagement:
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -262,6 +264,7 @@ class TestMetaTomlUpdates:
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )

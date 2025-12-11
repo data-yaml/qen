@@ -444,8 +444,19 @@ def rm(
     # Get project directory
     try:
         project_config = config.read_project_config(current_project)
-        meta_path = Path(main_config["meta_path"])
-        project_dir = meta_path / project_config["folder"]
+
+        # Check for per-project meta (new format)
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{current_project}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {current_project}",
+                err=True,
+            )
+            raise click.Abort()
+
+        per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
         org = main_config.get("org")
     except QenConfigError as e:
         raise click.ClickException(f"Error reading configuration: {e}") from e
