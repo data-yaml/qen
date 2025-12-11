@@ -89,19 +89,19 @@ created = "2025-12-10T12:34:56Z"
 
 ### Phase 1: Configuration Schema Changes
 
-#### Task 1.0: Add meta_remote to Main Config (BUG FIX)
+#### Task 1.0: Extend Global Config with Meta Repository Metadata
 
 **Priority:** CRITICAL - Required for all other tasks
 
-**What:** Add `meta_remote` field to main configuration
+**What:** Add three new fields to global config: `meta_remote`, `meta_parent`, `meta_default_branch`
 
 **Where:**
 
-- `src/qen/config.py:write_main_config()` (add parameter and field)
-- `src/qen/config.py:read_main_config()` (return new field)
-- `src/qen/commands/init.py:init_qen()` (extract and store remote URL)
+- `src/qen/config.py:write_main_config()` (add three parameters)
+- `src/qen/config.py:read_main_config()` (return new fields)
+- `src/qen/commands/init.py:init_qen()` (extract and store all metadata)
 
-**Current Code:**
+**Current Signature:**
 
 ```python
 def write_main_config(
@@ -113,27 +113,89 @@ def write_main_config(
     }
 ```
 
-**New Code:**
+**New Signature:**
 
 ```python
 def write_main_config(
-    self, meta_path: str, meta_remote: str, org: str, current_project: str | None = None
+    self,
+    meta_path: str,
+    meta_remote: str,         # NEW - remote URL for cloning
+    meta_parent: str,         # NEW - parent directory for clones
+    meta_default_branch: str, # NEW - default branch (main/master)
+    org: str,
+    current_project: str | None = None
 ) -> None:
     config: dict[str, Any] = {
         "meta_path": meta_path,
-        "meta_remote": meta_remote,  # NEW
+        "meta_remote": meta_remote,
+        "meta_parent": meta_parent,
+        "meta_default_branch": meta_default_branch,
         "org": org,
     }
 ```
 
-**Extract Remote URL:**
+**Extraction Logic in init_qen():**
 
-- In `init_qen()`, after extracting org from remotes
-- Get full remote URL (not just org name)
-- Use `git remote get-url origin` or similar
-- Store in config alongside `meta_path` and `org`
+```python
+# 1. Extract remote URL
+from .git_utils import get_remote_url
+meta_prime_path = Path(meta_path)
+remote_url = get_remote_url(meta_prime_path)
 
-**Migration:** Existing configs without `meta_remote` should error with clear message
+# 2. Resolve symlinks and get parent directory
+if meta_prime_path.is_symlink():
+    meta_prime_path = meta_prime_path.resolve()
+
+if not meta_prime_path.exists():
+    raise ConfigError(f"Meta path does not exist: {meta_path}")
+
+target_parent_dir = meta_prime_path.parent
+
+if not target_parent_dir.is_dir() or not os.access(target_parent_dir, os.W_OK):
+    raise ConfigError(f"Parent directory not writable: {target_parent_dir}")
+
+# 3. Detect default branch from remote
+from .git_utils import get_default_branch
+default_branch = get_default_branch(remote_url)
+
+# 4. Store all metadata in config
+config.write_main_config(
+    meta_path=str(meta_prime_path),
+    meta_remote=remote_url,
+    meta_parent=str(target_parent_dir),
+    meta_default_branch=default_branch,
+    org=org,
+)
+```
+
+**Helper Functions Needed (src/qen/git_utils.py):**
+
+```python
+def get_remote_url(repo_path: Path, remote_name: str = "origin") -> str:
+    """Get remote URL from repository.
+
+    Returns: Remote URL
+    Raises: GitError if remote doesn't exist
+    """
+    result = run_git_command(
+        ["remote", "get-url", remote_name],
+        cwd=repo_path,
+    )
+    return result.stdout.strip()
+
+
+def get_default_branch(remote_url: str) -> str:
+    """Detect default branch name from remote (main or master).
+
+    Implementation:
+        # Try: git ls-remote --symref <url> HEAD
+        # Parse: ref: refs/heads/main HEAD
+        # Extract: "main"
+        # Fallback: "main"
+    """
+```
+
+**Rationale:** Extract and store all meta repository metadata once during `qen init`, avoiding repeated git queries and path computations
 
 ---
 
@@ -154,7 +216,7 @@ def write_project_config(
     project_name: str,
     branch: str,
     folder: str,
-    repo: str,  # NEW
+    repo: str,  # NEW - absolute path to per-project meta clone
     created: str | None = None,
 ) -> None:
     config = {
@@ -170,131 +232,7 @@ def write_project_config(
 
 ---
 
-#### Task 1.2: Store Meta Parent Directory in Config
-
-**What:** Store the parent directory of meta_path in global config during initialization (set once, use many times)
-
-**Where:** `src/qen/config.py:write_main_config()` and `src/qen/commands/init.py:init_qen()`
-
-**Changes:**
-
-```python
-def write_main_config(
-    self,
-    meta_path: str,
-    meta_remote: str,
-    meta_parent: str,  # NEW - parent directory for cloning per-project metas
-    org: str,
-    current_project: str | None = None
-) -> None:
-    config: dict[str, Any] = {
-        "meta_path": meta_path,
-        "meta_remote": meta_remote,
-        "meta_parent": meta_parent,  # NEW
-        "org": org,
-    }
-```
-
-**Extract During init_qen():**
-
-```python
-meta_prime_path = Path(meta_path)
-
-# Resolve symlinks and get parent
-if meta_prime_path.is_symlink():
-    meta_prime_path = meta_prime_path.resolve()
-
-if not meta_prime_path.exists():
-    raise ConfigError(f"Meta path does not exist: {meta_path}")
-
-target_parent_dir = meta_prime_path.parent
-
-if not target_parent_dir.is_dir() or not os.access(target_parent_dir, os.W_OK):
-    raise ConfigError(f"Parent directory not writable: {target_parent_dir}")
-
-# Store in config
-config.write_main_config(
-    meta_path=str(meta_prime_path),
-    meta_remote=remote_url,
-    meta_parent=str(target_parent_dir),  # NEW
-    org=org,
-)
-```
-
-**Rationale:** Extract and validate parent directory once during init, rather than computing it every time a project is created
-
----
-
-#### Task 1.3: Detect and Store Default Branch
-
-**What:** Detect default branch (main vs master) from remote and store in global config during initialization
-
-**Where:** `src/qen/config.py:write_main_config()` and `src/qen/commands/init.py:init_qen()`
-
-**Changes:**
-
-```python
-def write_main_config(
-    self,
-    meta_path: str,
-    meta_remote: str,
-    meta_parent: str,
-    meta_default_branch: str,  # NEW - default branch name (main or master)
-    org: str,
-    current_project: str | None = None
-) -> None:
-    config: dict[str, Any] = {
-        "meta_path": meta_path,
-        "meta_remote": meta_remote,
-        "meta_parent": meta_parent,
-        "meta_default_branch": meta_default_branch,  # NEW
-        "org": org,
-    }
-```
-
-**Detection Logic in init_qen():**
-
-```python
-# After getting remote URL
-from .git_utils import get_default_branch
-
-default_branch = get_default_branch(remote_url)
-
-# Store in config
-config.write_main_config(
-    meta_path=str(meta_prime_path),
-    meta_remote=remote_url,
-    meta_parent=str(target_parent_dir),
-    meta_default_branch=default_branch,  # NEW
-    org=org,
-)
-```
-
-**Helper Function (src/qen/git_utils.py):**
-
-```python
-def get_default_branch(remote_url: str) -> str:
-    """Detect default branch name from remote (main or master).
-
-    Args:
-        remote_url: Remote URL
-
-    Returns:
-        Branch name ("main" or "master")
-
-    Implementation:
-        # Try: git ls-remote --symref <url> HEAD
-        # Parse: ref: refs/heads/main HEAD
-        # Extract: "main"
-        # Fallback: "main"
-    """
-```
-
-**Rationale:** Detect default branch once during init, not every time we clone. Eliminates Task 2.2 entirely.
-
----
-
-#### Task 1.4: Auto-Update Legacy Global Config
+#### Task 1.2: Auto-Update Legacy Global Config
 
 **What:** Extend `ensure_initialized()` to auto-update legacy global configs missing new fields
 
@@ -666,36 +604,7 @@ project_dir = per_project_meta / folder  # ← Uses per-project meta
 
 ### Phase 5: Git Utilities
 
-#### Task 5.1: Add git remote get-url Helper
-
-**What:** Extract remote URL from meta prime
-
-**Where:** `src/qen/git_utils.py`
-
-```python
-def get_remote_url(repo_path: Path, remote_name: str = "origin") -> str:
-    """Get remote URL from repository.
-
-    Args:
-        repo_path: Path to git repository
-        remote_name: Remote name (default: origin)
-
-    Returns:
-        Remote URL
-
-    Raises:
-        GitError: If remote doesn't exist
-    """
-    result = run_git_command(
-        ["remote", "get-url", remote_name],
-        cwd=repo_path,
-    )
-    return result.stdout.strip()
-```
-
----
-
-#### Task 5.2: Review find_meta_repo() Usage
+#### Task 5.1: Review find_meta_repo() Usage
 
 **What:** Verify find_meta_repo() still works correctly
 
@@ -721,9 +630,9 @@ def get_remote_url(repo_path: Path, remote_name: str = "origin") -> str:
 
 **Tests to Add:**
 
-- Write main config with `meta_remote` field
-- Read main config with `meta_remote` field
-- Error on main config missing `meta_remote`
+- Write main config with all new fields (`meta_remote`, `meta_parent`, `meta_default_branch`)
+- Read main config with all new fields
+- Error on main config missing new fields
 - Write project config with `repo` field
 - Read project config with `repo` field
 - Error on project config missing `repo` field (with helpful message)
@@ -874,14 +783,12 @@ Use --force to delete and recreate the project.
 **Recommended Sequence:**
 
 1. **Phase 1** (Config changes) - Foundation
-   - Task 1.0 (meta_remote) - CRITICAL FIRST
-   - Task 1.1 (repo field)
-   - Task 1.2 (meta_parent field - store parent directory)
-   - Task 1.3 (meta_default_branch field - detect and store default branch)
-   - Task 1.4 (auto-upgrade legacy configs in ensure_initialized)
+   - Task 1.0 (extend global config with meta_remote, meta_parent, meta_default_branch) - CRITICAL FIRST
+   - Task 1.1 (add repo field to project config)
+   - Task 1.2 (auto-upgrade legacy configs in ensure_initialized)
 
 2. **Phase 2** (Clone logic) - Core functionality
-   - Task 2.1 (clone function - uses stored default branch)
+   - Task 2.1 (clone function - uses stored config values)
 
 3. **Phase 3** (Init refactor) - Critical path
    - Task 3.1 (new flow)
@@ -889,8 +796,7 @@ Use --force to delete and recreate the project.
    - Task 3.3 (auto-init check)
 
 4. **Phase 5** (Git utilities) - Support functions
-   - Task 5.1 (get remote URL)
-   - Task 5.2 (review find_meta_repo)
+   - Task 5.1 (review find_meta_repo)
 
 5. **Phase 4** (Command updates) - Make everything work
    - Update all 10 commands
