@@ -710,7 +710,10 @@ def clone_per_project_meta(
 
     # Check if already exists
     if clone_path.exists():
-        raise GitError(f"Directory already exists: {clone_path}")
+        raise GitError(
+            f"Directory already exists: {clone_path}\n"
+            f"Use --force to delete and recreate the project."
+        )
 
     # Clone from remote, checking out specified branch
     # git clone <url> <path> --branch <branch>

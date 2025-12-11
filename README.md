@@ -3,7 +3,47 @@
 **QEN** ("קֵן", *nest* in [Biblical Hebrew](https://biblehub.com/hebrew/7064.htm), pronounced 'kin')
 is a lightweight tool for organizing multi-repository development work.
 
-QEN gathers all context for a project (code, specs, artifacts, etc.) into a single managed folder inside a central `meta` repository.
+QEN gathers all context for a project (code, specs, artifacts, etc.) into a single managed folder inside a per-project meta repository clone.
+
+## Architecture Overview
+
+QEN uses a **per-project meta architecture** that provides physical isolation between projects:
+
+### Meta Prime vs Per-Project Metas
+
+- **Meta Prime** (`meta/`) - Your original meta repository where you manually review and merge project branches
+- **Per-Project Metas** (`meta-{project}/`) - QEN-managed clones where each project lives in physical isolation
+
+This architecture enables:
+
+1. **Simultaneous multi-project work** - Each project is a separate directory with independent git state
+2. **No branch-switching friction** - Your IDE, language servers, and tools stay stable
+3. **Physical isolation** - Changes in one project never accidentally affect another
+4. **Standard git workflows** - All per-project metas push to the same remote for review
+
+### Directory Structure
+
+```text
+~/GitHub/                           # (or wherever meta prime is found)
+├── meta/                           # Meta prime (user-controlled)
+│   ├── main branch                 # Manually review/merge here
+│   └── .git/                       # Original git database
+├── meta-myproj/                    # Per-project meta (qen-managed)
+│   ├── branch: 251210-myproj       # Project branch checked out
+│   ├── proj/251210-myproj/         # Project directory
+│   │   ├── README.md
+│   │   ├── pyproject.toml
+│   │   ├── qen                     # Project wrapper script
+│   │   ├── workspaces/             # IDE configuration
+│   │   └── repos/                  # Sub-repos cloned here
+│   └── .git/                       # Independent git database
+└── meta-other/                     # Another per-project meta
+    ├── branch: 251209-other        # Different branch
+    └── proj/251209-other/
+        └── repos/                  # Different sub-repos
+```
+
+**Key Insight:** Each active project gets its own physical clone of the meta repository, enabling true parallel development without workspace disruption.
 
 ## Quick Start
 
@@ -22,7 +62,7 @@ From within or near your `meta` repository:
 uvx qen init
 ```
 
-This finds your `meta` repo, extracts your organization from git remotes, and stores configuration in your system's CONFIG_HOME directory.
+This finds your meta prime repository, extracts metadata (remote URL, parent directory, default branch), extracts your organization from git remotes, and stores configuration in your system's CONFIG_HOME directory.
 
 ### 2. Create a Project
 
@@ -30,8 +70,9 @@ This finds your `meta` repo, extracts your organization from git remotes, and st
 uvx qen init my-project
 ```
 
-This uses the previously-discovered `meta` repository to create a project-specific:
+This clones your meta prime repository to create a per-project meta clone with:
 
+- **Physical location**: `meta-my-project/` (sibling to meta prime)
 - **Git branch**: `YYMMDD-my-project` (e.g., `251203-readme-bootstrap`)
 - **Project directory**: `proj/YYMMDD-my-project/`
 - **Project files**:
@@ -42,27 +83,44 @@ This uses the previously-discovered `meta` repository to create a project-specif
   - `repos/` - Gitignored directory for sub-repositories
   - `workspaces/` - IDE multi-repo configuration
 
+The project branch is automatically pushed to the remote, making it visible to your team and ready for eventual PR/merge into main.
+
 ### Using the Project Wrapper
 
 Each project includes a `./qen` executable wrapper that automatically runs qen commands in that project's context:
 
 ```bash
-cd proj/YYMMDD-my-project/
+cd meta-my-project/proj/YYMMDD-my-project/
 ./qen status      # Works without specifying --proj
 ./qen add myrepo  # Automatically uses this project
 ./qen pr          # Launch PR manager for this project
 ```
 
-The wrapper is especially useful when you have multiple projects, as it eliminates the need to specify `--proj` or remember which project you're in
+The wrapper is especially useful when you have multiple projects, as it eliminates the need to specify `--proj` or remember which project you're in.
+
+### Workflow Benefits
+
+**Without per-project metas (old model):**
+
+- Switch branch → lose repos/ state → re-clone everything
+- IDE confused by sudden directory changes
+- Can't work on two projects at same time
+
+**With per-project metas (new model):**
+
+- Each project isolated in `meta-{project}/` directory
+- All repos stay cloned and ready
+- IDE stays stable
+- Work on multiple projects simultaneously
 
 ### 3. Manage Configuration
 
 Configuration is stored in your system's CONFIG_HOME directory and tracks:
 
-- Your meta repository location
+- Your meta prime location and metadata (remote URL, parent directory, default branch)
 - Your GitHub organization
 - Current active project
-- Per-project settings (branch name, project path, etc.)
+- Per-project settings (branch name, project path, per-project meta location)
 
 To view or modify, use the `config` command:
 
@@ -97,7 +155,7 @@ uvx qen add myorg/myrepo --path repos/custom-name
 
 The repository will be:
 
-- Cloned to `repos/myrepo/`
+- Cloned to `repos/myrepo/` (inside the per-project meta)
 - Added to `pyproject.toml` in the `[[tool.qen.repos]]` section
 - Tracked with its URL, branch, and local path
 - **Assigned an index** based on the order it was added (starting from 1)
@@ -213,6 +271,24 @@ The index reflects the position in the TOML array, making it easy to understand 
 - Python 3.12 or higher
 - Git
 - GitHub CLI (`gh`) for PR commands
+
+## Migration from v0.3.x
+
+QEN v0.4.0 introduces a **breaking change** with the new per-project meta architecture. If you need the old single-branch model, use:
+
+```bash
+# Use the old version
+uvx qen@0.3.0 status
+```
+
+To migrate to the new architecture:
+
+1. Finish or archive your current projects
+2. Delete old project configurations: `rm -rf ~/.config/qen/projects/`
+3. Reinitialize: `uvx qen init`
+4. Recreate projects: `uvx qen init my-project`
+
+See the [Migration Guide](spec/5-clone/04-migration-guide.md) for details.
 
 ## Contributing
 

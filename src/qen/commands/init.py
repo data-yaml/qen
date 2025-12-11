@@ -90,9 +90,19 @@ def init_qen(
             meta_path = find_meta_repo()
         except NotAGitRepoError as e:
             click.echo(f"Error: {e}", err=True)
+            click.echo(
+                "Please ensure you are in or near a directory named 'meta',\n"
+                "or specify the path with: qen --meta <path> init",
+                err=True,
+            )
             raise click.Abort() from e
         except MetaRepoNotFoundError as e:
             click.echo(f"Error: {e}", err=True)
+            click.echo(
+                "Please ensure you are in or near a directory named 'meta',\n"
+                "or specify the path with: qen --meta <path> init",
+                err=True,
+            )
             raise click.Abort() from e
 
         if verbose:
@@ -280,7 +290,8 @@ def init_project(
         if not force:
             project_config_path = config.get_project_config_path(project_name)
             click.echo(
-                f"Error: Project '{project_name}' already exists at {project_config_path}.",
+                f"Error: Project '{project_name}' already exists at {project_config_path}.\n"
+                f"Use --force to delete and recreate the project.",
                 err=True,
             )
             raise click.Abort()
@@ -386,6 +397,20 @@ def init_project(
             click.echo(f"Created per-project meta: {per_project_meta}")
     except GitError as e:
         click.echo(f"Error cloning per-project meta: {e}", err=True)
+        # Provide helpful context for common failure scenarios
+        error_str = str(e).lower()
+        if any(x in error_str for x in ["could not resolve", "connection", "network", "timeout"]):
+            click.echo(
+                "\nThis appears to be a network connectivity issue.\n"
+                "Please check your internet connection and try again.",
+                err=True,
+            )
+        elif any(x in error_str for x in ["authentication", "permission", "denied", "credentials"]):
+            click.echo(
+                "\nThis appears to be an authentication issue.\n"
+                "Please check your git credentials and remote access permissions.",
+                err=True,
+            )
         raise click.Abort() from e
 
     # Create project in the clone

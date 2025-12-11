@@ -302,11 +302,27 @@ scripts/                    # Build and version management scripts
 
 **QEN (קֵן, "nest"):** A lightweight context for multi-repo development work.
 
-**Meta Repository:** Central repository containing project directories (`proj/`)
+**Meta Prime:** User's original `meta/` repository where project branches are manually reviewed and merged.
+
+**Per-Project Meta:** QEN-managed `meta-{project}/` clones where each project lives in physical isolation. Each per-project meta:
+
+- Is a full git clone of the meta prime's remote
+- Lives in a sibling directory to meta prime (e.g., `~/GitHub/meta-myproj/`)
+- Has its own project branch checked out (e.g., `251210-myproj`)
+- Contains the project directory (`proj/YYMMDD-myproj/`) with its own `repos/` subdirectories
+- Enables simultaneous multi-project work without branch-switching friction
+
+**Architecture Benefits:**
+
+1. **Physical isolation** - Each project is a separate directory with independent git state
+2. **Simultaneous work** - Can work on multiple projects at once without conflicts
+3. **No repos/ thrashing** - Sub-repos stay cloned and ready when switching projects
+4. **IDE stability** - Language servers and file watchers don't get disrupted
 
 **Project Structure:**
 
-- Each project creates a dated git branch: `YYMMDD-project-name`
+- Each project creates a per-project meta clone: `meta-{project}/`
+- Inside the clone, a dated git branch: `YYMMDD-project-name`
 - Project directory: `proj/YYMMDD-project-name/`
 - Contains: `README.md`, `pyproject.toml`, `repos/` (gitignored sub-repos)
 
@@ -315,6 +331,27 @@ scripts/                    # Build and version management scripts
 - Global: `$XDG_CONFIG_HOME/qen/config.toml`
 - Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
 - Project manifest: `proj/YYMMDD-project/pyproject.toml` (with `[tool.qen]`)
+
+**Global Configuration Schema:**
+
+```toml
+meta_path = "/Users/ernest/GitHub/meta"  # Path to meta prime
+meta_remote = "git@github.com:org/meta.git"  # Remote URL for cloning per-project metas
+meta_parent = "/Users/ernest/GitHub"  # Parent directory where per-project metas are cloned
+meta_default_branch = "main"  # Default branch name (main or master)
+org = "my-org"  # GitHub organization
+current_project = "myproj"  # Currently active project (optional)
+```
+
+**Project Configuration Schema:**
+
+```toml
+name = "myproj"
+branch = "251210-myproj"
+folder = "proj/251210-myproj"
+repo = "/Users/ernest/GitHub/meta-myproj"  # Path to per-project meta clone
+created = "2025-12-10T12:34:56Z"
+```
 
 **CLI Global Options (Runtime Overrides):**
 
@@ -410,13 +447,29 @@ for idx, repo in enumerate(repos, start=1):
     print(f"[{idx}] {repo.url}")
 ```
 
+### Command Behavior with Per-Project Metas
+
+**All QEN commands now operate on per-project meta clones:**
+
+1. **qen init** - Extracts `meta_remote`, `meta_parent`, `meta_default_branch` from meta prime and stores in global config
+2. **`qen init <project>`** - Clones from `meta_remote` to `{meta_parent}/meta-{project}/`, stores path in project config's `repo` field
+3. **`qen add <repo>`** - Reads project config's `repo` field, clones sub-repo into `{repo}/proj/YYMMDD-project/repos/`
+4. **qen status** - Reads project config's `repo` field, operates on repos in `{repo}/proj/YYMMDD-project/repos/`
+5. **qen pr** - Same as status - all PR operations use the per-project meta's repos
+
+**Key Implementation Note:**
+
+- The `meta_path` field in global config still points to meta prime (for reference)
+- The `repo` field in project config points to the per-project meta clone (where work happens)
+- All project commands use the `repo` field, not `meta_path`
+
 ### CRITICAL: QEN Always Uses Stored Config State
 
 - **QEN commands ALWAYS operate on the CURRENT CONFIG as stored in XDG directories**
 - Commands DO NOT infer state from your current working directory
 - Commands DO NOT scan your filesystem to discover projects
 - The config files are the single source of truth for all project metadata
-- Example: `qen status` operates on repos listed in the project config, not repos you happen to be in
+- Example: `qen status` operates on repos listed in the project config's `repo` field
 - Example: `qen sh` changes to the PROJECT FOLDER as stored in config, not your current directory
 
 ## Code Style and Standards
@@ -467,7 +520,10 @@ from qen.config import QenConfig
 config = QenConfig.load()
 
 # Access settings
-meta_path = config.meta_path
+meta_path = config.meta_path  # Meta prime path
+meta_remote = config.meta_remote  # Remote URL for cloning
+meta_parent = config.meta_parent  # Where to clone per-project metas
+meta_default_branch = config.meta_default_branch  # main or master
 org = config.github_org
 ```
 
@@ -502,11 +558,11 @@ for idx, repo in enumerate(repos, start=1):
 
 **Implemented:**
 
-- `qen init` - Initialize qen configuration
-- `qen init <project>` - Create new project with full structure
-- `qen add <repo>` - Add sub-repositories with flexible URL parsing
-- `qen status` - Show git status across all sub-repos (with indices)
-- `qen pr status` - Show PR status for all repositories (with indices)
+- `qen init` - Initialize qen configuration with meta prime metadata extraction
+- `qen init <project>` - Create new project with per-project meta clone
+- `qen add <repo>` - Add sub-repositories to per-project meta
+- `qen status` - Show git status across all sub-repos in per-project meta
+- `qen pr status` - Show PR status for all repositories
 - `qen pr stack` - Identify and display stacked PRs
 - `qen pr restack` - Update stacked PRs to latest base branches
 
@@ -524,6 +580,7 @@ When implementing features, follow these principles:
 3. **Zero global state** - XDG-compliant configuration per project
 4. **Human-readable** - Simple directory structures and TOML configs
 5. **Intentionally small** - Create structure without dictating workflow
+6. **Physical isolation** - Per-project meta clones enable true multi-project workflows
 
 ## Version Management
 
@@ -582,6 +639,8 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 - `scripts/version.py` - Version management implementation
 - `.pre-commit-config.yaml` - Git hooks configuration
 - `spec/2-status/07-repo-qen-test.md` - Integration testing specification
+- `spec/5-clone/02-qen-clone-design.md` - Per-project meta architecture design
+- `spec/5-clone/03-qen-clone-spec.md` - Per-project meta implementation spec
 
 ## For AI Agents: Key Reminders
 
@@ -594,6 +653,7 @@ pytest tests/qen/test_config.py::test_specific_function -vv
 7. **TOML for config** - Use `tomli` and `tomli_w` for reading/writing
 8. **NO MOCKS for integration tests** - Use real GitHub API only
 9. **Repository indices** - Use `enumerate(repos, start=1)` for 1-based indexing
+10. **Per-project metas** - All commands operate on per-project meta clones, not meta prime
 
 ## Markdown Best Practices
 
