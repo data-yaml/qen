@@ -18,8 +18,131 @@ from qen.project import (
     create_project,
     create_project_structure,
     get_template_path,
+    parse_project_name,
     render_template,
 )
+
+# ==============================================================================
+# Test parse_project_name Function
+# ==============================================================================
+
+
+class TestParseProjectName:
+    """Test suite for parse_project_name function."""
+
+    def test_short_name_simple(self) -> None:
+        """Test parsing a simple short name without date prefix."""
+        config_name, explicit_branch = parse_project_name("myproj")
+        assert config_name == "myproj"
+        assert explicit_branch is None
+
+    def test_short_name_with_hyphens(self) -> None:
+        """Test parsing a short name containing hyphens."""
+        config_name, explicit_branch = parse_project_name("my-project-name")
+        assert config_name == "my-project-name"
+        assert explicit_branch is None
+
+    def test_short_name_with_numbers(self) -> None:
+        """Test parsing a short name containing numbers."""
+        config_name, explicit_branch = parse_project_name("project123")
+        assert config_name == "project123"
+        assert explicit_branch is None
+
+    def test_fully_qualified_name(self) -> None:
+        """Test parsing a fully-qualified name with YYMMDD prefix."""
+        config_name, explicit_branch = parse_project_name("251210-myproj")
+        assert config_name == "251210-myproj"
+        assert explicit_branch == "251210-myproj"
+
+    def test_fully_qualified_name_with_hyphens(self) -> None:
+        """Test parsing a fully-qualified name with multiple hyphens."""
+        config_name, explicit_branch = parse_project_name("251210-my-project-name")
+        assert config_name == "251210-my-project-name"
+        assert explicit_branch == "251210-my-project-name"
+
+    def test_fully_qualified_name_with_numbers(self) -> None:
+        """Test parsing a fully-qualified name with numbers in project part."""
+        config_name, explicit_branch = parse_project_name("251210-proj123")
+        assert config_name == "251210-proj123"
+        assert explicit_branch == "251210-proj123"
+
+    def test_edge_case_five_digits(self) -> None:
+        """Test that 5-digit prefix is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("12345-proj")
+        assert config_name == "12345-proj"
+        assert explicit_branch is None
+
+    def test_edge_case_seven_digits(self) -> None:
+        """Test that 7-digit prefix is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("1234567-proj")
+        assert config_name == "1234567-proj"
+        assert explicit_branch is None
+
+    def test_edge_case_alpha_prefix(self) -> None:
+        """Test that alphabetic prefix is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("abc-proj")
+        assert config_name == "abc-proj"
+        assert explicit_branch is None
+
+    def test_edge_case_alphanumeric_prefix(self) -> None:
+        """Test that alphanumeric prefix is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("abc123-proj")
+        assert config_name == "abc123-proj"
+        assert explicit_branch is None
+
+    def test_edge_case_no_hyphen(self) -> None:
+        """Test that 6 digits without hyphen is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("251210proj")
+        assert config_name == "251210proj"
+        assert explicit_branch is None
+
+    def test_edge_case_date_in_middle(self) -> None:
+        """Test that date pattern in middle is NOT treated as YYMMDD pattern."""
+        config_name, explicit_branch = parse_project_name("proj-251210-name")
+        assert config_name == "proj-251210-name"
+        assert explicit_branch is None
+
+    def test_edge_case_single_char_name(self) -> None:
+        """Test parsing a single character short name."""
+        config_name, explicit_branch = parse_project_name("x")
+        assert config_name == "x"
+        assert explicit_branch is None
+
+    def test_edge_case_fully_qualified_single_char(self) -> None:
+        """Test parsing a fully-qualified name with single character project name."""
+        config_name, explicit_branch = parse_project_name("251210-x")
+        assert config_name == "251210-x"
+        assert explicit_branch == "251210-x"
+
+    def test_real_world_examples(self) -> None:
+        """Test real-world project name examples."""
+        # Short names
+        assert parse_project_name("api-refactor") == ("api-refactor", None)
+        assert parse_project_name("bug-fix-123") == ("bug-fix-123", None)
+        assert parse_project_name("feature-auth") == ("feature-auth", None)
+
+        # Fully-qualified names
+        assert parse_project_name("251210-api-refactor") == (
+            "251210-api-refactor",
+            "251210-api-refactor",
+        )
+        assert parse_project_name("240101-bug-fix-123") == (
+            "240101-bug-fix-123",
+            "240101-bug-fix-123",
+        )
+        assert parse_project_name("251225-feature-auth") == (
+            "251225-feature-auth",
+            "251225-feature-auth",
+        )
+
+    def test_boundary_dates(self) -> None:
+        """Test boundary date values (valid YYMMDD patterns)."""
+        # Valid dates - function doesn't validate date correctness, only format
+        assert parse_project_name("000000-proj")[1] == "000000-proj"
+        assert parse_project_name("999999-proj")[1] == "999999-proj"
+        assert parse_project_name("240101-proj")[1] == "240101-proj"
+        assert parse_project_name("251231-proj")[1] == "251231-proj"
+
 
 # ==============================================================================
 # Test get_template_path Function

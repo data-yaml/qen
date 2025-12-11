@@ -10,6 +10,7 @@ within a meta repository. It handles:
 """
 
 import importlib.resources
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from string import Template
@@ -27,6 +28,46 @@ class ProjectNotFoundError(ProjectError):
     """Raised when project cannot be found in current context."""
 
     pass
+
+
+def parse_project_name(name: str) -> tuple[str, str | None]:
+    """Parse project name to extract config name and explicit branch.
+
+    This function determines whether the provided name is:
+    1. A short name (e.g., "myproj") - requires date prefix generation
+    2. A fully-qualified name (e.g., "251210-myproj") - uses name as branch directly
+
+    The YYMMDD pattern must be exactly 6 digits. Names like "12345-proj" or
+    "abc-proj" are treated as short names, not date-prefixed branches.
+
+    Args:
+        name: Project name provided by user (short or fully-qualified)
+
+    Returns:
+        Tuple of (config_name, explicit_branch):
+        - config_name: Name to use for config file storage
+        - explicit_branch: Branch name if YYMMDD- pattern detected, None otherwise
+
+    Examples:
+        >>> parse_project_name("myproj")
+        ("myproj", None)
+
+        >>> parse_project_name("251210-myproj")
+        ("251210-myproj", "251210-myproj")
+
+        >>> parse_project_name("12345-proj")  # Not 6 digits
+        ("12345-proj", None)
+
+        >>> parse_project_name("abc-proj")  # Not digits
+        ("abc-proj", None)
+    """
+    # Check if name matches YYMMDD-* pattern (exactly 6 digits followed by hyphen)
+    if re.match(r"^\d{6}-", name):
+        # Fully-qualified name: use it as both config name and branch
+        return (name, name)
+    else:
+        # Short name: config name only, branch will be generated
+        return (name, None)
 
 
 def generate_branch_name(project_name: str, date: datetime | None = None) -> str:
