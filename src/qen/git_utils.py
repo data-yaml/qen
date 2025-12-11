@@ -74,6 +74,16 @@ class SyncStatus:
 
 
 @dataclass
+class RemoteBranchInfo:
+    """Information about a remote branch."""
+
+    name: str
+    last_commit: str
+    last_updated: str
+    commit_count: int
+
+
+@dataclass
 class RepoStatus:
     """Status information for a git repository."""
 
@@ -684,6 +694,87 @@ def get_default_branch_from_remote(remote_url: str) -> str:
     except subprocess.CalledProcessError:
         # If remote query fails, fall back to "main"
         return "main"
+
+
+def find_remote_branches(meta_remote: str, project_pattern: str) -> list[RemoteBranchInfo]:
+    """Find remote branches matching a project pattern.
+
+    Uses git ls-remote to query branches from the remote repository
+    without requiring a local clone. Handles network errors gracefully.
+
+    Args:
+        meta_remote: Remote URL (e.g., git@github.com:org/meta.git)
+        project_pattern: Pattern to match branch names (e.g., "*-myproj")
+
+    Returns:
+        List of RemoteBranchInfo objects for matching branches.
+        Returns empty list on network errors or if no branches found.
+
+    Example:
+        branches = find_remote_branches(
+            "git@github.com:org/meta.git",
+            "*-myproj"
+        )
+        for branch in branches:
+            print(f"{branch.name}: {branch.last_commit[:8]}")
+    """
+    try:
+        # Query remote branches matching the pattern
+        # Format: git ls-remote --heads <remote> refs/heads/<pattern>
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", meta_remote, f"refs/heads/{project_pattern}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,  # Prevent hanging on network issues
+        )
+
+        branches: list[RemoteBranchInfo] = []
+
+        for line in result.stdout.strip().splitlines():
+            if not line:
+                continue
+
+            # Parse output format: "<commit-hash> <tab> refs/heads/<branch-name>"
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+
+            commit_hash = parts[0].strip()
+            ref_path = parts[1].strip()
+
+            # Extract branch name from refs/heads/<branch-name>
+            if not ref_path.startswith("refs/heads/"):
+                continue
+
+            branch_name = ref_path.replace("refs/heads/", "")
+
+            # Create RemoteBranchInfo
+            # Note: git ls-remote doesn't provide detailed info like dates or commit counts
+            # These fields will need additional git commands if needed, or we can
+            # populate them with placeholder values for now
+            branch_info = RemoteBranchInfo(
+                name=branch_name,
+                last_commit=commit_hash,
+                last_updated="",  # Would need git log to get this
+                commit_count=0,  # Would need git rev-list to count
+            )
+            branches.append(branch_info)
+
+        return branches
+
+    except subprocess.CalledProcessError:
+        # Git command failed (invalid remote, network error, etc.)
+        return []
+    except subprocess.TimeoutExpired:
+        # Network timeout
+        return []
+    except FileNotFoundError:
+        # Git not installed
+        return []
+    except Exception:
+        # Any other unexpected error - fail gracefully
+        return []
 
 
 def clone_per_project_meta(
