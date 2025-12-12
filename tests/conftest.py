@@ -372,6 +372,7 @@ def test_repo(
     meta_prime, per_project_meta, project_dir = qen_project
 
     # Add qen-test repository (run from per_project_meta which is on correct branch)
+    # Use --branch main to avoid trying to checkout project branch on remote
     result = subprocess.run(
         [
             "qen",
@@ -379,6 +380,10 @@ def test_repo(
             str(temp_config_dir),
             "add",
             "https://github.com/data-yaml/qen-test",
+            "--branch",
+            "main",
+            "--yes",
+            "--no-workspace",
         ],
         cwd=per_project_meta,
         capture_output=True,
@@ -386,8 +391,8 @@ def test_repo(
     )
     assert result.returncode == 0, f"qen add failed: {result.stderr}"
 
-    # Calculate repo path
-    repo_path = project_dir / "repos" / "qen-test"
+    # Calculate repo path (with --branch main, path is repos/main/qen-test)
+    repo_path = project_dir / "repos" / "main" / "qen-test"
     assert repo_path.exists(), f"Repository not cloned: {repo_path}"
 
     return meta_prime, per_project_meta, project_dir, repo_path
