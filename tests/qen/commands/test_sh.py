@@ -105,6 +105,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -136,6 +137,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -170,6 +172,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -206,6 +209,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -237,6 +241,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -271,6 +276,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -303,6 +309,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -335,6 +342,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -367,6 +375,7 @@ class TestShellCommand:
                 "name": "other-project",
                 "branch": "2025-12-06-other-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -402,6 +411,7 @@ class TestShellCommand:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -457,6 +467,7 @@ class TestInteractiveShellMode:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -489,6 +500,7 @@ class TestInteractiveShellMode:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -596,6 +608,7 @@ class TestPrepareShellContext:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -630,6 +643,7 @@ class TestPrepareShellContext:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -686,6 +700,7 @@ class TestOpenInteractiveShell:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 
@@ -722,6 +737,7 @@ class TestOpenInteractiveShell:
                 "name": "test-project",
                 "branch": "2025-12-06-test-project",
                 "folder": project_folder,
+                "repo": str(meta_path),
             }
             mock_ensure.return_value = mock_config
 

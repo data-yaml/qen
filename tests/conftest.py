@@ -190,6 +190,214 @@ def child_repo(tmp_path: Path) -> Path:
 # ============================================================================
 
 
+@pytest.fixture
+def meta_prime_repo(tmp_path: Path) -> Path:
+    """Create meta prime repository with file:// remote for local cloning.
+
+    Creates a fully initialized git repository that serves as meta prime.
+    Configured with:
+    - origin remote: file:// URL (enables fast local cloning)
+    - github remote: https://github.com/test-org/test-meta.git (for org extraction)
+    - Initial commit with meta.toml
+
+    Returns:
+        Path to meta prime repository
+
+    Example:
+        def test_something(meta_prime_repo):
+            # meta_prime_repo is ready to use
+            result = run_qen(["init"], config_dir, cwd=meta_prime_repo)
+    """
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+
+    # Initialize git with main branch
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    # Configure git user
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    # Create meta.toml
+    meta_toml = meta_dir / "meta.toml"
+    meta_toml.write_text('[meta]\nname = "test-org"\n')
+
+    # Initial commit
+    subprocess.run(
+        ["git", "add", "meta.toml"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    # Add origin remote for cloning (file:// URL)
+    subprocess.run(
+        ["git", "remote", "add", "origin", f"file://{meta_dir}"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    # Add github remote for org extraction (not used for cloning)
+    subprocess.run(
+        ["git", "remote", "add", "github", "https://github.com/test-org/test-meta.git"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    return meta_dir
+
+
+@pytest.fixture
+def qen_project(
+    meta_prime_repo: Path,
+    temp_config_dir: Path,
+    request: pytest.FixtureRequest,
+) -> tuple[Path, Path, Path]:
+    """Create a QEN project with per-project meta clone.
+
+    Runs qen init to set up global config, then qen init <project> to create
+    per-project meta clone. Returns all relevant paths.
+
+    Args:
+        meta_prime_repo: Meta prime from fixture
+        temp_config_dir: Isolated config directory
+        request: Pytest request for parametrization
+
+    Returns:
+        Tuple of (meta_prime_path, per_project_meta_path, project_dir_path)
+
+    Example:
+        def test_something(qen_project, temp_config_dir):
+            meta_prime, per_project_meta, proj_dir = qen_project
+
+            # Run commands from per_project_meta (on correct branch)
+            result = run_qen(["add", "repo-url"], temp_config_dir, cwd=per_project_meta)
+    """
+    from datetime import datetime
+
+    # Get project name from parametrize or use default
+    project_name = getattr(request, "param", "test-project")
+
+    # Initialize qen global config
+    result = subprocess.run(
+        ["qen", "--config-dir", str(temp_config_dir), "init"],
+        cwd=meta_prime_repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"qen init failed: {result.stderr}"
+
+    # Create project (creates per-project meta clone)
+    result = subprocess.run(
+        ["qen", "--config-dir", str(temp_config_dir), "init", project_name, "--yes"],
+        cwd=meta_prime_repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"qen init {project_name} failed: {result.stderr}"
+
+    # Calculate paths using per-project meta architecture
+    date_prefix = datetime.now().strftime("%y%m%d")
+    branch_name = f"{date_prefix}-{project_name}"
+    per_project_meta = meta_prime_repo.parent / f"meta-{project_name}"
+    project_dir = per_project_meta / "proj" / branch_name
+
+    # Verify paths exist
+    assert per_project_meta.exists(), f"Per-project meta not found: {per_project_meta}"
+    assert project_dir.exists(), f"Project directory not found: {project_dir}"
+
+    # Verify we're on the correct branch (qen init <project> should have done this)
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=per_project_meta,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    current_branch = result.stdout.strip()
+    assert current_branch == branch_name, (
+        f"Per-project meta should be on branch '{branch_name}' but is on '{current_branch}'"
+    )
+
+    return meta_prime_repo, per_project_meta, project_dir
+
+
+@pytest.fixture
+def test_repo(
+    qen_project: tuple[Path, Path, Path],
+    temp_config_dir: Path,
+) -> tuple[Path, Path, Path, Path]:
+    """Add qen-test repository to project.
+
+    Convenience fixture that adds https://github.com/data-yaml/qen-test
+    to the project and returns all paths including the cloned repo.
+
+    Args:
+        qen_project: Project fixture
+        temp_config_dir: Config directory
+
+    Returns:
+        Tuple of (meta_prime, per_project_meta, project_dir, repo_path)
+
+    Example:
+        def test_status(test_repo, temp_config_dir):
+            meta_prime, per_project_meta, proj_dir, repo_path = test_repo
+
+            # repo is already cloned, just test status (run from per_project_meta)
+            result = run_qen(["status"], temp_config_dir, cwd=per_project_meta)
+    """
+    meta_prime, per_project_meta, project_dir = qen_project
+
+    # Add qen-test repository (run from per_project_meta which is on correct branch)
+    # Use --branch main to avoid trying to checkout project branch on remote
+    result = subprocess.run(
+        [
+            "qen",
+            "--config-dir",
+            str(temp_config_dir),
+            "add",
+            "https://github.com/data-yaml/qen-test",
+            "--branch",
+            "main",
+            "--yes",
+            "--no-workspace",
+        ],
+        cwd=per_project_meta,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"qen add failed: {result.stderr}"
+
+    # Calculate repo path (with --branch main, path is repos/main/qen-test)
+    repo_path = project_dir / "repos" / "main" / "qen-test"
+    assert repo_path.exists(), f"Repository not cloned: {repo_path}"
+
+    return meta_prime, per_project_meta, project_dir, repo_path
+
+
 @pytest.fixture(scope="session")
 def github_token() -> str:
     """Get GitHub token from environment for integration tests.

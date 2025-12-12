@@ -542,6 +542,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -632,6 +633,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -720,6 +722,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -809,6 +812,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -975,6 +979,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -1181,6 +1186,7 @@ created = "2025-12-07T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-07T10:00:00Z",
             },
         )
@@ -1272,6 +1278,7 @@ created = "2025-12-07T10:00:00Z"
                 "name": project_name,
                 "branch": branch,
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-07T10:00:00Z",
             },
         )

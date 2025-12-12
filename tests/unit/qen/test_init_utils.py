@@ -31,7 +31,9 @@ from tests.helpers.test_mock import create_test_config
 class TestEnsureInitialized:
     """Test ensure_initialized function for auto-initialization."""
 
-    def test_ensure_initialized_config_exists(self, test_storage: QenvyTest, mocker) -> None:
+    def test_ensure_initialized_config_exists(
+        self, test_storage: QenvyTest, tmp_path: Path, mocker
+    ) -> None:
         """Test that ensure_initialized returns immediately when config exists.
 
         When main config already exists, ensure_initialized should:
@@ -39,11 +41,17 @@ class TestEnsureInitialized:
         - Not produce any output
         - Return a valid QenConfig instance
         """
-        # Setup: Create existing config
+        # Setup: Create existing config with all required fields
+        meta_path = tmp_path / "meta"
+        meta_path.mkdir()
+
         test_storage.write_profile(
             "main",
             {
-                "meta_path": "/fake/meta",
+                "meta_path": str(meta_path),
+                "meta_remote": "https://github.com/testorg/meta",
+                "meta_parent": str(meta_path.parent),
+                "meta_default_branch": "main",
                 "github_org": "testorg",
                 "current_project": None,
             },

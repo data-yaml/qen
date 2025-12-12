@@ -30,6 +30,9 @@ def mock_config(tmp_path: Path, test_storage: QenvyTest) -> tuple[Path, QenvyTes
         "main",
         {
             "meta_path": str(meta_path),
+            "meta_remote": "https://github.com/testorg/meta",
+            "meta_parent": str(meta_path.parent),
+            "meta_default_branch": "main",
             "github_org": "testorg",
             "current_project": "test-project",
         },
@@ -42,6 +45,7 @@ def mock_config(tmp_path: Path, test_storage: QenvyTest) -> tuple[Path, QenvyTes
             "name": "test-project",
             "branch": "2025-12-08-test-project",
             "folder": "proj/2025-12-08-test-project",
+            "repo": str(meta_path),
             "created": "2025-12-08T10:00:00Z",
         },
     )

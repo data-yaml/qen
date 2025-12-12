@@ -573,6 +573,9 @@ class TestPullAllRepositories:
             "main",
             {
                 "meta_path": str(meta_repo),
+                "meta_remote": "https://github.com/testorg/meta",
+                "meta_parent": str(meta_repo.parent),
+                "meta_default_branch": "main",
                 "org": "testorg",
                 "current_project": "test-project",
             },
@@ -597,6 +600,7 @@ created = "2025-12-05T10:00:00Z"
                 "name": project_name,
                 "branch": "2025-12-05-test-project",
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -627,6 +631,9 @@ created = "2025-12-05T10:00:00Z"
             "main",
             {
                 "meta_path": str(meta_repo),
+                "meta_remote": "https://github.com/testorg/meta",
+                "meta_parent": str(meta_repo.parent),
+                "meta_default_branch": "main",
                 "org": "testorg",
                 "current_project": "test-project",
             },
@@ -666,6 +673,7 @@ path = "repos/main/child_repo"
                 "name": project_name,
                 "branch": "2025-12-05-test-project",
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -702,6 +710,9 @@ path = "repos/main/child_repo"
             "main",
             {
                 "meta_path": str(meta_repo),
+                "meta_remote": "https://github.com/testorg/meta",
+                "meta_parent": str(meta_repo.parent),
+                "meta_default_branch": "main",
                 "org": "testorg",
                 "current_project": "test-project",
             },
@@ -740,6 +751,7 @@ path = "repos/main/child_repo"
                 "name": project_name,
                 "branch": "2025-12-05-test-project",
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )
@@ -803,6 +815,9 @@ path = "repos/main/child_repo"
             "main",
             {
                 "meta_path": str(meta_repo),
+                "meta_remote": "https://github.com/testorg/meta",
+                "meta_parent": str(meta_repo.parent),
+                "meta_default_branch": "main",
                 "org": "testorg",
                 "current_project": "test-project",
             },
@@ -854,6 +869,7 @@ path = "repos/main/child_repo2"
                 "name": project_name,
                 "branch": "2025-12-05-test-project",
                 "folder": folder,
+                "repo": str(meta_repo),
                 "created": "2025-12-05T10:00:00Z",
             },
         )

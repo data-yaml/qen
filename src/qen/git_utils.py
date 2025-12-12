@@ -7,6 +7,7 @@ This module provides functions for:
 - Getting repository status (branch, changes, sync status)
 """
 
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,6 +71,16 @@ class SyncStatus:
             commit_word = "commit" if self.behind == 1 else "commits"
             return f"behind {self.behind} {commit_word}"
         return "up-to-date"
+
+
+@dataclass
+class RemoteBranchInfo:
+    """Information about a remote branch."""
+
+    name: str
+    last_commit: str
+    last_updated: str
+    commit_count: int
 
 
 @dataclass
@@ -621,3 +632,191 @@ def checkout_branch(repo_path: Path, branch_name: str) -> None:
         cwd=repo_path,
         check=True,
     )
+
+
+def get_remote_url(repo_path: Path, remote_name: str = "origin") -> str:
+    """Get remote URL from repository.
+
+    Args:
+        repo_path: Path to git repository
+        remote_name: Name of remote (default: "origin")
+
+    Returns:
+        Remote URL
+
+    Raises:
+        GitError: If remote doesn't exist
+    """
+    if not is_git_repo(repo_path):
+        raise NotAGitRepoError(f"Not a git repository: {repo_path}")
+
+    return run_git_command(["remote", "get-url", remote_name], cwd=repo_path)
+
+
+def get_default_branch_from_remote(remote_url: str) -> str:
+    """Detect default branch name from remote (main or master).
+
+    Uses git ls-remote to query the remote's symbolic HEAD reference.
+
+    Args:
+        remote_url: Remote repository URL
+
+    Returns:
+        Default branch name (e.g., "main" or "master")
+
+    Raises:
+        GitError: If remote cannot be reached or queried
+    """
+    try:
+        # Query remote HEAD reference
+        # Output format: "ref: refs/heads/main	HEAD"
+        result = subprocess.run(
+            ["git", "ls-remote", "--symref", remote_url, "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Parse the output to extract branch name
+        for line in result.stdout.splitlines():
+            if line.startswith("ref:"):
+                # Format: "ref: refs/heads/main	HEAD"
+                parts = line.split()
+                if len(parts) >= 2:
+                    ref = parts[1]
+                    # Extract branch name from refs/heads/main
+                    branch = ref.split("/")[-1]
+                    return branch
+
+        # Fallback if we can't parse the output
+        return "main"
+
+    except subprocess.CalledProcessError:
+        # If remote query fails, fall back to "main"
+        return "main"
+
+
+def find_remote_branches(meta_remote: str, project_pattern: str) -> list[RemoteBranchInfo]:
+    """Find remote branches matching a project pattern.
+
+    Uses git ls-remote to query branches from the remote repository
+    without requiring a local clone. Handles network errors gracefully.
+
+    Args:
+        meta_remote: Remote URL (e.g., git@github.com:org/meta.git)
+        project_pattern: Pattern to match branch names (e.g., "*-myproj")
+
+    Returns:
+        List of RemoteBranchInfo objects for matching branches.
+        Returns empty list on network errors or if no branches found.
+
+    Example:
+        branches = find_remote_branches(
+            "git@github.com:org/meta.git",
+            "*-myproj"
+        )
+        for branch in branches:
+            print(f"{branch.name}: {branch.last_commit[:8]}")
+    """
+    try:
+        # Query remote branches matching the pattern
+        # Format: git ls-remote --heads <remote> refs/heads/<pattern>
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", meta_remote, f"refs/heads/{project_pattern}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,  # Prevent hanging on network issues
+        )
+
+        branches: list[RemoteBranchInfo] = []
+
+        for line in result.stdout.strip().splitlines():
+            if not line:
+                continue
+
+            # Parse output format: "<commit-hash> <tab> refs/heads/<branch-name>"
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+
+            commit_hash = parts[0].strip()
+            ref_path = parts[1].strip()
+
+            # Extract branch name from refs/heads/<branch-name>
+            if not ref_path.startswith("refs/heads/"):
+                continue
+
+            branch_name = ref_path.replace("refs/heads/", "")
+
+            # Create RemoteBranchInfo
+            # Note: git ls-remote doesn't provide detailed info like dates or commit counts
+            # These fields will need additional git commands if needed, or we can
+            # populate them with placeholder values for now
+            branch_info = RemoteBranchInfo(
+                name=branch_name,
+                last_commit=commit_hash,
+                last_updated="",  # Would need git log to get this
+                commit_count=0,  # Would need git rev-list to count
+            )
+            branches.append(branch_info)
+
+        return branches
+
+    except subprocess.CalledProcessError:
+        # Git command failed (invalid remote, network error, etc.)
+        return []
+    except subprocess.TimeoutExpired:
+        # Network timeout
+        return []
+    except FileNotFoundError:
+        # Git not installed
+        return []
+    except Exception:
+        # Any other unexpected error - fail gracefully
+        return []
+
+
+def clone_per_project_meta(
+    meta_remote_url: str,
+    project_name: str,
+    target_parent_dir: Path,
+    default_branch: str,
+) -> Path:
+    """Clone meta repository from remote to create per-project meta.
+
+    Args:
+        meta_remote_url: Remote URL (e.g., git@github.com:org/meta.git)
+        project_name: Project name for directory naming
+        target_parent_dir: Parent directory (e.g., ~/GitHub/)
+        default_branch: Branch to clone (from config, e.g., "main" or "master")
+
+    Returns:
+        Path to created per-project meta clone
+
+    Raises:
+        GitError: If clone fails or target directory already exists
+    """
+    clone_path = target_parent_dir / f"meta-{project_name}"
+
+    # Check if already exists
+    if clone_path.exists():
+        raise GitError(
+            f"Directory already exists: {clone_path}\n"
+            f"Use --force to delete and recreate the project."
+        )
+
+    # Clone from remote, checking out specified branch
+    # git clone <url> <path> --branch <branch>
+    try:
+        run_git_command(
+            ["clone", meta_remote_url, str(clone_path), "--branch", default_branch],
+            cwd=target_parent_dir,
+        )
+    except GitError:
+        # Cleanup partial clone on failure
+        if clone_path.exists():
+            shutil.rmtree(clone_path)
+        raise
+
+    return clone_path

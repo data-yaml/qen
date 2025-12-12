@@ -162,12 +162,21 @@ class QenConfig:
             raise QenConfigError(f"Failed to read main config: {e}") from e
 
     def write_main_config(
-        self, meta_path: str, org: str, current_project: str | None = None
+        self,
+        meta_path: str,
+        meta_remote: str,
+        meta_parent: str,
+        meta_default_branch: str,
+        org: str,
+        current_project: str | None = None,
     ) -> None:
         """Write main qen configuration.
 
         Args:
             meta_path: Path to meta repository
+            meta_remote: Remote URL for cloning
+            meta_parent: Parent directory for per-project clones
+            meta_default_branch: Default branch (main/master)
             org: Organization name
             current_project: Current project name (optional)
 
@@ -176,6 +185,9 @@ class QenConfig:
         """
         config: dict[str, Any] = {
             "meta_path": meta_path,
+            "meta_remote": meta_remote,
+            "meta_parent": meta_parent,
+            "meta_default_branch": meta_default_branch,
             "org": org,
         }
 
@@ -233,6 +245,7 @@ class QenConfig:
         project_name: str,
         branch: str,
         folder: str,
+        repo: str,
         created: str | None = None,
     ) -> None:
         """Write project configuration.
@@ -241,6 +254,7 @@ class QenConfig:
             project_name: Name of project
             branch: Git branch name
             folder: Project folder path (relative to meta repo)
+            repo: Absolute path to per-project meta clone
             created: ISO 8601 timestamp (default: current time)
 
         Raises:
@@ -260,6 +274,7 @@ class QenConfig:
             "name": project_name,
             "branch": branch,
             "folder": folder,
+            "repo": repo,
             "created": created,
         }
 

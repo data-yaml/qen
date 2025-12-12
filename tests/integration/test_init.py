@@ -72,9 +72,19 @@ def tmp_meta_repo(tmp_path: Path) -> Path:
         capture_output=True,
     )
 
-    # Add remote to simulate real meta repo (required for org extraction)
+    # Add remote using file:// URL for local testing
+    # This allows cloning without needing a real GitHub repository
     subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/test-org/test-meta.git"],
+        ["git", "remote", "add", "origin", f"file://{meta_dir}"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    # Also add a fake github remote for org extraction
+    # (org extraction parses the URL but doesn't clone from it)
+    subprocess.run(
+        ["git", "remote", "add", "github", "https://github.com/test-org/test-meta.git"],
         cwd=meta_dir,
         check=True,
         capture_output=True,
@@ -199,22 +209,37 @@ def test_qen_init_project_creates_structure(
         )
         assert result.returncode == 0, f"qen init <project> failed: {result.stderr}"
 
-        # Verify branch was created
+        # Verify per-project meta clone was created
         date_prefix = datetime.now().strftime("%y%m%d")
         branch_name = f"{date_prefix}-{unique_project_name}"
+        meta_parent = tmp_meta_repo.parent
+        per_project_meta = meta_parent / f"meta-{unique_project_name}"
 
-        # Check git branches (REAL git command)
+        assert per_project_meta.exists(), f"Per-project meta not created: {per_project_meta}"
+        assert (per_project_meta / ".git").exists(), "Per-project meta is not a git repo"
+
+        # Check git branches in per-project meta (REAL git command)
         branches_result = subprocess.run(
             ["git", "branch", "--list", branch_name],
-            cwd=tmp_meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
         )
         assert branch_name in branches_result.stdout, f"Branch {branch_name} not created"
 
-        # Verify project directory exists
-        project_dir = tmp_meta_repo / "proj" / branch_name
+        # Verify we're on the project branch
+        current_branch_result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=per_project_meta,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert current_branch_result.stdout.strip() == branch_name
+
+        # Verify project directory exists in per-project meta
+        project_dir = per_project_meta / "proj" / branch_name
         assert project_dir.exists(), f"Project directory not created: {project_dir}"
         assert project_dir.is_dir(), "Project path is not a directory"
 
@@ -268,10 +293,12 @@ def test_qen_init_project_no_unsubstituted_variables(
         )
         assert result.returncode == 0
 
-        # Get project directory
+        # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
         branch_name = f"{date_prefix}-{unique_project_name}"
-        project_dir = tmp_meta_repo / "proj" / branch_name
+        meta_parent = tmp_meta_repo.parent
+        per_project_meta = meta_parent / f"meta-{unique_project_name}"
+        project_dir = per_project_meta / "proj" / branch_name
 
         # Define pattern for Python template variables
         # Match ${variable_name} but NOT bash variables like ${BASH_SOURCE[0]}
@@ -338,10 +365,12 @@ def test_qen_wrapper_is_executable(
         )
         assert result.returncode == 0
 
-        # Get project directory
+        # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
         branch_name = f"{date_prefix}-{unique_project_name}"
-        project_dir = tmp_meta_repo / "proj" / branch_name
+        meta_parent = tmp_meta_repo.parent
+        per_project_meta = meta_parent / f"meta-{unique_project_name}"
+        project_dir = per_project_meta / "proj" / branch_name
 
         # Check wrapper executable permissions
         qen_wrapper = project_dir / "qen"
@@ -403,10 +432,12 @@ def test_qen_init_pyproject_has_tool_qen_section(
         )
         assert result.returncode == 0
 
-        # Get project directory
+        # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
         branch_name = f"{date_prefix}-{unique_project_name}"
-        project_dir = tmp_meta_repo / "proj" / branch_name
+        meta_parent = tmp_meta_repo.parent
+        per_project_meta = meta_parent / f"meta-{unique_project_name}"
+        project_dir = per_project_meta / "proj" / branch_name
 
         # Read pyproject.toml
         pyproject_path = project_dir / "pyproject.toml"
@@ -472,14 +503,16 @@ def test_qen_init_project_creates_git_commit(
         )
         assert result.returncode == 0
 
-        # Get branch name
+        # Get branch name and per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
         branch_name = f"{date_prefix}-{unique_project_name}"
+        meta_parent = tmp_meta_repo.parent
+        per_project_meta = meta_parent / f"meta-{unique_project_name}"
 
-        # Verify we're on the project branch
+        # Verify we're on the project branch in per-project meta
         current_branch_result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=tmp_meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
@@ -487,10 +520,10 @@ def test_qen_init_project_creates_git_commit(
         current_branch = current_branch_result.stdout.strip()
         assert current_branch == branch_name, f"Not on project branch: {current_branch}"
 
-        # Verify commit was created
+        # Verify commit was created in per-project meta
         log_result = subprocess.run(
             ["git", "log", "--oneline", "-1"],
-            cwd=tmp_meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
@@ -502,10 +535,10 @@ def test_qen_init_project_creates_git_commit(
             f"Project name not in commit message: {commit_message}"
         )
 
-        # Verify working tree is clean (everything was committed)
+        # Verify working tree is clean (everything was committed) in per-project meta
         status_result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=tmp_meta_repo,
+            cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
