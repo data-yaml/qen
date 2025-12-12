@@ -26,109 +26,6 @@ import pytest
 from tests.conftest import run_qen
 
 
-@pytest.fixture(scope="function")
-def tmp_meta_repo(tmp_path: Path) -> Path:
-    """Create a temporary git repository for use as a meta repo.
-
-    This fixture creates a REAL git repository with proper configuration
-    that can be used to test qen init functionality.
-
-    IMPORTANT: The directory MUST be named "meta" because qen's find_meta_repo()
-    function specifically searches for directories named "meta" that contain
-    a git repository.
-
-    Args:
-        tmp_path: Pytest temporary directory
-
-    Returns:
-        Path to the temporary meta repository
-
-    Note:
-        The repository is automatically cleaned up after the test.
-    """
-    # MUST be named "meta" for qen to find it
-    meta_dir = tmp_path / "meta"
-    meta_dir.mkdir()
-
-    # Initialize git repo with main branch
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Configure git user (required for commits)
-    subprocess.run(
-        ["git", "config", "user.name", "QEN Integration Test"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@qen.local"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote using file:// URL for local testing
-    # This allows cloning without needing a real GitHub repository
-    subprocess.run(
-        ["git", "remote", "add", "origin", f"file://{meta_dir}"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Also add a fake github remote for org extraction
-    # (org extraction parses the URL but doesn't clone from it)
-    subprocess.run(
-        ["git", "remote", "add", "github", "https://github.com/test-org/test-meta.git"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit (required for branch creation)
-    readme = meta_dir / "README.md"
-    readme.write_text("# Test Meta Repository\n")
-
-    subprocess.run(
-        ["git", "add", "README.md"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    return meta_dir
-
-
-@pytest.fixture(scope="function")
-def unique_project_name(unique_prefix: str) -> str:
-    """Generate unique project name for integration tests.
-
-    Uses the same unique_prefix fixture from PR tests to ensure no conflicts
-    between test runs.
-
-    Args:
-        unique_prefix: Unique prefix from conftest.py
-
-    Returns:
-        Unique project name in format: test-{timestamp}-{uuid8}
-
-    Example:
-        test-1733500000-a1b2c3d4
-    """
-    return unique_prefix
-
-
 @pytest.mark.integration
 def test_qen_init_global_config(
     tmp_meta_repo: Path,
@@ -167,10 +64,14 @@ def test_qen_init_global_config(
         assert "test-org" in config_content, "org not extracted from git remote"
 
         # Verify org extraction worked correctly
-        assert 'org = "test-org"' in config_content
+        assert 'org = "test-org"' in config_content, (
+            f"Expected 'org = \"test-org\"' in config. Content: {config_content}"
+        )
 
         # Verify meta_path points to our test repo
-        assert str(tmp_meta_repo) in config_content
+        assert str(tmp_meta_repo) in config_content, (
+            f"Expected meta_path '{tmp_meta_repo}' in config. Content: {config_content}"
+        )
 
     finally:
         os.chdir(original_cwd)
@@ -236,7 +137,9 @@ def test_qen_init_project_creates_structure(
             text=True,
             check=True,
         )
-        assert current_branch_result.stdout.strip() == branch_name
+        assert current_branch_result.stdout.strip() == branch_name, (
+            f"Expected branch '{branch_name}', got '{current_branch_result.stdout.strip()}' in per-project meta"
+        )
 
         # Verify project directory exists in per-project meta
         project_dir = per_project_meta / "proj" / branch_name
@@ -283,7 +186,7 @@ def test_qen_init_project_no_unsubstituted_variables(
 
         # Initialize qen (REAL command)
         result = run_qen(["init"], temp_config_dir, cwd=tmp_meta_repo)
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
         # Create project (REAL command)
         result = run_qen(
@@ -291,7 +194,7 @@ def test_qen_init_project_no_unsubstituted_variables(
             temp_config_dir,
             cwd=tmp_meta_repo,
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init project failed: {result.stderr}"
 
         # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
@@ -355,7 +258,7 @@ def test_qen_wrapper_is_executable(
 
         # Initialize qen (REAL command)
         result = run_qen(["init"], temp_config_dir, cwd=tmp_meta_repo)
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
         # Create project (REAL command)
         result = run_qen(
@@ -363,7 +266,7 @@ def test_qen_wrapper_is_executable(
             temp_config_dir,
             cwd=tmp_meta_repo,
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init project failed: {result.stderr}"
 
         # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
@@ -422,7 +325,7 @@ def test_qen_init_pyproject_has_tool_qen_section(
 
         # Initialize qen (REAL command)
         result = run_qen(["init"], temp_config_dir, cwd=tmp_meta_repo)
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
         # Create project (REAL command)
         result = run_qen(
@@ -430,7 +333,7 @@ def test_qen_init_pyproject_has_tool_qen_section(
             temp_config_dir,
             cwd=tmp_meta_repo,
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init project failed: {result.stderr}"
 
         # Get project directory in per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")
@@ -493,7 +396,7 @@ def test_qen_init_project_creates_git_commit(
 
         # Initialize qen (REAL command)
         result = run_qen(["init"], temp_config_dir, cwd=tmp_meta_repo)
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
         # Create project (REAL command)
         result = run_qen(
@@ -501,7 +404,7 @@ def test_qen_init_project_creates_git_commit(
             temp_config_dir,
             cwd=tmp_meta_repo,
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, f"qen init project failed: {result.stderr}"
 
         # Get branch name and per-project meta
         date_prefix = datetime.now().strftime("%y%m%d")

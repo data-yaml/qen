@@ -191,6 +191,40 @@ def child_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def tmp_meta_repo(tmp_path: Path) -> Path:
+    """Create a temporary git repository for use as a meta repo.
+
+    This fixture creates a REAL git repository with proper configuration
+    that can be used to test qen init functionality.
+
+    IMPORTANT: The directory MUST be named "meta" because qen's find_meta_repo()
+    function specifically searches for directories named "meta" that contain
+    a git repository.
+
+    Args:
+        tmp_path: Pytest temporary directory
+
+    Returns:
+        Path to the temporary meta repository
+
+    Note:
+        The repository is automatically cleaned up after the test.
+    """
+    from tests.integration.helpers import create_test_git_repo
+
+    # MUST be named "meta" for qen to find it
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+
+    return create_test_git_repo(
+        meta_dir,
+        branch="main",
+        remote_org="test-org",
+        remote_name="test-meta",
+    )
+
+
+@pytest.fixture
 def meta_prime_repo(tmp_path: Path) -> Path:
     """Create meta prime repository with file:// remote for local cloning.
 
@@ -198,7 +232,7 @@ def meta_prime_repo(tmp_path: Path) -> Path:
     Configured with:
     - origin remote: file:// URL (enables fast local cloning)
     - github remote: https://github.com/test-org/test-meta.git (for org extraction)
-    - Initial commit with meta.toml
+    - Initial commit with README.md
 
     Returns:
         Path to meta prime repository
@@ -208,66 +242,19 @@ def meta_prime_repo(tmp_path: Path) -> Path:
             # meta_prime_repo is ready to use
             result = run_qen(["init"], config_dir, cwd=meta_prime_repo)
     """
+    from tests.integration.helpers import create_test_git_repo
+
     meta_dir = tmp_path / "meta"
     meta_dir.mkdir()
 
-    # Initialize git with main branch
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
+    return create_test_git_repo(
+        meta_dir,
+        branch="main",
+        user_name="Test User",
+        user_email="test@example.com",
+        remote_org="test-org",
+        remote_name="test-meta",
     )
-
-    # Configure git user
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create meta.toml
-    meta_toml = meta_dir / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-
-    # Initial commit
-    subprocess.run(
-        ["git", "add", "meta.toml"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add origin remote for cloning (file:// URL)
-    subprocess.run(
-        ["git", "remote", "add", "origin", f"file://{meta_dir}"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add github remote for org extraction (not used for cloning)
-    subprocess.run(
-        ["git", "remote", "add", "github", "https://github.com/test-org/test-meta.git"],
-        cwd=meta_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    return meta_dir
 
 
 @pytest.fixture
@@ -454,6 +441,25 @@ def real_test_repo(tmp_path: Path, github_token: str) -> Generator[Path, None, N
     )
 
     yield repo_dir
+
+
+@pytest.fixture(scope="function")
+def unique_project_name(unique_prefix: str) -> str:
+    """Generate unique project name for integration tests.
+
+    Uses the same unique_prefix fixture from PR tests to ensure no conflicts
+    between test runs.
+
+    Args:
+        unique_prefix: Unique prefix from conftest.py
+
+    Returns:
+        Unique project name in format: test-{timestamp}-{uuid8}
+
+    Example:
+        test-1733500000-a1b2c3d4
+    """
+    return unique_prefix
 
 
 @pytest.fixture(scope="function")
@@ -883,3 +889,45 @@ def verify_standard_pr_exists(pr_number: int) -> dict[str, str | int]:
     )
 
     return pr_data
+
+
+def add_test_repo_to_pyproject(
+    project_dir: Path,
+    url: str,
+    branch: str = "main",
+    path: str | None = None,
+) -> None:
+    """Add repository entry to test project's pyproject.toml.
+
+    This helper uses the existing qen.pyproject_utils module to add
+    repository entries, ensuring consistency with production code.
+
+    NO MOCKS - This uses real file I/O operations to update pyproject.toml.
+
+    Args:
+        project_dir: Path to project directory containing pyproject.toml
+        url: Repository URL to add
+        branch: Branch name (default: "main")
+        path: Local path for repository (default: inferred from URL)
+
+    Raises:
+        PyProjectNotFoundError: If pyproject.toml does not exist
+        PyProjectUpdateError: If update fails
+
+    Example:
+        add_test_repo_to_pyproject(
+            project_dir,
+            "https://github.com/data-yaml/qen-test",
+            "main",
+            "repos/qen-test",
+        )
+    """
+    from qen.pyproject_utils import add_repo_to_pyproject
+
+    # If path not provided, infer from URL
+    if path is None:
+        # Extract repo name from URL (e.g., "qen-test" from "data-yaml/qen-test")
+        repo_name = url.rstrip("/").split("/")[-1].removesuffix(".git")
+        path = f"repos/{repo_name}"
+
+    add_repo_to_pyproject(project_dir, url, branch, path)

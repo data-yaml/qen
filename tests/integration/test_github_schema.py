@@ -48,18 +48,20 @@ def test_github_checkrun_schema_matches_reality(real_test_repo: Path) -> None:
         f"Expected CheckRun, got {real_check['__typename']}"
     )
 
-    assert "status" in real_check, "Missing status field"
+    assert "status" in real_check, "Missing status field in GitHub CheckRun"
     assert real_check["status"] in [
         "COMPLETED",
         "IN_PROGRESS",
         "QUEUED",
         "WAITING",
         "PENDING",
-    ], f"Unknown status: {real_check['status']}"
+    ], f"Unknown status value from GitHub API: {real_check['status']}"
 
     # conclusion only present when COMPLETED
     if real_check["status"] == "COMPLETED":
-        assert "conclusion" in real_check, "Missing conclusion field for COMPLETED check"
+        assert "conclusion" in real_check, (
+            f"Missing conclusion field for COMPLETED check. Check data: {real_check}"
+        )
         assert real_check["conclusion"] in [
             "SUCCESS",
             "FAILURE",
@@ -68,7 +70,7 @@ def test_github_checkrun_schema_matches_reality(real_test_repo: Path) -> None:
             "SKIPPED",
             "TIMED_OUT",
             "ACTION_REQUIRED",
-        ], f"Unknown conclusion: {real_check['conclusion']}"
+        ], f"Unknown conclusion value from GitHub API: {real_check['conclusion']}"
 
     # Other fields our schema expects
     assert "name" in real_check, "Missing name field"
@@ -108,20 +110,48 @@ def test_github_pr_schema_matches_reality(real_test_repo: Path) -> None:
     data = json.loads(result.stdout)
 
     # Verify all PrData fields exist
-    assert "number" in data
-    assert "title" in data
-    assert "state" in data
-    assert data["state"] in ["OPEN", "CLOSED", "MERGED"]
-    assert "baseRefName" in data
-    assert "url" in data
-    assert "statusCheckRollup" in data
-    assert isinstance(data["statusCheckRollup"], list)
-    assert "mergeable" in data
-    assert data["mergeable"] in ["MERGEABLE", "CONFLICTING", "UNKNOWN"]
-    assert "author" in data
-    assert "login" in data["author"]
-    assert "createdAt" in data
-    assert "updatedAt" in data
+    assert "number" in data, (
+        f"Missing 'number' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "title" in data, (
+        f"Missing 'title' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "state" in data, (
+        f"Missing 'state' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert data["state"] in ["OPEN", "CLOSED", "MERGED"], (
+        f"Unknown state value from GitHub API: {data['state']}"
+    )
+    assert "baseRefName" in data, (
+        f"Missing 'baseRefName' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "url" in data, (
+        f"Missing 'url' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "statusCheckRollup" in data, (
+        f"Missing 'statusCheckRollup' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert isinstance(data["statusCheckRollup"], list), (
+        f"Expected statusCheckRollup to be list, got {type(data['statusCheckRollup'])}"
+    )
+    assert "mergeable" in data, (
+        f"Missing 'mergeable' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert data["mergeable"] in ["MERGEABLE", "CONFLICTING", "UNKNOWN"], (
+        f"Unknown mergeable value from GitHub API: {data['mergeable']}"
+    )
+    assert "author" in data, (
+        f"Missing 'author' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "login" in data["author"], (
+        f"Missing 'login' field in author object. Available fields: {data['author'].keys()}"
+    )
+    assert "createdAt" in data, (
+        f"Missing 'createdAt' field in GitHub PR response. Available fields: {data.keys()}"
+    )
+    assert "updatedAt" in data, (
+        f"Missing 'updatedAt' field in GitHub PR response. Available fields: {data.keys()}"
+    )
 
     print("✓ PrData schema validated against real GitHub API")
     print(f"  Fields present: {', '.join(data.keys())}")

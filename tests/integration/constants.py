@@ -12,7 +12,7 @@ Note: PR numbers are discovered dynamically from branch names, not hardcoded.
 # Standard reference PRs in data-yaml/qen-test
 # These PRs are permanent and should remain open for integration testing
 # PR numbers are discovered dynamically - use get_standard_pr_numbers() to get actual numbers
-STANDARD_PRS = {
+STANDARD_PRS: dict[str, int | list[int]] = {
     "passing": 215,  # Branch: ref-passing-checks, Base: main, Status: Open with passing checks
     "failing": 216,  # Branch: ref-failing-checks, Base: main, Status: Open with failing checks
     "issue": 217,  # Branch: ref-issue-456-test, Base: main, Status: Open with issue pattern
@@ -20,7 +20,7 @@ STANDARD_PRS = {
 }
 
 # Branch names for standard PRs
-STANDARD_BRANCHES = {
+STANDARD_BRANCHES: dict[str, str] = {
     "passing": "ref-passing-checks",
     "failing": "ref-failing-checks",
     "issue": "ref-issue-456-test",
@@ -30,7 +30,7 @@ STANDARD_BRANCHES = {
 }
 
 # Expected check results for standard PRs
-EXPECTED_CHECKS = {
+EXPECTED_CHECKS: dict[str, list[str]] = {
     "passing": ["passing", "pending"],  # Should have passing or pending checks
     "failing": ["failing", "pending", "unknown"],  # Should have failing checks (or pending/unknown)
     "issue": ["passing", "pending", "unknown"],  # Checks status doesn't matter for issue test

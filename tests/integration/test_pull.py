@@ -6,15 +6,20 @@ This reduces test time from 68s to ~10s with NO loss of test quality.
 NO MOCKS ALLOWED. These tests still use the real GitHub API.
 """
 
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import pytest
-import tomli_w
 
-from tests.conftest import clone_standard_branch, run_qen, verify_standard_pr_exists
+from qen.pyproject_utils import read_pyproject
+from tests.conftest import (
+    add_test_repo_to_pyproject,
+    clone_standard_branch,
+    run_qen,
+    verify_standard_pr_exists,
+)
 from tests.integration.constants import EXPECTED_CHECKS, STANDARD_BRANCHES, STANDARD_PRS
+from tests.integration.helpers import create_test_git_repo, create_test_project
 
 
 def setup_test_project_optimized(
@@ -30,100 +35,27 @@ def setup_test_project_optimized(
     Returns:
         Tuple of (meta_repo_path, project_dir_path)
     """
-    import subprocess
-
     # Create meta repo (MUST be named "meta" for qen to find it)
     meta_repo = tmp_path / "meta"
     meta_repo.mkdir()
 
-    # Initialize git repo
-    subprocess.run(["git", "init", "-b", "main"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.name", "QEN Integration Test"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@qen.local"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
+    # Initialize git repo with standard configuration
+    create_test_git_repo(
+        meta_repo,
+        branch="main",
+        remote_org="data-yaml",
+        remote_name="test-meta",
     )
 
-    # Add remote (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/test-meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
+    # Create project using helper (returns per_project_meta and project_dir)
+    # But we need to return meta_repo for backward compatibility
+    _, project_dir = create_test_project(
+        meta_repo,
+        project_suffix,
+        temp_config_dir,
     )
-
-    # Create initial commit
-    readme = meta_repo / "README.md"
-    readme.write_text("# Test Meta Repository\n")
-    subprocess.run(["git", "add", "README.md"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen (run from meta repo, extracts org from remote)
-    result = run_qen(["init"], temp_config_dir, cwd=meta_repo)
-    assert result.returncode == 0, f"qen init failed: {result.stderr}"
-
-    # Create test project
-    project_name = f"{project_suffix}"
-    result = run_qen(["init", project_name, "--yes"], temp_config_dir, cwd=meta_repo)
-    assert result.returncode == 0, f"qen init project failed: {result.stderr}"
-
-    # Find project directory (format: YYMMDD-project-name)
-    proj_dir = meta_repo / "proj"
-    project_dirs = list(proj_dir.glob(f"*-{project_name}"))
-    assert len(project_dirs) == 1, f"Expected 1 project dir, found {len(project_dirs)}"
-    project_dir = project_dirs[0]
 
     return meta_repo, project_dir
-
-
-def add_repo_entry_to_pyproject(
-    project_dir: Path,
-    url: str,
-    branch: str,
-    path: str,
-) -> None:
-    """Add a repo entry to project's pyproject.toml without cloning.
-
-    Args:
-        project_dir: Path to project directory
-        url: Repository URL
-        branch: Branch name
-        path: Local path in repos/
-    """
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-
-    if "tool" not in pyproject:
-        pyproject["tool"] = {}
-    if "qen" not in pyproject["tool"]:
-        pyproject["tool"]["qen"] = {}
-    if "repos" not in pyproject["tool"]["qen"]:
-        pyproject["tool"]["qen"]["repos"] = []
-
-    pyproject["tool"]["qen"]["repos"].append(
-        {
-            "url": url,
-            "branch": branch,
-            "path": path,
-        }
-    )
-
-    # Write back
-    with open(pyproject_path, "wb") as f:
-        tomli_w.dump(pyproject, f)
 
 
 @pytest.mark.integration
@@ -139,7 +71,9 @@ def test_pull_updates_pr_metadata_standard(
     NO MOCKS - uses real GitHub API to verify PR metadata.
     """
     # Verify standard PR exists and is open
-    pr_number = STANDARD_PRS["passing"]
+    pr_number_raw = STANDARD_PRS["passing"]
+    assert isinstance(pr_number_raw, int), "Expected passing to be an int"
+    pr_number: int = pr_number_raw
     pr_data = verify_standard_pr_exists(pr_number)
     branch = STANDARD_BRANCHES["passing"]
 
@@ -152,7 +86,7 @@ def test_pull_updates_pr_metadata_standard(
     clone_standard_branch(project_dir, branch)
 
     # Add to pyproject.toml
-    add_repo_entry_to_pyproject(
+    add_test_repo_to_pyproject(
         project_dir,
         url="https://github.com/data-yaml/qen-test",
         branch=branch,
@@ -164,22 +98,24 @@ def test_pull_updates_pr_metadata_standard(
     assert result.returncode == 0, f"qen pull failed: {result.stderr}"
 
     # Verify output mentions the repo
-    assert "qen-test" in result.stdout
+    assert "qen-test" in result.stdout, f"Expected 'qen-test' in pull output. Got: {result.stdout}"
 
     # Read updated pyproject.toml
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        updated_pyproject = tomllib.load(f)
+    updated_pyproject = read_pyproject(project_dir)
 
     repos = updated_pyproject["tool"]["qen"]["repos"]
-    assert len(repos) == 1, "Expected exactly 1 repository"
+    assert len(repos) == 1, f"Expected exactly 1 repository, got {len(repos)}"
 
     repo = repos[0]
 
     # VERIFY: User-specified fields remain unchanged
-    assert repo["url"] == "https://github.com/data-yaml/qen-test"
-    assert repo["branch"] == branch
-    assert repo["path"] == "repos/qen-test"
+    assert repo["url"] == "https://github.com/data-yaml/qen-test", (
+        f"Expected url 'https://github.com/data-yaml/qen-test', got '{repo.get('url')}'"
+    )
+    assert repo["branch"] == branch, f"Expected branch '{branch}', got '{repo.get('branch')}'"
+    assert repo["path"] == "repos/qen-test", (
+        f"Expected path 'repos/qen-test', got '{repo.get('path')}'"
+    )
 
     # VERIFY: Auto-generated metadata fields are populated
     assert "updated" in repo, "Missing 'updated' field"
@@ -225,7 +161,9 @@ def test_pull_with_failing_checks_standard(
     NO MOCKS - uses real GitHub API to verify check status.
     """
     # Verify standard PR exists and is open
-    pr_number = STANDARD_PRS["failing"]
+    pr_number_raw = STANDARD_PRS["failing"]
+    assert isinstance(pr_number_raw, int), "Expected failing to be an int"
+    pr_number: int = pr_number_raw
     pr_data = verify_standard_pr_exists(pr_number)
     branch = STANDARD_BRANCHES["failing"]
 
@@ -238,7 +176,7 @@ def test_pull_with_failing_checks_standard(
     clone_standard_branch(project_dir, branch)
 
     # Add to pyproject.toml
-    add_repo_entry_to_pyproject(
+    add_test_repo_to_pyproject(
         project_dir,
         url="https://github.com/data-yaml/qen-test",
         branch=branch,
@@ -250,12 +188,10 @@ def test_pull_with_failing_checks_standard(
     assert result.returncode == 0, f"qen pull failed: {result.stderr}"
 
     # Read updated pyproject.toml
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        updated_pyproject = tomllib.load(f)
+    updated_pyproject = read_pyproject(project_dir)
 
     repos = updated_pyproject["tool"]["qen"]["repos"]
-    assert len(repos) == 1
+    assert len(repos) == 1, f"Expected exactly 1 repository, got {len(repos)}"
 
     repo = repos[0]
 
@@ -266,11 +202,13 @@ def test_pull_with_failing_checks_standard(
     )
 
     # VERIFY: PR status is still open
-    assert repo["pr_status"] == "open"
+    assert repo["pr_status"] == "open", f"Expected pr_status 'open', got '{repo.get('pr_status')}'"
 
     # VERIFY: PR number matches
-    assert repo["pr"] == pr_number
-    assert repo["pr_base"] == pr_data["baseRefName"]
+    assert repo["pr"] == pr_number, f"Expected PR #{pr_number}, got #{repo.get('pr')}"
+    assert repo["pr_base"] == pr_data["baseRefName"], (
+        f"Expected pr_base '{pr_data['baseRefName']}', got '{repo.get('pr_base')}'"
+    )
 
 
 @pytest.mark.integration
@@ -286,7 +224,9 @@ def test_pull_detects_issue_from_branch_standard(
     NO MOCKS - uses real GitHub API.
     """
     # Verify standard PR exists and is open
-    pr_number = STANDARD_PRS["issue"]
+    pr_number_raw = STANDARD_PRS["issue"]
+    assert isinstance(pr_number_raw, int), "Expected issue to be an int"
+    pr_number: int = pr_number_raw
     pr_data = verify_standard_pr_exists(pr_number)
     branch = STANDARD_BRANCHES["issue"]
 
@@ -302,7 +242,7 @@ def test_pull_detects_issue_from_branch_standard(
     clone_standard_branch(project_dir, branch)
 
     # Add to pyproject.toml
-    add_repo_entry_to_pyproject(
+    add_test_repo_to_pyproject(
         project_dir,
         url="https://github.com/data-yaml/qen-test",
         branch=branch,
@@ -314,21 +254,21 @@ def test_pull_detects_issue_from_branch_standard(
     assert result.returncode == 0, f"qen pull failed: {result.stderr}"
 
     # Read updated pyproject.toml
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        updated_pyproject = tomllib.load(f)
+    updated_pyproject = read_pyproject(project_dir)
 
     repos = updated_pyproject["tool"]["qen"]["repos"]
-    assert len(repos) == 1
+    assert len(repos) == 1, f"Expected exactly 1 repository, got {len(repos)}"
 
     repo = repos[0]
 
     # VERIFY: Issue field is populated
     assert "issue" in repo, "Missing 'issue' field"
-    assert repo["issue"] == 456, f"Expected issue=456, got {repo['issue']}"
-    assert isinstance(repo["issue"], int), "issue should be an integer"
+    assert repo["issue"] == 456, f"Expected issue=456, got {repo.get('issue')}"
+    assert isinstance(repo["issue"], int), f"Expected issue to be int, got {type(repo['issue'])}"
 
     # VERIFY: PR metadata is also present
-    assert repo["pr"] == pr_number
-    assert repo["pr_base"] == pr_data["baseRefName"]
-    assert repo["pr_status"] == "open"
+    assert repo["pr"] == pr_number, f"Expected PR #{pr_number}, got #{repo.get('pr')}"
+    assert repo["pr_base"] == pr_data["baseRefName"], (
+        f"Expected pr_base '{pr_data['baseRefName']}', got '{repo.get('pr_base')}'"
+    )
+    assert repo["pr_status"] == "open", f"Expected pr_status 'open', got '{repo.get('pr_status')}'"
