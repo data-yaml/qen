@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from platformdirs import user_config_dir
+
 from qen.config import QenConfig
 
 
@@ -44,7 +46,7 @@ class RuntimeContext:
             RuntimeContext instance
         """
         return RuntimeContext(
-            config_dir=Path(config_dir) if config_dir else Path.home() / ".config" / "qen",
+            config_dir=Path(config_dir) if config_dir else Path(user_config_dir("qen")),
             current_project_override=proj,
             meta_path_override=Path(meta) if meta else None,
         )

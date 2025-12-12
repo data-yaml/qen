@@ -14,6 +14,7 @@ Key behaviors:
 from pathlib import Path
 
 import click
+from platformdirs import user_config_dir
 
 from qenvy.base import QenvyBase
 
@@ -93,7 +94,7 @@ def ensure_initialized(
 
             # Create RuntimeContext for initialization
             runtime_ctx = RuntimeContext(
-                config_dir=Path(config_dir) if config_dir else Path.home() / ".config" / "qen",
+                config_dir=Path(config_dir) if config_dir else Path(user_config_dir("qen")),
                 current_project_override=current_project_override,
                 meta_path_override=Path(meta_path_override) if meta_path_override else None,
             )

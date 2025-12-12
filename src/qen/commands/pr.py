@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import click
+from platformdirs import user_config_dir
 
 from ..context.runtime import RuntimeContext, RuntimeContextError
 from ..git_utils import GitError, get_current_branch, is_git_repo
@@ -1104,7 +1105,7 @@ def pr_command(
     # Get runtime context from Click context
     overrides = ctx.obj.get("config_overrides", {})
     runtime_ctx = RuntimeContext(
-        config_dir=overrides.get("config_dir") or Path.home() / ".config" / "qen",
+        config_dir=overrides.get("config_dir") or Path(user_config_dir("qen")),
         current_project_override=overrides.get("current_project"),
         meta_path_override=overrides.get("meta_path"),
     )
