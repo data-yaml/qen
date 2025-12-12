@@ -16,7 +16,27 @@ import pytest
 
 from qen.commands.init import init_project, init_qen
 from qen.config import QenConfig
+from qen.context.runtime import RuntimeContext
 from tests.unit.helpers.qenvy_test import QenvyTest
+
+
+def create_test_runtime_context(
+    test_storage: QenvyTest, meta_path: Path | None = None, current_project: str | None = None
+) -> RuntimeContext:
+    """Helper to create RuntimeContext for testing."""
+    ctx = RuntimeContext(
+        config_dir=Path("/tmp/test-qen-config"),
+        meta_path_override=meta_path,
+        current_project_override=current_project,
+    )
+    # Replace the config service with one using test storage
+    ctx._config_service = QenConfig(
+        storage=test_storage,
+        meta_path_override=meta_path,
+        current_project_override=current_project,
+    )
+    return ctx
+
 
 # ==============================================================================
 # Test init_qen Function (Tooling Initialization)
@@ -52,7 +72,8 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(meta_repo)
-            init_qen(verbose=False, storage=test_storage)
+            ctx = create_test_runtime_context(test_storage)
+            init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
@@ -94,7 +115,8 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(subdir)
-            init_qen(verbose=False, storage=test_storage)
+            ctx = create_test_runtime_context(test_storage)
+            init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
@@ -103,19 +125,20 @@ class TestInitQenFunction:
         main_config = config.read_main_config()
         assert main_config["meta_path"] == str(meta_repo)
 
-    def test_init_qen_not_git_repo(self, tmp_path: Path) -> None:
+    def test_init_qen_not_git_repo(self, tmp_path: Path, test_storage: QenvyTest) -> None:
         """Test that init fails when not in a git repository."""
         import os
 
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
+            ctx = create_test_runtime_context(test_storage)
             with pytest.raises(click.exceptions.Abort):
-                init_qen(verbose=False)
+                init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
-    def test_init_qen_no_meta_repo(self, temp_git_repo: Path) -> None:
+    def test_init_qen_no_meta_repo(self, temp_git_repo: Path, test_storage: QenvyTest) -> None:
         """Test that init fails when not in meta repository."""
         # Don't rename to meta - keep original name
         import os
@@ -123,8 +146,9 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(temp_git_repo)
+            ctx = create_test_runtime_context(test_storage)
             with pytest.raises(click.exceptions.Abort):
-                init_qen(verbose=False)
+                init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
@@ -143,8 +167,9 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(meta_repo)
+            ctx = create_test_runtime_context(test_storage)
             with pytest.raises(click.exceptions.Abort):
-                init_qen(verbose=False)
+                init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
@@ -176,8 +201,9 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(meta_repo)
+            ctx = create_test_runtime_context(test_storage)
             with pytest.raises(click.exceptions.Abort):
-                init_qen(verbose=False)
+                init_qen(ctx=ctx, verbose=False)
         finally:
             os.chdir(original_cwd)
 
@@ -205,7 +231,8 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(meta_repo)
-            init_qen(verbose=True, storage=test_storage)
+            ctx = create_test_runtime_context(test_storage)
+            init_qen(ctx=ctx, verbose=True)
         finally:
             os.chdir(original_cwd)
 
@@ -244,13 +271,14 @@ class TestInitQenFunction:
         original_cwd = os.getcwd()
         try:
             os.chdir(meta_repo)
+            ctx = create_test_runtime_context(test_storage)
 
             # Run init first time
-            init_qen(verbose=False, storage=test_storage)
+            init_qen(ctx=ctx, verbose=False)
             first_config = config.read_main_config()
 
             # Run init again
-            init_qen(verbose=False, storage=test_storage)
+            init_qen(ctx=ctx, verbose=False)
             second_config = config.read_main_config()
 
             # Verify: Config is unchanged (excluding metadata timestamps)
@@ -404,7 +432,8 @@ class TestInitProjectBranchCreation:
 
         # Execute: Create project while on feature-branch
         project_name = "test-project"
-        init_project(project_name, verbose=False, yes=True, storage=test_storage)
+        ctx = create_test_runtime_context(test_storage)
+        init_project(ctx=ctx, project_name=project_name, verbose=False, yes=True)
 
         # Verify: Project branch was created from default branch, not feature-branch
         project_config = config.read_project_config(project_name)

@@ -6,7 +6,6 @@ Tests status detection, sync status, output formatting, and error handling.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import click
 from click.testing import CliRunner
 
 from qen.cli import main
@@ -375,86 +374,67 @@ class TestGetProjectStatus:
 class TestStatusCommand:
     """Test status CLI command."""
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
-    def test_status_command_no_config(
-        self,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
-    ) -> None:
+    def test_status_command_no_config(self) -> None:
         """Test status command when qen is not initialized."""
+        from qen.context.runtime import RuntimeContext, RuntimeContextError
+
         runner = CliRunner()
 
-        # Simulate auto-init failure
-        mock_ensure.side_effect = click.Abort()
+        # Mock RuntimeContext to raise error when getting current project
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.side_effect = RuntimeContextError(
+            "No current project set"
+        )
 
-        result = runner.invoke(main, ["status"])
+        result = runner.invoke(main, ["status"], obj={"runtime_context": mock_runtime_ctx})
 
         assert result.exit_code != 0
-        mock_ensure.assert_called_once()
+        assert "No current project set" in result.output
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
-    def test_status_command_no_active_project(
-        self,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
-    ) -> None:
+    def test_status_command_no_active_project(self) -> None:
         """Test status command when no project is active."""
+        from qen.context.runtime import RuntimeContext, RuntimeContextError
+
         runner = CliRunner()
 
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {"meta_path": "/tmp/meta"}
-        mock_ensure.return_value = mock_config
+        # Mock RuntimeContext that has no current project
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.side_effect = RuntimeContextError(
+            "No current project set. Use 'qen config <project>' to set one, or use --proj option."
+        )
 
-        result = runner.invoke(main, ["status"])
+        result = runner.invoke(main, ["status"], obj={"runtime_context": mock_runtime_ctx})
 
         assert result.exit_code != 0
-        assert "No active project" in result.output
+        assert "No current project set" in result.output
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_success(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status command successful execution."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
 
@@ -474,37 +454,33 @@ class TestStatusCommand:
         assert "Project: test" in result.output
         assert "Branch: main" in result.output
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_verbose(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status command with --verbose flag."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
 
@@ -526,11 +502,7 @@ class TestStatusCommand:
         assert "Modified files:" in result.output
         assert "- README.md" in result.output
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.fetch_all_repos")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
@@ -539,26 +511,26 @@ class TestStatusCommand:
         mock_exists: Mock,
         mock_get_status: Mock,
         mock_fetch: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status command with --fetch flag."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
 
@@ -577,37 +549,33 @@ class TestStatusCommand:
         assert result.exit_code == 0
         mock_fetch.assert_called_once()
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_meta_only(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status command with --meta-only flag."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
 
@@ -632,37 +600,33 @@ class TestStatusCommand:
         assert "Meta Repository" in result.output
         assert "Sub-repositories:" not in result.output
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_command_repos_only(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status command with --repos-only flag."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
 
@@ -691,67 +655,56 @@ class TestStatusCommand:
 class TestStatusErrorHandling:
     """Test status command error handling."""
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
-    def test_status_invalid_project_name(
-        self,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
-    ) -> None:
+    def test_status_invalid_project_name(self) -> None:
         """Test status with invalid project name."""
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {"meta_path": "/tmp/meta"}
-        mock_config.read_project_config.side_effect = QenConfigError("Project not found")
-        mock_ensure.return_value = mock_config
+        # Mock RuntimeContext with config service that raises error for nonexistent project
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.side_effect = QenConfigError("Project not found")
+        mock_runtime_ctx.config_service = mock_config_service
+        mock_runtime_ctx.get_current_project.return_value = "nonexistent"
 
-        result = runner.invoke(main, ["status", "--project", "nonexistent"])
+        result = runner.invoke(
+            main, ["status", "--project", "nonexistent"], obj={"runtime_context": mock_runtime_ctx}
+        )
 
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
 
-    @patch("qen.git_utils.checkout_branch")
-    @patch("qen.git_utils.has_uncommitted_changes")
-    @patch("qen.git_utils.get_current_branch")
-    @patch("qen.commands.status.ensure_correct_branch")
-    @patch("qen.commands.status.ensure_initialized")
+    @patch("qen.context.runtime.RuntimeContext.from_cli")
     @patch("qen.commands.status.get_project_status")
     @patch("pathlib.Path.exists")
     def test_status_git_error(
         self,
         mock_exists: Mock,
         mock_get_status: Mock,
-        mock_ensure: Mock,
-        mock_ensure_branch: Mock,
-        mock_get_branch: Mock,
-        mock_has_uncommitted: Mock,
-        mock_checkout: Mock,
+        mock_from_cli: Mock,
     ) -> None:
         """Test status when git error occurs."""
+        from qen.commands.status import StatusError
+        from qen.context.runtime import RuntimeContext
+
         runner = CliRunner()
 
-        # Mock config
-        mock_config = Mock()
-        mock_config.read_main_config.return_value = {
-            "meta_path": "/tmp/meta",
-            "current_project": "test-project",
-        }
-        mock_config.read_project_config.return_value = {
+        # Mock RuntimeContext with proper config service
+        mock_runtime_ctx = Mock(spec=RuntimeContext)
+        mock_runtime_ctx.get_current_project.return_value = "test-project"
+
+        mock_config_service = Mock()
+        mock_config_service.read_project_config.return_value = {
             "folder": "proj/2025-01-01-test",
             "repo": "/tmp/meta",
         }
-        mock_ensure.return_value = mock_config
+        mock_runtime_ctx.config_service = mock_config_service
+
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
 
         mock_exists.return_value = True
-
-        from qen.commands.status import StatusError
 
         mock_get_status.side_effect = StatusError("Failed to get status")
 

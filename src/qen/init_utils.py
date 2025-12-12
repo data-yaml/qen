@@ -89,14 +89,19 @@ def ensure_initialized(
         try:
             # Import here to avoid circular dependency
             from .commands.init import init_qen
+            from .context.runtime import RuntimeContext
+
+            # Create RuntimeContext for initialization
+            runtime_ctx = RuntimeContext(
+                config_dir=Path(config_dir) if config_dir else Path.home() / ".config" / "qen",
+                current_project_override=current_project_override,
+                meta_path_override=Path(meta_path_override) if meta_path_override else None,
+            )
 
             # Call existing init logic
             init_qen(
+                ctx=runtime_ctx,
                 verbose=False,  # Suppress init_qen's own output
-                storage=storage,
-                config_dir=config_dir,
-                meta_path_override=meta_path_override,
-                current_project_override=current_project_override,
             )
 
             if verbose:

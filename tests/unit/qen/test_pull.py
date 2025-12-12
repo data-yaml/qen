@@ -521,8 +521,9 @@ class TestPullAllRepositories:
         """Test pull with no qen configuration."""
         import click
 
-        # Don't create any config
+        # Don't create any config - mock ensure_initialized to raise Abort (simulating auto-init failure)
         with (
+            patch("qen.commands.pull.ensure_initialized", side_effect=click.Abort()),
             patch("qen.commands.pull.ensure_correct_branch"),
             pytest.raises(click.exceptions.Abort),
         ):

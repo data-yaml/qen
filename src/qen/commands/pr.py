@@ -13,12 +13,11 @@ import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import click
 
-from qenvy.base import QenvyBase
-
-from ..config import QenConfigError
+from ..context.runtime import RuntimeContext, RuntimeContextError
 from ..git_utils import GitError, get_current_branch, is_git_repo
 from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pr_utils import parse_check_status
@@ -526,9 +525,10 @@ def get_stack_summary(stacks: dict[str, list[PrInfo]]) -> dict[str, int]:
 
 
 def get_all_pr_infos(
+    runtime_ctx: RuntimeContext | None = None,
     project_name: str | None = None,
     config_dir: Path | str | None = None,
-    storage: QenvyBase | None = None,
+    storage: Any | None = None,
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> list[PrInfo]:
@@ -538,41 +538,55 @@ def get_all_pr_infos(
     Used by both pr_status_command and pr_stack_command.
 
     Args:
-        project_name: Name of project (if None, use current project from config)
-        config_dir: Override config directory (for testing)
-        storage: Override storage backend (for testing)
-        meta_path_override: Runtime override for meta_path
-        current_project_override: Runtime override for current_project
+        runtime_ctx: Runtime context with CLI overrides (new preferred API)
+        project_name: DEPRECATED - use runtime_ctx instead
+        config_dir: DEPRECATED - use runtime_ctx instead
+        storage: DEPRECATED - use runtime_ctx instead
+        meta_path_override: DEPRECATED - use runtime_ctx instead
+        current_project_override: DEPRECATED - use runtime_ctx instead
 
     Returns:
         List of PrInfo objects for all repositories
 
     Raises:
-        NoActiveProjectError: If no project is currently active
-        QenConfigError: If configuration cannot be read
-        PyProjectNotFoundError: If pyproject.toml not found
+        RuntimeContextError: If no project is currently active or config errors
+        click.Abort: If validation fails or dependencies missing
     """
-    # Load configuration
-    config = ensure_initialized(
-        config_dir=config_dir,
-        storage=storage,
-        meta_path_override=meta_path_override,
-        current_project_override=current_project_override,
-    )
+    from qenvy.base import QenvyBase
 
-    # Ensure the project is on the correct branch
-    ensure_correct_branch(config, verbose=False)
-
-    main_config = config.read_main_config()
-
-    # Get current project
-    current_project = main_config.get("current_project")
-    if not current_project:
-        click.echo(
-            "Error: No active project. Create a project with 'qen init <project-name>' first.",
-            err=True,
+    # Support backward compatibility with old test signatures
+    if runtime_ctx is None:
+        # Use old ensure_initialized pattern for tests
+        config = ensure_initialized(
+            config_dir=config_dir,
+            storage=cast(QenvyBase, storage) if storage else None,
+            meta_path_override=meta_path_override,
+            current_project_override=current_project_override,
+            verbose=False,
         )
-        raise click.Abort()
+        # Ensure the project is on the correct branch
+        ensure_correct_branch(config, verbose=False)
+
+        # Get current project
+        main_config = config.read_main_config()
+        current_project = main_config.get("current_project")
+        if not current_project:
+            click.echo(
+                "Error: No active project. Create a project with 'qen init <project-name>' first.",
+                err=True,
+            )
+            raise click.Abort()
+    else:
+        # New RuntimeContext API
+        try:
+            current_project = runtime_ctx.get_current_project()
+        except RuntimeContextError as e:
+            click.echo(f"Error: {e}", err=True)
+            raise click.Abort() from e
+
+        config = runtime_ctx.config_service
+        # Ensure the project is on the correct branch
+        ensure_correct_branch(config, verbose=False)
 
     # Check if gh CLI is available
     if not check_gh_installed():
@@ -583,7 +597,7 @@ def get_all_pr_infos(
     # Get project directory
     try:
         project_config = config.read_project_config(current_project)
-    except QenConfigError as e:
+    except Exception as e:
         click.echo(f"Error reading project configuration: {e}", err=True)
         raise click.Abort() from e
 
@@ -650,49 +664,64 @@ def get_all_pr_infos(
 
 
 def pr_status_command(
+    runtime_ctx: RuntimeContext | None = None,
     project_name: str | None = None,
     verbose: bool = False,
     config_dir: Path | str | None = None,
-    storage: QenvyBase | None = None,
+    storage: Any | None = None,
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> list[PrInfo]:
     """Get PR status for all repositories in the current project.
 
     Args:
-        project_name: Name of project (if None, use current project from config)
+        runtime_ctx: Runtime context with CLI overrides (new preferred API)
+        project_name: DEPRECATED - use runtime_ctx instead
         verbose: Enable verbose output
-        config_dir: Override config directory (for testing)
-        storage: Override storage backend (for testing)
-        meta_path_override: Runtime override for meta_path
-        current_project_override: Runtime override for current_project
+        config_dir: DEPRECATED - use runtime_ctx instead
+        storage: DEPRECATED - use runtime_ctx instead
+        meta_path_override: DEPRECATED - use runtime_ctx instead
+        current_project_override: DEPRECATED - use runtime_ctx instead
 
     Returns:
         List of PrInfo objects for all repositories
 
     Raises:
-        NoActiveProjectError: If no project is currently active
-        QenConfigError: If configuration cannot be read
-        PyProjectNotFoundError: If pyproject.toml not found
+        RuntimeContextError: If no project is currently active
+        click.Abort: If validation fails
     """
-    # Get configuration to show project name
-    config = ensure_initialized(
-        config_dir=config_dir,
-        storage=storage,
-        meta_path_override=meta_path_override,
-        current_project_override=current_project_override,
-    )
+    from qenvy.base import QenvyBase
 
-    # Ensure the project is on the correct branch
-    ensure_correct_branch(config, verbose=False)
-    main_config = config.read_main_config()
-    current_project = main_config.get("current_project")
+    # Support backward compatibility with old test signatures
+    if runtime_ctx is None:
+        # Use old ensure_initialized pattern for tests
+        config = ensure_initialized(
+            config_dir=config_dir,
+            storage=cast(QenvyBase, storage) if storage else None,
+            meta_path_override=meta_path_override,
+            current_project_override=current_project_override,
+            verbose=False,
+        )
+        ensure_correct_branch(config, verbose=False)
+        main_config = config.read_main_config()
+        current_project = main_config.get("current_project")
+    else:
+        # New RuntimeContext API
+        try:
+            current_project = runtime_ctx.get_current_project()
+        except RuntimeContextError as e:
+            click.echo(f"Error: {e}", err=True)
+            raise click.Abort() from e
+
+        # Ensure the project is on the correct branch
+        ensure_correct_branch(runtime_ctx.config_service, verbose=False)
 
     if verbose:
         click.echo(f"Current project: {current_project}")
 
     # Get all PR info using shared function
     pr_infos = get_all_pr_infos(
+        runtime_ctx=runtime_ctx,
         project_name=project_name,
         config_dir=config_dir,
         storage=storage,
@@ -755,22 +784,24 @@ def pr_status_command(
 
 
 def pr_stack_command(
+    runtime_ctx: RuntimeContext | None = None,
     project_name: str | None = None,
     verbose: bool = False,
     config_dir: Path | str | None = None,
-    storage: QenvyBase | None = None,
+    storage: Any | None = None,
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> dict[str, list[PrInfo]]:
     """Identify and display stacked PRs across all repositories.
 
     Args:
-        project_name: Name of project (if None, use current project from config)
+        runtime_ctx: Runtime context with CLI overrides (new preferred API)
+        project_name: DEPRECATED - use runtime_ctx instead
         verbose: Enable verbose output
-        config_dir: Override config directory (for testing)
-        storage: Override storage backend (for testing)
-        meta_path_override: Runtime override for meta_path
-        current_project_override: Runtime override for current_project
+        config_dir: DEPRECATED - use runtime_ctx instead
+        storage: DEPRECATED - use runtime_ctx instead
+        meta_path_override: DEPRECATED - use runtime_ctx instead
+        current_project_override: DEPRECATED - use runtime_ctx instead
 
     Returns:
         Dictionary of stacks (root branch -> list of PRs)
@@ -780,6 +811,7 @@ def pr_stack_command(
     """
     # Get all PR info using shared data-fetching function
     pr_infos = get_all_pr_infos(
+        runtime_ctx=runtime_ctx,
         project_name=project_name,
         config_dir=config_dir,
         storage=storage,
@@ -911,22 +943,24 @@ def restack_pr(owner: str, repo: str, pr_number: int, dry_run: bool = False) -> 
 
 
 def pr_restack_command(
+    runtime_ctx: RuntimeContext | None = None,
     project_name: str | None = None,
     dry_run: bool = False,
     config_dir: Path | str | None = None,
-    storage: QenvyBase | None = None,
+    storage: Any | None = None,
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> dict[str, list[tuple[PrInfo, bool]]]:
     """Update all stacked PRs to be based on latest versions of their base branches.
 
     Args:
-        project_name: Name of project (if None, use current project from config)
+        runtime_ctx: Runtime context with CLI overrides (new preferred API)
+        project_name: DEPRECATED - use runtime_ctx instead
         dry_run: If True, show what would be done without making changes
-        config_dir: Override config directory (for testing)
-        storage: Override storage backend (for testing)
-        meta_path_override: Runtime override for meta_path
-        current_project_override: Runtime override for current_project
+        config_dir: DEPRECATED - use runtime_ctx instead
+        storage: DEPRECATED - use runtime_ctx instead
+        meta_path_override: DEPRECATED - use runtime_ctx instead
+        current_project_override: DEPRECATED - use runtime_ctx instead
 
     Returns:
         Dictionary mapping root branch to list of (PrInfo, success) tuples
@@ -936,6 +970,7 @@ def pr_restack_command(
     """
     # Get stacks using existing command
     stacks = pr_stack_command(
+        runtime_ctx=runtime_ctx,
         project_name=project_name,
         verbose=False,
         config_dir=config_dir,
@@ -1066,14 +1101,16 @@ def pr_command(
         prompt_for_action,
     )
 
+    # Get runtime context from Click context
     overrides = ctx.obj.get("config_overrides", {})
+    runtime_ctx = RuntimeContext(
+        config_dir=overrides.get("config_dir") or Path.home() / ".config" / "qen",
+        current_project_override=overrides.get("current_project"),
+        meta_path_override=overrides.get("meta_path"),
+    )
 
     # Get all PR info
-    pr_infos = get_all_pr_infos(
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-    )
+    pr_infos = get_all_pr_infos(runtime_ctx)
 
     if not pr_infos:
         click.echo("No repositories found in project.")
