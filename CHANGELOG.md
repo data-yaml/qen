@@ -10,20 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2025-12-10
 
+- **BREAKING**: Projects now use per-project meta clones instead of shared meta repository (use `uvx qen@0.3.0` for old behavior)
+
 ### Added
 
 - **Per-project meta clones**: Each project now gets its own physical clone of meta repository (`meta-{project}/`)
+- **Discovery-first init**: `qen init` now detects if project branch exists remotely and clones it automatically
+- **qen del command**: Delete entire projects with safety checks for unpushed commits and unmerged PRs
 - **Auto-upgrade legacy configs**: Existing configs automatically upgraded to include `meta_remote`, `meta_parent`, `meta_default_branch`
-
-### Changed
-
-- **BREAKING**: Projects now use per-project meta clones instead of shared meta repository
-- **BREAKING**: Global config requires `meta_remote`, `meta_parent`, `meta_default_branch` fields
-- **BREAKING**: Project config requires `repo` field pointing to per-project meta clone
-- **Migration**: Run `qen init --force <project>` to migrate existing projects, or use `uvx qen@0.3.0` for old behavior
+- **Project name parsing**: Support fully-qualified names (e.g., `251210-myproject`) to avoid ambiguity
 
 ### Fixed
 
+- **--yes flag**: Now suppresses branch switch prompts during initialization
 - Enhanced error messages for meta repository not found, remote unreachable, and directory conflicts
 - Added safety checks for force mode with warnings for uncommitted changes and unpushed commits
 
