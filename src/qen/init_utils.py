@@ -252,8 +252,14 @@ def ensure_correct_branch(
     expected_branch = project_config["branch"]
 
     # 2. Check current branch in per-project meta (not meta prime)
-    # Use 'repo' field which points to per-project meta clone
-    meta_path = Path(project_config["repo"])
+    # Use 'repo' field if available (per-project meta), otherwise fall back to meta_path
+    if "repo" in project_config:
+        # New per-project meta architecture
+        meta_path = Path(project_config["repo"])
+    else:
+        # Old architecture or tests - use meta_path from main config
+        meta_path = Path(main_config["meta_path"])
+
     current_branch = get_current_branch(meta_path)
 
     if current_branch == expected_branch:
