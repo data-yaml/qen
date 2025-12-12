@@ -1260,14 +1260,18 @@ class TestInitProjectBranchCreation:
             capture_output=True,
         )
 
-        # Create per-project meta repo
+        # Create per-project meta repo by cloning from meta_repo
+        # This simulates what clone_per_project_meta actually does
         per_project_meta = meta_repo.parent / "meta-test-project"
-        per_project_meta.mkdir()
-        subprocess.run(["git", "init"], cwd=per_project_meta, check=True, capture_output=True)
-        (per_project_meta / "README.md").write_text("# Test Project")
-        subprocess.run(["git", "add", "."], cwd=per_project_meta, check=True, capture_output=True)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
+            ["git", "clone", str(meta_repo), str(per_project_meta)],
+            check=True,
+            capture_output=True,
+        )
+
+        # Switch to main branch in per-project meta
+        subprocess.run(
+            ["git", "checkout", "main"],
             cwd=per_project_meta,
             check=True,
             capture_output=True,
@@ -1317,34 +1321,38 @@ class TestInitProjectBranchCreation:
         project_name = "test-project"
         init_project(project_name, verbose=False, yes=True, storage=test_storage)
 
-        # Verify: Project branch was created from main, not feature-branch
+        # Verify: Project branch was created from default branch, not feature-branch
         project_config = config.read_project_config(project_name)
         project_branch = project_config["branch"]
 
+        # Get the default branch name from config (could be 'main' or 'master')
+        main_config = config.read_main_config()
+        default_branch = main_config["meta_default_branch"]
+
         # Get the merge-base of the project branch in per_project_meta
-        # It should be main (the initial commit), not feature-branch
+        # It should be the default branch (the initial commit), not feature-branch
         merge_base = subprocess.run(
-            ["git", "merge-base", project_branch, "main"],
+            ["git", "merge-base", project_branch, default_branch],
             cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
 
-        # Get the main branch's current commit hash in per_project_meta
-        per_project_main_commit = subprocess.run(
-            ["git", "rev-parse", "main"],
+        # Get the default branch's current commit hash in per_project_meta
+        per_project_default_commit = subprocess.run(
+            ["git", "rev-parse", default_branch],
             cwd=per_project_meta,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
 
-        # The merge-base should equal per_project_meta's main commit hash
-        # (meaning project branch started from main in the per-project meta)
-        assert merge_base == per_project_main_commit, (
-            f"Project branch should have branched from main ({per_project_main_commit}), "
-            f"but merge-base is {merge_base}"
+        # The merge-base should equal per_project_meta's default branch commit hash
+        # (meaning project branch started from default branch in the per-project meta)
+        assert merge_base == per_project_default_commit, (
+            f"Project branch should have branched from {default_branch} "
+            f"({per_project_default_commit}), but merge-base is {merge_base}"
         )
 
         # Additionally verify: feature.txt should NOT exist on the project branch
