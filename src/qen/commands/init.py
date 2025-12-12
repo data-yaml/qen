@@ -69,6 +69,7 @@ def discover_project_state(
     config_name: str,
     meta_parent: Path,
     meta_remote: str,
+    explicit_branch: str | None = None,
 ) -> DiscoveryState:
     """Discover existing project state from remote, local config, and local repo.
 
@@ -82,6 +83,7 @@ def discover_project_state(
         config_name: Project config name (what user typed)
         meta_parent: Parent directory where per-project metas are cloned
         meta_remote: Remote URL to query for branches
+        explicit_branch: Explicit branch name if provided (from fully-qualified name)
 
     Returns:
         DiscoveryState with findings from all three sources
@@ -92,7 +94,12 @@ def discover_project_state(
         ...     print(f"Found {len(state.remote_branches)} remote branches")
     """
     # 1. Check for remote branches matching pattern
-    remote_branches = find_remote_branches(meta_remote, f"*-{config_name}")
+    # If explicit_branch provided (fully-qualified name like "251208-proj"),
+    # search for exact match. Otherwise, search with wildcard pattern.
+    if explicit_branch:
+        remote_branches = find_remote_branches(meta_remote, explicit_branch)
+    else:
+        remote_branches = find_remote_branches(meta_remote, f"*-{config_name}")
 
     # 2. Check if local config exists
     local_config: dict[str, str] | None = None
@@ -583,7 +590,7 @@ def init_project(
     if verbose:
         click.echo("Discovering project state...")
 
-    state = discover_project_state(ctx, config_name, meta_parent, meta_remote)
+    state = discover_project_state(ctx, config_name, meta_parent, meta_remote, explicit_branch)
 
     # Step 5: Build action plan
     def branch_generator(name: str) -> str:
@@ -619,12 +626,18 @@ def init_project(
         # Clone per-project meta
         from ..git_utils import clone_per_project_meta
 
+        # For clone_existing, use the target branch (existing remote branch)
+        # For create_new, use the default branch (will create new branch later)
+        clone_branch = (
+            plan.target_branch if plan.scenario == "clone_existing" else meta_default_branch
+        )
+
         try:
             per_project_meta = clone_per_project_meta(
                 meta_remote,
                 config_name,
                 meta_parent,
-                meta_default_branch,
+                clone_branch,
             )
             if verbose:
                 click.echo(f"Cloned: {per_project_meta}")
