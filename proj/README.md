@@ -5,9 +5,23 @@
 - **Created:** ${date}
 - **Branch:** ${branch_name}
 
-## Overview
+## Context
 
-*Briefly describe the purpose and goals of this project.*
+*One-line description.*
+
+### Job Story
+
+- When...
+- I want...
+- So that...
+
+### TestCase(s)
+
+TBD
+
+### Hypotheses
+
+1. TBD
 
 ## Repositories
 
