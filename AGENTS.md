@@ -328,8 +328,16 @@ scripts/                    # Build and version management scripts
 
 **Configuration Locations:**
 
-- Global: `$XDG_CONFIG_HOME/qen/config.toml`
-- Per-project: `$XDG_CONFIG_HOME/qen/projects/<project>.toml`
+QEN uses `platformdirs.user_config_dir("qen")` which resolves to:
+
+- **macOS**: `~/Library/Application Support/qen/`
+- **Linux**: `~/.config/qen/`
+- **Windows**: `%LOCALAPPDATA%\qen\`
+
+Structure:
+
+- Global config: `<config-dir>/main/config.toml`
+- Per-project configs: `<config-dir>/<project>/config.toml`
 - Project manifest: `proj/YYMMDD-project/pyproject.toml` (with `[tool.qen]`)
 
 **Global Configuration Schema:**
@@ -363,7 +371,7 @@ qen [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
 
 Available global options (defined in [cli.py](src/qen/cli.py:23-40)):
 
-- `--config-dir PATH` - Override configuration directory (default: `$XDG_CONFIG_HOME/qen`)
+- `--config-dir PATH` - Override configuration directory (default: platform-specific via platformdirs)
 - `--meta PATH` - Override meta repository path
 - `--proj NAME` or `--project NAME` - Override current project name
 
