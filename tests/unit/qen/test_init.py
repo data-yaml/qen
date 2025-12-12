@@ -16,7 +16,7 @@ import pytest
 
 from qen.commands.init import init_project, init_qen
 from qen.config import QenConfig
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
 # Test init_qen Function (Tooling Initialization)

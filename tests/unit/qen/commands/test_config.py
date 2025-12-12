@@ -26,7 +26,7 @@ from qen.commands.config import (
     switch_project,
 )
 from qen.config import QenConfig
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 
 @pytest.fixture

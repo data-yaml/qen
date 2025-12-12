@@ -20,8 +20,8 @@ from qen.git_utils import (
     NotAGitRepoError,
 )
 from qen.init_utils import ensure_correct_branch, ensure_initialized
-from tests.helpers.qenvy_test import QenvyTest
-from tests.helpers.test_mock import create_test_config
+from tests.unit.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.test_mock import create_test_config
 
 # ==============================================================================
 # Test ensure_initialized Function

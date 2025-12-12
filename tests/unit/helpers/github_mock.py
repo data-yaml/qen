@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Literal, Unpack
 
-from tests.schemas.github_pr import CheckRun, PrData
+from tests.unit.schemas.github_pr import CheckRun, PrData
 
 
 def create_check_run_mock(

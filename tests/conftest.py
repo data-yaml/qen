@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ============================================================================
 # UNIT TEST FIXTURES (Can use mocks)

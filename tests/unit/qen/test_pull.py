@@ -21,7 +21,7 @@ from qen.commands.pull import (
     update_pyproject_metadata,
 )
 from qen.pyproject_utils import PyProjectUpdateError, read_pyproject
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
 # Test GitHub CLI Detection
