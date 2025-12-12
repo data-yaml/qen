@@ -293,8 +293,8 @@ def qen_project(
         def test_something(qen_project, temp_config_dir):
             meta_prime, per_project_meta, proj_dir = qen_project
 
-            # Add repos, run status, etc.
-            result = run_qen(["add", "repo-url"], temp_config_dir, cwd=meta_prime)
+            # Run commands from per_project_meta (on correct branch)
+            result = run_qen(["add", "repo-url"], temp_config_dir, cwd=per_project_meta)
     """
     from datetime import datetime
 
@@ -329,6 +329,19 @@ def qen_project(
     assert per_project_meta.exists(), f"Per-project meta not found: {per_project_meta}"
     assert project_dir.exists(), f"Project directory not found: {project_dir}"
 
+    # Verify we're on the correct branch (qen init <project> should have done this)
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=per_project_meta,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    current_branch = result.stdout.strip()
+    assert current_branch == branch_name, (
+        f"Per-project meta should be on branch '{branch_name}' but is on '{current_branch}'"
+    )
+
     return meta_prime_repo, per_project_meta, project_dir
 
 
@@ -353,12 +366,12 @@ def test_repo(
         def test_status(test_repo, temp_config_dir):
             meta_prime, per_project_meta, proj_dir, repo_path = test_repo
 
-            # repo is already cloned, just test status
-            result = run_qen(["status"], temp_config_dir, cwd=meta_prime)
+            # repo is already cloned, just test status (run from per_project_meta)
+            result = run_qen(["status"], temp_config_dir, cwd=per_project_meta)
     """
     meta_prime, per_project_meta, project_dir = qen_project
 
-    # Add qen-test repository
+    # Add qen-test repository (run from per_project_meta which is on correct branch)
     result = subprocess.run(
         [
             "qen",
@@ -367,7 +380,7 @@ def test_repo(
             "add",
             "https://github.com/data-yaml/qen-test",
         ],
-        cwd=meta_prime,
+        cwd=per_project_meta,
         capture_output=True,
         text=True,
     )

@@ -212,6 +212,7 @@ def ensure_initialized(
 def ensure_correct_branch(
     config: QenConfig,
     verbose: bool = False,
+    yes: bool = False,
 ) -> None:
     """Ensure meta repository is on the correct project branch.
 
@@ -219,19 +220,20 @@ def ensure_correct_branch(
     the expected project branch before executing commands.
 
     If on wrong branch:
-    - Clean meta repo: Prompts to switch with [Y/n]
+    - Clean meta repo: Prompts to switch with [Y/n] (or auto-confirms with --yes)
     - Dirty meta repo: Errors and tells user to commit/stash first
 
     Args:
         config: Loaded QenConfig instance
         verbose: Enable verbose output
+        yes: Auto-confirm branch switch without prompting
 
     Raises:
         click.Abort: If on wrong branch and user declines to switch, or has uncommitted changes
 
     Example:
         >>> config = ensure_initialized(...)
-        >>> ensure_correct_branch(config, verbose=verbose)
+        >>> ensure_correct_branch(config, verbose=verbose, yes=yes)
         >>> # Now guaranteed to be on correct branch (or user accepted switch)
     """
     # Import here to avoid circular dependency
@@ -268,15 +270,18 @@ def ensure_correct_branch(
         click.echo(f"\nThen run: qen config {current_project}", err=True)
         raise click.Abort()
 
-    # 4. Clean repo - offer to switch
-    click.echo(
-        f"Warning: Not on project branch '{expected_branch}' (currently on '{current_branch}')"
-    )
-    if click.confirm("Switch to correct branch?", default=True):
+    # 4. Clean repo - offer to switch (or auto-confirm with --yes)
+    if not yes:
+        click.echo(
+            f"Warning: Not on project branch '{expected_branch}' (currently on '{current_branch}')"
+        )
+
+    if yes or click.confirm("Switch to correct branch?", default=True):
         if verbose:
             click.echo(f"Switching to '{expected_branch}'...")
         checkout_branch(meta_path, expected_branch)
-        click.echo(f"Switched to branch '{expected_branch}'")
+        if verbose:
+            click.echo(f"Switched to branch '{expected_branch}'")
     else:
         click.echo("Aborted.", err=True)
         raise click.Abort()

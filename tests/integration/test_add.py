@@ -24,7 +24,7 @@ from tests.conftest import run_qen
 
 @pytest.mark.integration
 def test_add_with_full_https_url(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test qen add with full HTTPS URL - REAL CLONE.
@@ -38,78 +38,7 @@ def test_add_with_full_https_url(
     - pyproject.toml is updated with correct [[tool.qen.repos]] entry
     - Entry has url, branch, and path fields
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
-
-    # Note: After `qen init <project>`, we're on the project branch (251208-test-project)
-    # When --branch is not specified, qen add defaults to the current meta branch
-    # So we need to explicitly specify --branch main to test with main branch
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add repository with full HTTPS URL and explicit --branch main (REAL CLONE)
     result = run_qen(
@@ -122,8 +51,7 @@ def test_add_with_full_https_url(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -158,7 +86,7 @@ def test_add_with_full_https_url(
 
 @pytest.mark.integration
 def test_add_with_ssh_url(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test qen add with SSH URL format - REAL CLONE.
@@ -168,74 +96,7 @@ def test_add_with_ssh_url(
 
     Verifies that SSH URLs are parsed correctly and cloning works.
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add repository with SSH URL and explicit --branch main (REAL CLONE)
     # Note: SSH URL is normalized to HTTPS URL internally
@@ -249,8 +110,7 @@ def test_add_with_ssh_url(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -276,7 +136,7 @@ def test_add_with_ssh_url(
 
 @pytest.mark.integration
 def test_add_with_short_format(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test qen add with short format (org/repo) - REAL CLONE.
@@ -286,81 +146,13 @@ def test_add_with_short_format(
 
     Verifies that short format is expanded to full URL using configured org.
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add repository with short format and explicit --branch main (REAL CLONE)
     result = run_qen(
         ["add", "data-yaml/qen-test", "--branch", "main", "--yes", "--no-workspace"],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -385,7 +177,7 @@ def test_add_with_short_format(
 
 @pytest.mark.integration
 def test_add_with_custom_branch(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test qen add with custom branch name - REAL CLONE.
@@ -396,74 +188,7 @@ def test_add_with_custom_branch(
     - Repository is cloned and checked out to custom branch
     - pyproject.toml records the correct branch name
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add repository with custom branch (REAL CLONE)
     # When --branch is specified explicitly, that becomes the tracked branch
@@ -477,8 +202,7 @@ def test_add_with_custom_branch(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -515,7 +239,7 @@ def test_add_with_custom_branch(
 
 @pytest.mark.integration
 def test_add_with_custom_path(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test qen add with custom local path - REAL CLONE.
@@ -526,74 +250,7 @@ def test_add_with_custom_path(
     - Repository is cloned to custom path
     - pyproject.toml records the custom path
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add repository with custom path and explicit --branch main (REAL CLONE)
     custom_path = "repos/my-custom-test-repo"
@@ -609,8 +266,7 @@ def test_add_with_custom_path(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -635,7 +291,7 @@ def test_add_with_custom_path(
 
 @pytest.mark.integration
 def test_add_multiple_repos_with_indices(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test adding multiple repositories and verify tracking order - REAL CLONES.
@@ -645,74 +301,7 @@ def test_add_multiple_repos_with_indices(
     - Repositories maintain correct order (indices)
     - Each repo entry is independent and complete
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Add first repository with explicit --branch main (REAL CLONE)
     result = run_qen(
@@ -725,8 +314,7 @@ def test_add_multiple_repos_with_indices(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -742,8 +330,7 @@ def test_add_multiple_repos_with_indices(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
-        check=True,
+        cwd=per_project_meta,
     )
     assert result.returncode == 0
 
@@ -780,7 +367,7 @@ def test_add_multiple_repos_with_indices(
 
 @pytest.mark.integration
 def test_add_invalid_url_error_handling(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test error handling for invalid repository URL - NO CLONE.
@@ -788,72 +375,13 @@ def test_add_invalid_url_error_handling(
     Tests that qen add properly handles invalid URLs and provides
     clear error messages without attempting to clone.
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Attempt to add repository with invalid URL format
     result = run_qen(
         ["add", "not-a-valid-url", "--yes", "--no-workspace"],
         temp_config_dir,
-        cwd=meta_repo,
+        cwd=per_project_meta,
         check=False,  # Expect failure
     )
 
@@ -864,7 +392,7 @@ def test_add_invalid_url_error_handling(
 
 @pytest.mark.integration
 def test_add_nonexistent_repo_error_handling(
-    tmp_path: Path,
+    qen_project: tuple[Path, Path, Path],
     temp_config_dir: Path,
 ) -> None:
     """Test error handling for non-existent GitHub repository - REAL CLONE ATTEMPT.
@@ -872,74 +400,7 @@ def test_add_nonexistent_repo_error_handling(
     Tests that qen add properly handles clone failures when the repository
     doesn't exist on GitHub.
     """
-    # Create temporary meta repo
-    meta_repo = tmp_path / "meta"
-    meta_repo.mkdir()
-
-    # Initialize meta repo with git
-    subprocess.run(
-        ["git", "init", "-b", "main"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    meta_toml = meta_repo / "meta.toml"
-    meta_toml.write_text('[meta]\nname = "test-org"\n')
-    subprocess.run(["git", "add", "meta.toml"], cwd=meta_repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Add remote to simulate real meta repo (required for org extraction)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/data-yaml/meta.git"],
-        cwd=meta_repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Initialize qen global config (REAL command - must run from meta repo)
-    result = run_qen(
-        ["init"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Create a project (REAL command)
-    result = run_qen(
-        ["init", "test-project", "--yes"],
-        temp_config_dir,
-        cwd=meta_repo,
-        check=True,
-    )
-    assert result.returncode == 0
-
-    # Find the project directory
-    proj_dir = None
-    for item in (meta_repo / "proj").iterdir():
-        if item.is_dir() and "test-project" in item.name:
-            proj_dir = item
-            break
-    assert proj_dir is not None, "Project directory not created"
+    meta_prime, per_project_meta, proj_dir = qen_project
 
     # Attempt to add non-existent repository (REAL CLONE - will fail)
     result = run_qen(
@@ -950,7 +411,7 @@ def test_add_nonexistent_repo_error_handling(
             "--no-workspace",
         ],
         temp_config_dir,
-        cwd=meta_repo,
+        cwd=per_project_meta,
         check=False,  # Expect failure
     )
 

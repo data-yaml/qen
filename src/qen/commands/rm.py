@@ -431,7 +431,7 @@ def rm(
         current_project_override=overrides.get("current_project"),
         verbose=verbose,
     )
-    ensure_correct_branch(config, verbose=verbose)
+    ensure_correct_branch(config, verbose=verbose, yes=yes)
 
     # Get current project
     main_config = config.read_main_config()

@@ -125,7 +125,7 @@ def add_repository(
     )
 
     # Ensure we're on the correct branch
-    ensure_correct_branch(config, verbose=verbose)
+    ensure_correct_branch(config, verbose=verbose, yes=yes)
 
     # Config is now guaranteed to exist
     main_config = config.read_main_config()
