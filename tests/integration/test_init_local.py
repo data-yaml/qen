@@ -1,18 +1,44 @@
-"""Integration tests for qen init command using REAL operations.
+"""Local Integration Tests for qen init Command.
 
-NO MOCKS ALLOWED. These tests use real file system operations, real git commands,
-and real qen CLI execution.
+These are "local" integration tests that verify the qen init command's functionality
+using file:// URLs and temporary local git repositories. Unlike remote tests,
+these focus on fast, low-overhead tests that validate:
 
-These tests validate:
-1. qen init - Initialize qen configuration in a real git repo
-2. qen init <project> - Create a real project with all template files
+1. Configuration initialization
+2. Project structure creation
+3. Template variable substitution
+4. Git repository setup
 
-Key testing approach:
-- Use temporary directories for meta repos
-- Run REAL qen commands via subprocess
-- Verify REAL file system state
-- NO mock objects
-- NO mock data files
+Key Characteristics:
+- Uses tmp_meta_repo fixture with file:// URLs
+- Performs real file system operations
+- Runs actual qen CLI commands via subprocess
+- Extremely fast (no network calls)
+- NO mocks or artificial test data
+
+Scope:
+- Test fundamental qen init behaviors
+- Ensure project templates are correctly processed
+- Validate git repository and branch setup
+
+Complementary Tests:
+- These tests are complemented by test_init_remote.py
+- test_init_local.py: Local, fast file-based tests
+- test_init_remote.py: Remote GitHub API-based tests
+
+Differences from Remote Tests:
+- Uses local tmp_meta_repo fixture instead of remote_meta_test_repo
+- No actual GitHub remote interactions
+- Focuses on local filesystem and git operations
+- Runs much faster than remote tests
+
+Validation Areas:
+1. Global configuration initialization
+2. Per-project meta clone creation
+3. Project directory structure
+4. Git branch and commit creation
+5. Template variable substitution
+6. Executable script permissions
 """
 
 import os
