@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-13
+
+### Fixed
+
+- **Platform-specific config paths**: Use `platformdirs.user_config_dir()` instead of hardcoded `~/.config` (fixes macOS using wrong directory)
+- **Fully-qualified project names**: `qen init 251208-project` now correctly detects existing remote branches
+- **No more skipped tests**: `./poe test-all` now enforces GitHub token requirement, ensuring 100% pass rate with zero skipped tests
+- **Wrapper integration tests**: Fixed 5 tests in test_qen_wrapper.py to correctly locate wrapper scripts in per-project meta clones
+
+### Changed
+
+- **Test infrastructure**: Systematic tech debt cleanup added integration test helpers, real GitHub remote tests, py.typed markers for full type safety, and parametrized tests (reduced ~250 lines through deduplication)
+- **Documentation**: Updated README.md and AGENTS.md to reflect platform-specific config paths
+
 ## [0.4.0] - 2025-12-10
 
 - **BREAKING**: Projects now use per-project meta clones instead of shared meta repository (use `uvx qen@0.3.0` for old behavior)
@@ -148,7 +162,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/data-yaml/qen/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/data-yaml/qen/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/data-yaml/qen/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/data-yaml/qen/compare/v0.2.0...v0.2.1

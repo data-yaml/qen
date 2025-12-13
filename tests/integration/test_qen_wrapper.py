@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import run_qen
+from tests.integration.helpers import create_test_project
 
 
 @pytest.mark.integration
@@ -46,15 +46,12 @@ def test_qen_wrapper_generation(
     # Generate project name with unique prefix
     project_name = f"{unique_prefix}-wrapper-test"
 
-    # Create project using run_qen helper (REAL command, NO MOCKS)
-    # Helper automatically adds --config-dir to isolate test config
-    # --meta flag specifies qen-test as meta repo
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    # Create project using helper - returns per-project meta and project dir paths
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-
-    assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
     # Track branch for cleanup
     # Extract branch name from project (YYMMDD-project-name format)
@@ -63,7 +60,6 @@ def test_qen_wrapper_generation(
     cleanup_branches.append(branch_name)
 
     # Verify project directory exists
-    project_dir = real_test_repo / "proj" / branch_name
     assert project_dir.exists(), f"Project directory not created: {project_dir}"
 
     # Verify all expected files exist
@@ -130,11 +126,11 @@ def test_qen_wrapper_help_command(
     """
     # Create project
     project_name = f"{unique_prefix}-help-test"
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-    assert result.returncode == 0
 
     # Track branch for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -142,9 +138,8 @@ def test_qen_wrapper_help_command(
     cleanup_branches.append(branch_name)
 
     # Find wrapper script
-    project_dir = real_test_repo / "proj" / branch_name
     qen_wrapper = project_dir / "qen"
-    assert qen_wrapper.exists()
+    assert qen_wrapper.exists(), f"qen wrapper not created at {qen_wrapper}"
 
     # Test: Run ./qen --help (REAL execution)
     result = subprocess.run(
@@ -162,69 +157,30 @@ def test_qen_wrapper_help_command(
 
 
 @pytest.mark.integration
-def test_qen_wrapper_from_parent_directory(
-    real_test_repo: Path,
-    unique_prefix: str,
-    cleanup_branches: list[str],
-    temp_config_dir: Path,
-) -> None:
-    """Test wrapper works from parent directory - REAL OPERATIONS.
-
-    Verifies the wrapper script resolves paths correctly when invoked from
-    outside the project directory.
-
-    Args:
-        real_test_repo: Path to cloned qen-test repository
-        unique_prefix: Unique prefix for test branches
-        cleanup_branches: List to track branches for cleanup
-        temp_config_dir: Temporary config directory
-    """
-    # Create project
-    project_name = f"{unique_prefix}-parent-test"
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
-        temp_config_dir,
-    )
-    assert result.returncode == 0
-
-    # Track branch for cleanup
-    date_prefix = datetime.now().strftime("%y%m%d")
-    branch_name = f"{date_prefix}-{project_name}"
-    cleanup_branches.append(branch_name)
-
-    # Find wrapper script
-    project_dir = real_test_repo / "proj" / branch_name
-    qen_wrapper = project_dir / "qen"
-    assert qen_wrapper.exists()
-
-    # Test: Run wrapper from parent directory (REAL execution from different cwd)
-    proj_parent = real_test_repo / "proj"
-    result = subprocess.run(
-        [str(qen_wrapper), "--config-dir", str(temp_config_dir), "status"],
-        cwd=proj_parent,  # Run from parent, not project directory
-        capture_output=True,
-        text=True,
-    )
-
-    # Should succeed
-    assert "bash:" not in result.stderr.lower(), f"Wrapper failed from parent: {result.stderr}"
-    assert "command not found" not in result.stderr.lower()
-
-
-@pytest.mark.integration
-def test_qen_wrapper_from_arbitrary_directory(
+@pytest.mark.parametrize(
+    "cwd_type,test_suffix",
+    [
+        ("parent", "parent-test"),
+        ("arbitrary", "arbitrary-test"),
+    ],
+)
+def test_qen_wrapper_works_from_different_cwd(
+    cwd_type: str,
+    test_suffix: str,
     real_test_repo: Path,
     unique_prefix: str,
     cleanup_branches: list[str],
     temp_config_dir: Path,
     tmp_path: Path,
 ) -> None:
-    """Test wrapper works from arbitrary directory - REAL OPERATIONS.
+    """Test wrapper works from different working directories - REAL OPERATIONS.
 
-    Verifies the wrapper script works when invoked from a completely unrelated
-    directory (not parent, not project).
+    Verifies the wrapper script resolves paths correctly when invoked from
+    different locations (parent directory or arbitrary unrelated directory).
 
     Args:
+        cwd_type: Type of working directory ("parent" or "arbitrary")
+        test_suffix: Suffix for project name
         real_test_repo: Path to cloned qen-test repository
         unique_prefix: Unique prefix for test branches
         cleanup_branches: List to track branches for cleanup
@@ -232,12 +188,12 @@ def test_qen_wrapper_from_arbitrary_directory(
         tmp_path: Pytest temporary directory
     """
     # Create project
-    project_name = f"{unique_prefix}-arbitrary-test"
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    project_name = f"{unique_prefix}-{test_suffix}"
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-    assert result.returncode == 0
 
     # Track branch for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -245,27 +201,36 @@ def test_qen_wrapper_from_arbitrary_directory(
     cleanup_branches.append(branch_name)
 
     # Find wrapper script
-    project_dir = real_test_repo / "proj" / branch_name
     qen_wrapper = project_dir / "qen"
-    assert qen_wrapper.exists()
+    assert qen_wrapper.exists(), f"Wrapper script not found: {qen_wrapper}"
 
-    # Create arbitrary directory unrelated to project
-    arbitrary_dir = tmp_path / "arbitrary-location"
-    arbitrary_dir.mkdir()
+    # Determine working directory based on cwd_type
+    if cwd_type == "parent":
+        # Run from parent directory (proj/)
+        cwd = per_project_meta / "proj"
+    elif cwd_type == "arbitrary":
+        # Create and use arbitrary unrelated directory
+        arbitrary_dir = tmp_path / "arbitrary-location"
+        arbitrary_dir.mkdir()
+        cwd = arbitrary_dir
+    else:
+        pytest.fail(f"Unknown cwd_type: {cwd_type}")
 
-    # Test: Run wrapper from arbitrary directory (REAL execution from unrelated cwd)
+    # Test: Run wrapper from specified working directory (REAL execution)
     result = subprocess.run(
         [str(qen_wrapper), "--config-dir", str(temp_config_dir), "status"],
-        cwd=arbitrary_dir,  # Completely unrelated directory
+        cwd=cwd,
         capture_output=True,
         text=True,
     )
 
     # Should succeed
     assert "bash:" not in result.stderr.lower(), (
-        f"Wrapper failed from arbitrary dir: {result.stderr}"
+        f"Wrapper failed from {cwd_type} directory: {result.stderr}"
     )
-    assert "command not found" not in result.stderr.lower()
+    assert "command not found" not in result.stderr.lower(), (
+        f"uvx or qen not found when run from {cwd_type} directory: {result.stderr}"
+    )
 
 
 @pytest.mark.integration
@@ -290,17 +255,17 @@ def test_qen_wrapper_project_context(
     project1_name = f"{unique_prefix}-context-1"
     project2_name = f"{unique_prefix}-context-2"
 
-    result1 = run_qen(
-        ["--meta", str(real_test_repo), "init", project1_name, "--yes"],
+    per_project_meta1, project1_dir = create_test_project(
+        real_test_repo,
+        project1_name,
         temp_config_dir,
     )
-    assert result1.returncode == 0
 
-    result2 = run_qen(
-        ["--meta", str(real_test_repo), "init", project2_name, "--yes"],
+    per_project_meta2, project2_dir = create_test_project(
+        real_test_repo,
+        project2_name,
         temp_config_dir,
     )
-    assert result2.returncode == 0
 
     # Track branches for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -308,15 +273,12 @@ def test_qen_wrapper_project_context(
     branch2_name = f"{date_prefix}-{project2_name}"
     cleanup_branches.extend([branch1_name, branch2_name])
 
-    # Find both project directories
-    project1_dir = real_test_repo / "proj" / branch1_name
-    project2_dir = real_test_repo / "proj" / branch2_name
-
+    # Find both wrapper scripts
     wrapper1 = project1_dir / "qen"
     wrapper2 = project2_dir / "qen"
 
-    assert wrapper1.exists()
-    assert wrapper2.exists()
+    assert wrapper1.exists(), f"wrapper1 not created at {wrapper1}"
+    assert wrapper2.exists(), f"wrapper2 not created at {wrapper2}"
 
     # Read wrapper scripts to verify they have correct project context (REAL file reads)
     wrapper1_content = wrapper1.read_text()
@@ -330,9 +292,13 @@ def test_qen_wrapper_project_context(
     assert project2_name not in wrapper1_content, "Wrapper 1 should NOT contain project2 name"
     assert project1_name not in wrapper2_content, "Wrapper 2 should NOT contain project1 name"
 
-    # Verify wrappers have correct meta path
-    assert str(real_test_repo) in wrapper1_content, "Wrapper 1 should contain meta path"
-    assert str(real_test_repo) in wrapper2_content, "Wrapper 2 should contain meta path"
+    # Verify wrappers have correct per-project meta paths (not meta prime!)
+    assert str(per_project_meta1) in wrapper1_content, (
+        "Wrapper 1 should contain per-project meta path"
+    )
+    assert str(per_project_meta2) in wrapper2_content, (
+        "Wrapper 2 should contain per-project meta path"
+    )
 
     # Test: Run both wrappers and verify they work independently (REAL execution)
     result1 = subprocess.run(
@@ -340,11 +306,15 @@ def test_qen_wrapper_project_context(
         capture_output=True,
         text=True,
     )
-    assert "bash:" not in result1.stderr.lower()
+    assert "bash:" not in result1.stderr.lower(), (
+        f"Wrapper1 execution failed with bash error: {result1.stderr}"
+    )
 
     result2 = subprocess.run(
         [str(wrapper2), "--config-dir", str(temp_config_dir), "status"],
         capture_output=True,
         text=True,
     )
-    assert "bash:" not in result2.stderr.lower()
+    assert "bash:" not in result2.stderr.lower(), (
+        f"Wrapper2 execution failed with bash error: {result2.stderr}"
+    )

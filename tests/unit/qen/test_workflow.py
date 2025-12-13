@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from qen.commands.add import add_repository
 from qen.pyproject_utils import read_pyproject
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 
 class TestRepositoryManagement:

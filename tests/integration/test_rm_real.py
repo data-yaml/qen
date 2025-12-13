@@ -5,11 +5,11 @@ NO MOCKS ALLOWED - we test the actual behavior with real repositories.
 """
 
 import shutil
-import tomllib
 from pathlib import Path
 
 import pytest
 
+from qen.pyproject_utils import load_repos_from_pyproject
 from tests.conftest import run_qen
 
 
@@ -25,21 +25,18 @@ def test_rm_by_index(
     meta_prime, per_project_meta, project_dir, repo_path = test_repo
 
     # Verify repository was added to config
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
-    assert len(repos) == 1, "Should have 1 repository"
-    assert repos[0]["url"] == "https://github.com/data-yaml/qen-test"
+    repos = load_repos_from_pyproject(project_dir)
+    assert len(repos) == 1, f"Should have 1 repository, got {len(repos)}"
+    assert repos[0].url == "https://github.com/data-yaml/qen-test", (
+        f"Expected url 'https://github.com/data-yaml/qen-test', got '{repos[0].url}'"
+    )
 
     # Remove repository by index (--yes to skip prompt)
     result = run_qen(["rm", "1", "--yes"], temp_config_dir, cwd=per_project_meta)
     assert result.returncode == 0, f"qen rm failed: {result.stderr}"
 
     # Verify repository was removed from config
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 0, "Should have 0 repositories after removal"
 
 
@@ -60,10 +57,7 @@ def test_rm_by_url(
     assert result.returncode == 0, f"qen rm failed: {result.stderr}"
 
     # Verify removal
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 0, "Repository should be removed"
 
 
@@ -94,10 +88,7 @@ def test_rm_multiple_repos(
         assert result.returncode == 0, f"qen add failed: {result.stderr}"
 
     # Verify all 3 were added
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 3, "Should have 3 repositories"
 
     # Remove repos at indices 1 and 3
@@ -105,11 +96,9 @@ def test_rm_multiple_repos(
     assert result.returncode == 0, f"qen rm failed: {result.stderr}"
 
     # Verify only middle repo remains
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 1, "Should have 1 repository remaining"
-    assert repos[0]["branch"] == "ref-passing-checks", "Wrong repository removed"
+    assert repos[0].branch == "ref-passing-checks", "Wrong repository removed"
 
 
 @pytest.mark.integration
@@ -159,10 +148,7 @@ def test_rm_force_skips_safety_checks(
     assert "skipped safety checks" in result.stdout.lower(), "Should mention skipped checks"
 
     # Verify removal succeeded
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 0, "Repository should be removed"
 
 
@@ -186,10 +172,7 @@ def test_rm_handles_missing_directory(
     assert result.returncode == 0, f"qen rm should succeed: {result.stderr}"
 
     # Verify config was updated
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 0, "Repository should be removed from config"
 
 
@@ -251,10 +234,7 @@ def test_rm_no_workspace_flag(
     assert result.returncode == 0, f"qen rm failed: {result.stderr}"
 
     # Verify removal succeeded
-    pyproject_path = project_dir / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomllib.load(f)
-    repos = pyproject["tool"]["qen"]["repos"]
+    repos = load_repos_from_pyproject(project_dir)
     assert len(repos) == 0, "Repository should be removed"
 
 

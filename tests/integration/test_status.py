@@ -46,18 +46,24 @@ def test_status_basic_clean_repos(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status failed: {result.stderr}"
 
     # Verify output contains expected elements
     output = result.stdout
-    assert "Project:" in output
-    assert "test-project" in output
-    assert "Branch:" in output
-    assert "Meta Repository" in output
-    assert "Sub-repositories:" in output
-    assert "[1]" in output  # Repository index
-    assert "qen-test" in output
-    assert "clean" in output.lower() or "nothing to commit" in output.lower()
+    assert "Project:" in output, f"Expected 'Project:' in status output. Got: {output}"
+    assert "test-project" in output, f"Expected 'test-project' in status output. Got: {output}"
+    assert "Branch:" in output, f"Expected 'Branch:' in status output. Got: {output}"
+    assert "Meta Repository" in output, (
+        f"Expected 'Meta Repository' in status output. Got: {output}"
+    )
+    assert "Sub-repositories:" in output, (
+        f"Expected 'Sub-repositories:' in status output. Got: {output}"
+    )
+    assert "[1]" in output, f"Expected repository index '[1]' in status output. Got: {output}"
+    assert "qen-test" in output, f"Expected 'qen-test' in status output. Got: {output}"
+    assert "clean" in output.lower() or "nothing to commit" in output.lower(), (
+        f"Expected clean status indication. Got: {output}"
+    )
 
 
 @pytest.mark.integration
@@ -86,18 +92,20 @@ def test_status_with_modified_files(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status failed: {result.stderr}"
 
     # Verify output shows changes (might be staged or modified depending on git behavior)
     output = result.stdout
-    assert "[1]" in output  # Repository index
-    assert "qen-test" in output
+    assert "[1]" in output, f"Expected repository index '[1]' in status output. Got: {output}"
+    assert "qen-test" in output, f"Expected 'qen-test' in status output. Got: {output}"
     # Status should indicate changes - either modified, staged, or uncommitted (not clean)
     assert (
         "uncommitted" in output.lower()
         or "modified" in output.lower()
         or "changes" in output.lower()
         or "staged" in output.lower()
+    ), (
+        f"Expected change indicators (uncommitted/modified/changes/staged) in status output. Got: {output}"
     )
 
 
@@ -127,12 +135,14 @@ def test_status_verbose_mode(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status --verbose failed: {result.stderr}"
 
     # Verify output shows file names (may be truncated in display)
     output = result.stdout
     # Check that files are listed - the filename might be truncated or shown as relative path
-    assert "README.md" in output or "EADME.md" in output or "files:" in output.lower()
+    assert "README.md" in output or "EADME.md" in output or "files:" in output.lower(), (
+        f"Expected file details in verbose output. Got: {output}"
+    )
 
 
 @pytest.mark.integration
@@ -157,12 +167,16 @@ def test_status_meta_only(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status --meta-only failed: {result.stderr}"
 
     # Verify output shows only meta repository
     output = result.stdout
-    assert "Meta Repository" in output
-    assert "Sub-repositories:" not in output
+    assert "Meta Repository" in output, (
+        f"Expected 'Meta Repository' in --meta-only output. Got: {output}"
+    )
+    assert "Sub-repositories:" not in output, (
+        f"Expected no 'Sub-repositories:' in --meta-only output. Got: {output}"
+    )
 
 
 @pytest.mark.integration
@@ -188,15 +202,19 @@ def test_status_repos_only(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status --repos-only failed: {result.stderr}"
 
     # Verify output shows only sub-repositories
     output = result.stdout
-    assert "Sub-repositories:" in output
-    assert "[1]" in output
-    assert "qen-test" in output
-    assert "Meta Repository" not in output
-    assert "Project:" not in output
+    assert "Sub-repositories:" in output, (
+        f"Expected 'Sub-repositories:' in --repos-only output. Got: {output}"
+    )
+    assert "[1]" in output, f"Expected repository index '[1]' in --repos-only output. Got: {output}"
+    assert "qen-test" in output, f"Expected 'qen-test' in --repos-only output. Got: {output}"
+    assert "Meta Repository" not in output, (
+        f"Expected no 'Meta Repository' in --repos-only output. Got: {output}"
+    )
+    assert "Project:" not in output, f"Expected no 'Project:' in --repos-only output. Got: {output}"
 
 
 @pytest.mark.integration
@@ -224,13 +242,15 @@ def test_status_multiple_repos_with_indices(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status failed: {result.stderr}"
 
     # Verify output shows repository with index
     output = result.stdout
-    assert "[1]" in output  # Repository index is displayed
-    assert "qen-test" in output
-    assert "Sub-repositories:" in output
+    assert "[1]" in output, f"Expected repository index '[1]' in status output. Got: {output}"
+    assert "qen-test" in output, f"Expected 'qen-test' in status output. Got: {output}"
+    assert "Sub-repositories:" in output, (
+        f"Expected 'Sub-repositories:' in status output. Got: {output}"
+    )
 
 
 @pytest.mark.integration
@@ -253,7 +273,7 @@ def test_status_with_nonexistent_repo(
 
     # Delete the cloned repository to simulate not-cloned state
     shutil.rmtree(repo_path)
-    assert not repo_path.exists()
+    assert not repo_path.exists(), f"Failed to delete test repository at {repo_path}"
 
     # Run qen status (REAL command)
     result = run_qen(
@@ -262,10 +282,12 @@ def test_status_with_nonexistent_repo(
         cwd=per_project_meta,
         check=True,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, f"qen status failed: {result.stderr}"
 
     # Verify output shows warning for non-existent repository
     output = result.stdout
-    assert "[1]" in output
-    assert "qen-test" in output
-    assert "not cloned" in output.lower() or "warning" in output.lower()
+    assert "[1]" in output, f"Expected repository index '[1]' in status output. Got: {output}"
+    assert "qen-test" in output, f"Expected 'qen-test' in status output. Got: {output}"
+    assert "not cloned" in output.lower() or "warning" in output.lower(), (
+        f"Expected warning for non-existent repository. Got: {output}"
+    )

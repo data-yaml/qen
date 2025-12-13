@@ -8,12 +8,12 @@ Add a repository to the current project by:
 
 import shutil
 from pathlib import Path
+from typing import Any
 
 import click
 
-from qenvy.base import QenvyBase
-
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
+from ..context.runtime import RuntimeContext
 from ..git_utils import GitError, get_current_branch
 from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import (
@@ -87,8 +87,10 @@ def add_repository(
     force: bool = False,
     yes: bool = False,
     no_workspace: bool = False,
+    runtime_ctx: RuntimeContext | None = None,
+    # Legacy parameters for backward compatibility with tests
     config_dir: Path | str | None = None,
-    storage: QenvyBase | None = None,
+    storage: Any | None = None,
     meta_path_override: Path | str | None = None,
     current_project_override: str | None = None,
 ) -> None:
@@ -102,10 +104,11 @@ def add_repository(
         force: Force re-add even if repository exists (removes and re-clones)
         yes: Auto-confirm prompts (create local branch without asking)
         no_workspace: Skip automatic workspace file regeneration
-        config_dir: Override config directory (for testing)
-        storage: Override storage backend (for testing with in-memory storage)
-        meta_path_override: Override meta repository path
-        current_project_override: Override current project name
+        runtime_ctx: Runtime context with CLI overrides (preferred, for production use)
+        config_dir: [DEPRECATED] Override config directory (for testing, use runtime_ctx instead)
+        storage: [DEPRECATED] Override storage backend (for testing)
+        meta_path_override: [DEPRECATED] Override meta repository path (use runtime_ctx instead)
+        current_project_override: [DEPRECATED] Override current project (use runtime_ctx instead)
 
     Raises:
         NoActiveProjectError: If no project is currently active
@@ -115,21 +118,34 @@ def add_repository(
         PyProjectUpdateError: If pyproject.toml update fails
         QenConfigError: If configuration cannot be read
     """
-    # 1. Load configuration and get current project
+    # 1. Handle runtime context - support both new and legacy parameter styles
+    if runtime_ctx is None:
+        # Legacy mode: construct runtime context from individual parameters
+        if config_dir is None:
+            from platformdirs import user_config_path
+
+            config_dir = user_config_path("qen")
+
+        runtime_ctx = RuntimeContext(
+            config_dir=Path(config_dir) if not isinstance(config_dir, Path) else config_dir,
+            current_project_override=current_project_override,
+            meta_path_override=Path(meta_path_override) if meta_path_override else None,
+        )
+
+    # 2. Ensure initialized and get config service
     config = ensure_initialized(
-        config_dir=config_dir,
-        storage=storage,
-        meta_path_override=meta_path_override,
-        current_project_override=current_project_override,
+        config_dir=runtime_ctx.config_dir,
+        storage=storage,  # Use storage if provided (for testing)
+        meta_path_override=runtime_ctx.meta_path_override,
+        current_project_override=runtime_ctx.current_project_override,
         verbose=verbose,
     )
 
     # Ensure we're on the correct branch
     ensure_correct_branch(config, verbose=verbose, yes=yes)
 
-    # Config is now guaranteed to exist
+    # 3. Get current project
     main_config = config.read_main_config()
-
     current_project = main_config.get("current_project")
     if not current_project:
         click.echo(
@@ -141,7 +157,7 @@ def add_repository(
     if verbose:
         click.echo(f"Current project: {current_project}")
 
-    # 2. Get project folder and construct project directory path
+    # 4. Get project directory
     try:
         project_config = config.read_project_config(current_project)
     except QenConfigError as e:
@@ -165,7 +181,7 @@ def add_repository(
     if verbose:
         click.echo(f"Project directory: {project_dir}")
 
-    # 3. Parse repository URL
+    # 5. Parse repository URL
     org = main_config.get("org")
 
     try:
@@ -182,7 +198,7 @@ def add_repository(
         click.echo(f"Repository name: {repo_name}")
         click.echo(f"Organization: {parsed['org']}")
 
-    # 4. Apply defaults for branch and path
+    # 6. Apply defaults for branch and path
     if branch is None:
         # Default to the current branch of the per-project meta repo
         try:
@@ -200,7 +216,7 @@ def add_repository(
         click.echo(f"Branch: {branch}")
         click.echo(f"Path: {path}")
 
-    # 5. Check if repository already exists in pyproject.toml
+    # 7. Check if repository already exists in pyproject.toml
     # With --yes, automatically enable force-like cleanup behavior
     try:
         if repo_exists_in_pyproject(project_dir, url, branch):
@@ -221,7 +237,7 @@ def add_repository(
         click.echo(f"Error: {e}", err=True)
         raise click.Abort() from e
 
-    # 6. Clone the repository
+    # 8. Clone the repository
     clone_path = project_dir / path
 
     if verbose:
@@ -240,7 +256,7 @@ def add_repository(
         click.echo(f"Error cloning repository: {e}", err=True)
         raise click.Abort() from e
 
-    # 7. Add initial metadata to pyproject.toml
+    # 9. Add initial metadata to pyproject.toml
     if verbose:
         click.echo("Adding initial metadata to pyproject.toml...")
 
@@ -259,7 +275,7 @@ def add_repository(
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
-    # 8. Initialize metadata and detect PR/issue associations via pull
+    # 10. Initialize metadata and detect PR/issue associations via pull
     if verbose:
         click.echo("Initializing repository metadata...")
 
@@ -302,25 +318,14 @@ def add_repository(
         if verbose:
             click.echo("Repository was added successfully but metadata may be incomplete.")
 
-    # 9. Regenerate workspace files (unless --no-workspace)
+    # 11. Regenerate workspace files (unless --no-workspace)
     if not no_workspace:
         if verbose:
             click.echo("\nRegenerating workspace files...")
         try:
-            from .workspace import create_workspace_files
-
-            # Get current project name for workspace generation
-            config = QenConfig(
-                config_dir=config_dir,
-                storage=storage,
-                meta_path_override=meta_path_override,
-                current_project_override=current_project_override,
-            )
-            main_config = config.read_main_config()
-            current_project = main_config.get("current_project", "project")
-
             # Read all repos from pyproject.toml
             from ..pyproject_utils import read_pyproject
+            from .workspace import create_workspace_files
 
             pyproject = read_pyproject(project_dir)
             repos = pyproject.get("tool", {}).get("qen", {}).get("repos", [])
@@ -341,7 +346,7 @@ def add_repository(
             if verbose:
                 click.echo("You can manually regenerate with: qen workspace")
 
-    # 10. Success message
+    # 12. Success message
     click.echo()
     click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")

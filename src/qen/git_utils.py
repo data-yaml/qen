@@ -696,28 +696,38 @@ def get_default_branch_from_remote(remote_url: str) -> str:
         return "main"
 
 
-def find_remote_branches(meta_remote: str, project_pattern: str) -> list[RemoteBranchInfo]:
+def find_remote_branches(meta_remote: str, project_pattern: str) -> list[RemoteBranchInfo] | None:
     """Find remote branches matching a project pattern.
 
     Uses git ls-remote to query branches from the remote repository
-    without requiring a local clone. Handles network errors gracefully.
+    without requiring a local clone. Distinguishes between "no branches found"
+    and "network/git error occurred".
 
     Args:
         meta_remote: Remote URL (e.g., git@github.com:org/meta.git)
         project_pattern: Pattern to match branch names (e.g., "*-myproj")
 
     Returns:
-        List of RemoteBranchInfo objects for matching branches.
-        Returns empty list on network errors or if no branches found.
+        List of RemoteBranchInfo objects for matching branches (empty list if none found).
+        Returns None if a network error, git error, or timeout occurred.
 
     Example:
         branches = find_remote_branches(
             "git@github.com:org/meta.git",
             "*-myproj"
         )
-        for branch in branches:
-            print(f"{branch.name}: {branch.last_commit[:8]}")
+        if branches is None:
+            print("Error querying remote")
+        elif not branches:
+            print("No branches found")
+        else:
+            for branch in branches:
+                print(f"{branch.name}: {branch.last_commit[:8]}")
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         # Query remote branches matching the pattern
         # Format: git ls-remote --heads <remote> refs/heads/<pattern>
@@ -763,18 +773,22 @@ def find_remote_branches(meta_remote: str, project_pattern: str) -> list[RemoteB
 
         return branches
 
-    except subprocess.CalledProcessError:
-        # Git command failed (invalid remote, network error, etc.)
-        return []
+    except subprocess.CalledProcessError as e:
+        # Git command failed (invalid remote, network error, authentication failure, etc.)
+        logger.warning(f"Git ls-remote failed for {meta_remote}: {e.stderr}")
+        return None
     except subprocess.TimeoutExpired:
         # Network timeout
-        return []
+        logger.warning(f"Timeout querying remote {meta_remote}")
+        return None
     except FileNotFoundError:
         # Git not installed
-        return []
-    except Exception:
-        # Any other unexpected error - fail gracefully
-        return []
+        logger.error("Git command not found - is git installed?")
+        return None
+    except Exception as e:
+        # Any other unexpected error
+        logger.error(f"Unexpected error querying remote {meta_remote}: {e}")
+        return None
 
 
 def clone_per_project_meta(
@@ -795,28 +809,40 @@ def clone_per_project_meta(
         Path to created per-project meta clone
 
     Raises:
-        GitError: If clone fails or target directory already exists
+        GitError: If clone fails (including if target directory already exists)
     """
     clone_path = target_parent_dir / f"meta-{project_name}"
 
-    # Check if already exists
-    if clone_path.exists():
-        raise GitError(
-            f"Directory already exists: {clone_path}\n"
-            f"Use --force to delete and recreate the project."
-        )
-
     # Clone from remote, checking out specified branch
+    # Note: git clone will fail if the directory exists, which is what we want
+    # This avoids race conditions from checking-then-cloning
     # git clone <url> <path> --branch <branch>
     try:
         run_git_command(
             ["clone", meta_remote_url, str(clone_path), "--branch", default_branch],
             cwd=target_parent_dir,
         )
-    except GitError:
-        # Cleanup partial clone on failure
+    except (GitError, OSError, subprocess.SubprocessError) as e:
+        error_str = str(e).lower()
+
+        # Check if error is because directory already exists
+        if "already exists" in error_str or "destination path" in error_str:
+            raise GitError(
+                f"Directory already exists: {clone_path}\n"
+                f"Use --force to delete and recreate the project."
+            ) from e
+
+        # For other failures, try to cleanup partial clone
         if clone_path.exists():
-            shutil.rmtree(clone_path)
-        raise
+            try:
+                shutil.rmtree(clone_path)
+            except (OSError, PermissionError) as cleanup_error:
+                # Log cleanup failure but don't mask original error
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    f"Failed to cleanup partial clone at {clone_path}: {cleanup_error}"
+                )
+        raise GitError(f"Failed to clone repository: {e}") from e
 
     return clone_path
