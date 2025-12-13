@@ -258,6 +258,60 @@ def meta_prime_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def remote_meta_test_repo(tmp_path: Path) -> Path:
+    """Clone data-yaml/qen-test as meta prime for real remote integration tests.
+
+    This fixture provides a REAL GitHub repository clone for integration tests
+    that need to test actual remote operations like git ls-remote and git clone.
+
+    Unlike tmp_meta_repo (which uses file:// remotes), this fixture:
+    - Clones from https://github.com/data-yaml/qen-test
+    - Keeps the real GitHub remote configured
+    - Enables testing of remote discovery and cloning
+    - Tests the actual production code path
+
+    The cloned repository acts as "meta prime" - the local meta repository
+    that users would have on their machine.
+
+    Returns:
+        Path to cloned qen-test repository (acts as meta prime)
+
+    Example:
+        def test_with_real_remote(remote_meta_test_repo, temp_config_dir):
+            # This is a real clone of data-yaml/qen-test
+            result = run_qen(["init"], temp_config_dir, cwd=remote_meta_test_repo)
+            # This will query REAL GitHub remote for branches
+    """
+    import subprocess
+
+    # Clone data-yaml/qen-test to temp directory
+    # Name it "meta" so find_meta_repo() can find it
+    meta_dir = tmp_path / "meta"
+
+    subprocess.run(
+        ["git", "clone", "https://github.com/data-yaml/qen-test.git", str(meta_dir)],
+        check=True,
+        capture_output=True,
+    )
+
+    # Configure git user for commits (required if tests make commits)
+    subprocess.run(
+        ["git", "config", "user.name", "QEN Integration Test"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@qen.local"],
+        cwd=meta_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    return meta_dir
+
+
+@pytest.fixture
 def qen_project(
     meta_prime_repo: Path,
     temp_config_dir: Path,
