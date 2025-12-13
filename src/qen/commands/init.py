@@ -97,9 +97,20 @@ def discover_project_state(
     # If explicit_branch provided (fully-qualified name like "251208-proj"),
     # search for exact match. Otherwise, search with wildcard pattern.
     if explicit_branch:
-        remote_branches = find_remote_branches(meta_remote, explicit_branch)
+        remote_branches_result = find_remote_branches(meta_remote, explicit_branch)
     else:
-        remote_branches = find_remote_branches(meta_remote, f"*-{config_name}")
+        remote_branches_result = find_remote_branches(meta_remote, f"*-{config_name}")
+
+    # Handle network errors vs. empty results
+    if remote_branches_result is None:
+        # Network error occurred
+        click.echo(
+            "Warning: Could not query remote repository. Proceeding with local state only.",
+            err=True,
+        )
+        remote_branches: list[RemoteBranchInfo] = []
+    else:
+        remote_branches = remote_branches_result
 
     # 2. Check if local config exists
     local_config: dict[str, str] | None = None
@@ -149,13 +160,19 @@ def build_action_plan(
     has_config = state.local_config is not None
     has_repo = state.local_repo is not None
 
-    # Scenario C: Already setup (all exist)
-    if has_remote and has_config and has_repo:
-        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
+    # Scenario C: Already setup (config + repo exist)
+    # Note: Remote branch may or may not exist (user might not have pushed yet)
+    if has_config and has_repo:
+        branch_value = state.local_config.get("branch") if state.local_config else None
+        # Validate type safety - branch must be a string
+        branch = branch_value if isinstance(branch_value, str) else "unknown"
+        warnings = []
+        if not has_remote:
+            warnings.append("Remote branch not found - you may want to push your local branch")
         return ActionPlan(
             scenario="already_setup",
             actions=[],
-            warnings=[],
+            warnings=warnings,
             target_branch=branch,
         )
 
@@ -204,16 +221,32 @@ def build_action_plan(
 
     # Edge case: Config exists but repo missing
     if has_config and not has_repo:
-        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
-        return ActionPlan(
-            scenario="config_orphaned",
-            actions=[
-                "Config exists but repo is missing",
-                "Recommend deleting config and recreating",
-            ],
-            warnings=["Config file exists but repository is missing"],
-            target_branch=branch,
-        )
+        branch_value = state.local_config.get("branch") if state.local_config else None
+        # Validate type safety - branch must be a string
+        branch = branch_value if isinstance(branch_value, str) else "unknown"
+        if has_remote:
+            # Remote exists - can offer to re-clone
+            return ActionPlan(
+                scenario="config_orphaned",
+                actions=[
+                    "Config exists but repo is missing",
+                    f"Can re-clone from remote branch: {target_branch}",
+                    "Or delete config and start fresh",
+                ],
+                warnings=["Config file exists but repository is missing"],
+                target_branch=branch,
+            )
+        else:
+            # No remote - can't recover easily
+            return ActionPlan(
+                scenario="config_orphaned",
+                actions=[
+                    "Config exists but repo is missing",
+                    "No remote branch found - recommend deleting config",
+                ],
+                warnings=["Config file exists but repository and remote branch are missing"],
+                target_branch=branch,
+            )
 
     # Edge case: Repo exists but config missing
     if has_repo and not has_config:
@@ -624,7 +657,14 @@ def init_project(
 
     if plan.scenario in ["create_new", "clone_existing"]:
         # Clone per-project meta
+        import os
+
         from ..git_utils import clone_per_project_meta
+
+        # Validate meta_parent is writable before attempting clone
+        if not meta_parent.is_dir() or not os.access(meta_parent, os.W_OK):
+            click.echo(f"Error: Parent directory not writable: {meta_parent}", err=True)
+            raise click.Abort()
 
         # For clone_existing, use the target branch (existing remote branch)
         # For create_new, use the default branch (will create new branch later)
@@ -721,10 +761,90 @@ def init_project(
         click.echo(f"\nConfig created for existing repo at {state.local_repo}")
 
     elif plan.scenario == "config_orphaned":
-        # Config exists but repo missing - recommend recreation
-        click.echo("Config exists but repository is missing.")
-        click.echo(f"Run: qen init {config_name} --force")
-        raise click.Abort()
+        # Config exists but repo missing - offer to fix automatically
+        click.echo("\nConfig exists but repository is missing.")
+
+        # Check if remote exists for re-cloning
+        has_remote = len(state.remote_branches) > 0
+
+        if has_remote:
+            # Can re-clone from remote
+            click.echo(f"Remote branch found: {plan.target_branch}")
+            click.echo()
+
+            # Ask for confirmation (unless --yes)
+            if yes or click.confirm("Delete config and re-clone from remote?", default=True):
+                # Delete config
+                ctx.config_service.delete_project_config(config_name)
+                if verbose:
+                    click.echo(f"Deleted config for '{config_name}'")
+
+                # Re-clone from remote
+                import os
+
+                from ..git_utils import clone_per_project_meta
+
+                # Validate meta_parent is writable
+                if not meta_parent.is_dir() or not os.access(meta_parent, os.W_OK):
+                    click.echo(f"Error: Parent directory not writable: {meta_parent}", err=True)
+                    raise click.Abort()
+
+                try:
+                    per_project_meta = clone_per_project_meta(
+                        meta_remote,
+                        config_name,
+                        meta_parent,
+                        plan.target_branch,
+                    )
+                    if verbose:
+                        click.echo(f"Cloned: {per_project_meta}")
+                except GitError as e:
+                    click.echo(f"Error cloning: {e}", err=True)
+                    raise click.Abort() from e
+
+                # Write new config
+                branch_name = plan.target_branch
+                folder_path = f"proj/{branch_name}"
+
+                try:
+                    ctx.config_service.write_project_config(
+                        project_name=config_name,
+                        branch=branch_name,
+                        folder=folder_path,
+                        repo=str(per_project_meta),
+                        created=now.isoformat(),
+                    )
+                except QenConfigError as e:
+                    click.echo(f"Error writing config: {e}", err=True)
+                    raise click.Abort() from e
+
+                # Set as current project
+                try:
+                    ctx.config_service.update_current_project(config_name)
+                except QenConfigError:
+                    pass  # Non-critical
+
+                click.echo(f"\nProject '{config_name}' ready at {per_project_meta}")
+                click.echo(f"  Branch: {branch_name}")
+                click.echo(f"  Directory: {per_project_meta / folder_path}")
+            else:
+                click.echo("Aborted.")
+                raise click.Abort()
+        else:
+            # No remote - can only delete config
+            click.echo("No remote branch found.")
+            click.echo()
+
+            # Ask for confirmation (unless --yes)
+            if yes or click.confirm("Delete orphaned config?", default=True):
+                ctx.config_service.delete_project_config(config_name)
+                click.echo(f"Deleted config for '{config_name}'")
+                click.echo()
+                click.echo("You can now run:")
+                click.echo(f"  qen init {config_name}")
+            else:
+                click.echo("Aborted.")
+                raise click.Abort()
 
     else:
         # Unknown scenario
