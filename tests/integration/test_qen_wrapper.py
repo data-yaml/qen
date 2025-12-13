@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import run_qen
+from tests.integration.helpers import create_test_project
 
 
 @pytest.mark.integration
@@ -46,15 +46,12 @@ def test_qen_wrapper_generation(
     # Generate project name with unique prefix
     project_name = f"{unique_prefix}-wrapper-test"
 
-    # Create project using run_qen helper (REAL command, NO MOCKS)
-    # Helper automatically adds --config-dir to isolate test config
-    # --meta flag specifies qen-test as meta repo
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    # Create project using helper - returns per-project meta and project dir paths
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-
-    assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
     # Track branch for cleanup
     # Extract branch name from project (YYMMDD-project-name format)
@@ -63,7 +60,6 @@ def test_qen_wrapper_generation(
     cleanup_branches.append(branch_name)
 
     # Verify project directory exists
-    project_dir = real_test_repo / "proj" / branch_name
     assert project_dir.exists(), f"Project directory not created: {project_dir}"
 
     # Verify all expected files exist
@@ -130,11 +126,11 @@ def test_qen_wrapper_help_command(
     """
     # Create project
     project_name = f"{unique_prefix}-help-test"
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-    assert result.returncode == 0, f"qen init project failed: {result.stderr}"
 
     # Track branch for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -142,7 +138,6 @@ def test_qen_wrapper_help_command(
     cleanup_branches.append(branch_name)
 
     # Find wrapper script
-    project_dir = real_test_repo / "proj" / branch_name
     qen_wrapper = project_dir / "qen"
     assert qen_wrapper.exists(), f"qen wrapper not created at {qen_wrapper}"
 
@@ -194,11 +189,11 @@ def test_qen_wrapper_works_from_different_cwd(
     """
     # Create project
     project_name = f"{unique_prefix}-{test_suffix}"
-    result = run_qen(
-        ["--meta", str(real_test_repo), "init", project_name, "--yes"],
+    per_project_meta, project_dir = create_test_project(
+        real_test_repo,
+        project_name,
         temp_config_dir,
     )
-    assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
     # Track branch for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -206,14 +201,13 @@ def test_qen_wrapper_works_from_different_cwd(
     cleanup_branches.append(branch_name)
 
     # Find wrapper script
-    project_dir = real_test_repo / "proj" / branch_name
     qen_wrapper = project_dir / "qen"
     assert qen_wrapper.exists(), f"Wrapper script not found: {qen_wrapper}"
 
     # Determine working directory based on cwd_type
     if cwd_type == "parent":
         # Run from parent directory (proj/)
-        cwd = real_test_repo / "proj"
+        cwd = per_project_meta / "proj"
     elif cwd_type == "arbitrary":
         # Create and use arbitrary unrelated directory
         arbitrary_dir = tmp_path / "arbitrary-location"
@@ -261,17 +255,17 @@ def test_qen_wrapper_project_context(
     project1_name = f"{unique_prefix}-context-1"
     project2_name = f"{unique_prefix}-context-2"
 
-    result1 = run_qen(
-        ["--meta", str(real_test_repo), "init", project1_name, "--yes"],
+    per_project_meta1, project1_dir = create_test_project(
+        real_test_repo,
+        project1_name,
         temp_config_dir,
     )
-    assert result1.returncode == 0, f"qen init project1 failed: {result1.stderr}"
 
-    result2 = run_qen(
-        ["--meta", str(real_test_repo), "init", project2_name, "--yes"],
+    per_project_meta2, project2_dir = create_test_project(
+        real_test_repo,
+        project2_name,
         temp_config_dir,
     )
-    assert result2.returncode == 0, f"qen init project2 failed: {result2.stderr}"
 
     # Track branches for cleanup
     date_prefix = datetime.now().strftime("%y%m%d")
@@ -279,10 +273,7 @@ def test_qen_wrapper_project_context(
     branch2_name = f"{date_prefix}-{project2_name}"
     cleanup_branches.extend([branch1_name, branch2_name])
 
-    # Find both project directories
-    project1_dir = real_test_repo / "proj" / branch1_name
-    project2_dir = real_test_repo / "proj" / branch2_name
-
+    # Find both wrapper scripts
     wrapper1 = project1_dir / "qen"
     wrapper2 = project2_dir / "qen"
 
@@ -301,9 +292,13 @@ def test_qen_wrapper_project_context(
     assert project2_name not in wrapper1_content, "Wrapper 1 should NOT contain project2 name"
     assert project1_name not in wrapper2_content, "Wrapper 2 should NOT contain project1 name"
 
-    # Verify wrappers have correct meta path
-    assert str(real_test_repo) in wrapper1_content, "Wrapper 1 should contain meta path"
-    assert str(real_test_repo) in wrapper2_content, "Wrapper 2 should contain meta path"
+    # Verify wrappers have correct per-project meta paths (not meta prime!)
+    assert str(per_project_meta1) in wrapper1_content, (
+        "Wrapper 1 should contain per-project meta path"
+    )
+    assert str(per_project_meta2) in wrapper2_content, (
+        "Wrapper 2 should contain per-project meta path"
+    )
 
     # Test: Run both wrappers and verify they work independently (REAL execution)
     result1 = subprocess.run(

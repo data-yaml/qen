@@ -14,27 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Platform-specific config paths**: Use `platformdirs.user_config_dir()` instead of hardcoded `~/.config` (fixes macOS using wrong directory)
 - **Fully-qualified project names**: `qen init 251208-project` now correctly detects existing remote branches
-- **Unit test failures**: Fixed 4 platform-specific test failures in config path and mocking strategy
-- **Critical init bugs**: Fixed 7 bugs including network error handling, TOCTOU race conditions, and config orphan recovery
-- **Integration test**: Fixed test_qen_config_switches_branch to check per-project meta instead of meta prime
+- **No more skipped tests**: `./poe test-all` now enforces GitHub token requirement, ensuring 100% pass rate with zero skipped tests
 
 ### Changed
 
-- **Test organization**: Reorganized tests/ into canonical structure (tests/unit/ and tests/integration/)
+- **Test infrastructure**: Systematic tech debt cleanup added integration test helpers, real GitHub remote tests, py.typed markers for full type safety, and parametrized tests (reduced ~250 lines through deduplication)
 - **Documentation**: Updated README.md and AGENTS.md to reflect platform-specific config paths
-
-### Added
-
-- **Integration test helpers**: New helper functions (`create_test_git_repo`, `create_test_project`) reduce test duplication by ~150 lines
-- **Remote integration tests**: Added real GitHub remote tests for `qen init` (tests/integration/test_init_remote.py)
-- **Type safety**: Added py.typed markers and complete type annotations for integration tests
-- **Test parametrization**: Reduced 6 test functions to 2 parametrized tests (~100 lines saved)
-
-### Development
-
-- **Phase 1-2 Config Refactoring**: Introduced ConfigService and RuntimeContext foundation (eliminates repetitive config override handling)
-- **Tech debt cleanup**: Systematic tech debt review and cleanup across test suite
-- **Test coverage**: 98.5% pass rate (711/722 tests) with mypy strict compliance
 
 ## [0.4.0] - 2025-12-10
 

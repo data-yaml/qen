@@ -154,14 +154,13 @@ def create_test_project(
     from tests.conftest import run_qen
 
     # Initialize qen global config (extracts meta_remote from meta_repo)
-    result = run_qen(["init"], config_dir, cwd=meta_repo)
+    result = run_qen(["--meta", str(meta_repo), "init"], config_dir)
     assert result.returncode == 0, f"qen init failed: {result.stderr}"
 
     # Create project (creates per-project meta clone)
     result = run_qen(
-        ["init", project_name, "--yes"],
+        ["--meta", str(meta_repo), "init", project_name, "--yes"],
         config_dir,
-        cwd=meta_repo,
     )
     assert result.returncode == 0, f"qen init {project_name} failed: {result.stderr}"
 
