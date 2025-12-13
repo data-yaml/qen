@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from platformdirs import user_config_dir
 
 from qen.config import QenConfigError
 from qen.context.runtime import RuntimeContext, RuntimeContextError
@@ -25,8 +26,8 @@ class TestRuntimeContextFromCli:
         """Test creating RuntimeContext with None values (use defaults/config)."""
         ctx = RuntimeContext.from_cli(config_dir=None, meta=None, proj=None)
 
-        # Should use XDG default
-        assert ctx.config_dir == Path.home() / ".config" / "qen"
+        # Should use platformdirs default (platform-specific)
+        assert ctx.config_dir == Path(user_config_dir("qen"))
         assert ctx.meta_path_override is None
         assert ctx.current_project_override is None
 
@@ -34,7 +35,7 @@ class TestRuntimeContextFromCli:
         """Test creating RuntimeContext with some options specified."""
         ctx = RuntimeContext.from_cli(config_dir=None, meta="/custom/meta", proj=None)
 
-        assert ctx.config_dir == Path.home() / ".config" / "qen"
+        assert ctx.config_dir == Path(user_config_dir("qen"))
         assert ctx.meta_path_override == Path("/custom/meta")
         assert ctx.current_project_override is None
 

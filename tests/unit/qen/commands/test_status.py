@@ -374,7 +374,8 @@ class TestGetProjectStatus:
 class TestStatusCommand:
     """Test status CLI command."""
 
-    def test_status_command_no_config(self) -> None:
+    @patch("qen.cli.RuntimeContext.from_cli")
+    def test_status_command_no_config(self, mock_from_cli: Mock) -> None:
         """Test status command when qen is not initialized."""
         from qen.context.runtime import RuntimeContext, RuntimeContextError
 
@@ -386,12 +387,16 @@ class TestStatusCommand:
             "No current project set"
         )
 
-        result = runner.invoke(main, ["status"], obj={"runtime_context": mock_runtime_ctx})
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
+
+        result = runner.invoke(main, ["status"])
 
         assert result.exit_code != 0
         assert "No current project set" in result.output
 
-    def test_status_command_no_active_project(self) -> None:
+    @patch("qen.cli.RuntimeContext.from_cli")
+    def test_status_command_no_active_project(self, mock_from_cli: Mock) -> None:
         """Test status command when no project is active."""
         from qen.context.runtime import RuntimeContext, RuntimeContextError
 
@@ -403,7 +408,10 @@ class TestStatusCommand:
             "No current project set. Use 'qen config <project>' to set one, or use --proj option."
         )
 
-        result = runner.invoke(main, ["status"], obj={"runtime_context": mock_runtime_ctx})
+        # Make from_cli return our mocked context
+        mock_from_cli.return_value = mock_runtime_ctx
+
+        result = runner.invoke(main, ["status"])
 
         assert result.exit_code != 0
         assert "No current project set" in result.output
