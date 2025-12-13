@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-13
+
+### Fixed
+
+- **Platform-specific config paths**: Use `platformdirs.user_config_dir()` instead of hardcoded `~/.config` (fixes macOS using wrong directory)
+- **Fully-qualified project names**: `qen init 251208-project` now correctly detects existing remote branches
+- **Unit test failures**: Fixed 4 platform-specific test failures in config path and mocking strategy
+- **Critical init bugs**: Fixed 7 bugs including network error handling, TOCTOU race conditions, and config orphan recovery
+- **Integration test**: Fixed test_qen_config_switches_branch to check per-project meta instead of meta prime
+
+### Changed
+
+- **Test organization**: Reorganized tests/ into canonical structure (tests/unit/ and tests/integration/)
+- **Documentation**: Updated README.md and AGENTS.md to reflect platform-specific config paths
+
+### Added
+
+- **Integration test helpers**: New helper functions (`create_test_git_repo`, `create_test_project`) reduce test duplication by ~150 lines
+- **Remote integration tests**: Added real GitHub remote tests for `qen init` (tests/integration/test_init_remote.py)
+- **Type safety**: Added py.typed markers and complete type annotations for integration tests
+- **Test parametrization**: Reduced 6 test functions to 2 parametrized tests (~100 lines saved)
+
+### Development
+
+- **Phase 1-2 Config Refactoring**: Introduced ConfigService and RuntimeContext foundation (eliminates repetitive config override handling)
+- **Tech debt cleanup**: Systematic tech debt review and cleanup across test suite
+- **Test coverage**: 98.5% pass rate (711/722 tests) with mypy strict compliance
+
 ## [0.4.0] - 2025-12-10
 
 - **BREAKING**: Projects now use per-project meta clones instead of shared meta repository (use `uvx qen@0.3.0` for old behavior)
@@ -148,7 +176,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/data-yaml/qen/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/data-yaml/qen/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/data-yaml/qen/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/data-yaml/qen/compare/v0.2.0...v0.2.1
