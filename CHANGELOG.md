@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Platform-specific config paths**: Use `platformdirs.user_config_dir()` instead of hardcoded `~/.config` (fixes macOS using wrong directory)
 - **Fully-qualified project names**: `qen init 251208-project` now correctly detects existing remote branches
 - **No more skipped tests**: `./poe test-all` now enforces GitHub token requirement, ensuring 100% pass rate with zero skipped tests
+- **Wrapper integration tests**: Fixed 5 tests in test_qen_wrapper.py to correctly locate wrapper scripts in per-project meta clones
 
 ### Changed
 
