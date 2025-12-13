@@ -6,11 +6,11 @@ Optionally includes PR information from GitHub.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import click
 
 from ..config import QenConfigError
+from ..context.runtime import RuntimeContext, RuntimeContextError
 from ..git_utils import (
     GitError,
     RepoStatus,
@@ -18,7 +18,6 @@ from ..git_utils import (
     get_repo_status,
     git_fetch,
 )
-from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, RepoConfig, load_repos_from_pyproject
 from .pr import PrInfo, check_gh_installed, get_pr_info_for_branch
 
@@ -329,60 +328,41 @@ def fetch_all_repos(project_dir: Path, meta_path: Path, verbose: bool = False) -
 
 
 def show_project_status(
+    ctx: RuntimeContext,
     project_name: str | None = None,
     fetch: bool = False,
     fetch_pr: bool = False,
     verbose: bool = False,
     meta_only: bool = False,
     repos_only: bool = False,
-    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Show status for current or specified project.
 
     Args:
-        project_name: Project name (None = use current project from config)
+        ctx: RuntimeContext with config access
+        project_name: Project name (None = use current project from context)
         fetch: If True, fetch before showing status
         fetch_pr: If True, fetch PR information from GitHub
         verbose: If True, show detailed file lists
         meta_only: If True, only show meta repository
         repos_only: If True, only show sub-repositories
-        config_overrides: Configuration overrides from CLI
 
     Raises:
         StatusError: If status cannot be retrieved
         click.ClickException: For user-facing errors
     """
-    # Load configuration with overrides (auto-initialize if needed)
-    overrides = config_overrides or {}
-    config = ensure_initialized(
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-        verbose=verbose,
-    )
-
-    # Ensure branch is correct
-    ensure_correct_branch(config, verbose=verbose)
-
-    # Config is now guaranteed to exist
-    main_config = config.read_main_config()
-
-    # Determine which project to use
-    if project_name:
-        # Use specified project
-        target_project: str = project_name
-    else:
-        # Use current project from config
-        target_project_raw = main_config.get("current_project")
-        if not target_project_raw:
-            raise click.ClickException(
-                "No active project. Create a project with 'qen init <project-name>' first."
-            )
-        target_project = str(target_project_raw)
-
-    # Get project directory from config
     try:
-        project_config = config.read_project_config(target_project)
+        # Determine which project to use
+        if project_name:
+            # Use specified project - temporarily override in context
+            target_project = project_name
+        else:
+            # Use current project from context (handles CLI override)
+            target_project = ctx.get_current_project()
+
+        # Get project configuration
+        config_service = ctx.config_service
+        project_config = config_service.read_project_config(target_project)
 
         # Check for per-project meta repo field
         if "repo" not in project_config:
@@ -396,30 +376,35 @@ def show_project_status(
 
         per_project_meta = Path(project_config["repo"])
         project_dir = per_project_meta / project_config["folder"]
-    except QenConfigError as e:
-        raise click.ClickException(
-            f"Project '{target_project}' not found in qen configuration: {e}"
-        ) from e
 
-    # Verify project directory exists
-    if not project_dir.exists():
-        raise click.ClickException(f"Project directory does not exist: {project_dir}")
+        # Verify project directory exists
+        if not project_dir.exists():
+            raise click.ClickException(f"Project directory does not exist: {project_dir}")
 
-    # Fetch if requested
-    if fetch:
-        try:
-            fetch_all_repos(project_dir, per_project_meta, verbose=verbose)
-        except StatusError as e:
-            click.echo(f"Warning: Fetch failed: {e}", err=True)
+        # Fetch if requested
+        if fetch:
+            try:
+                fetch_all_repos(project_dir, per_project_meta, verbose=verbose)
+            except StatusError as e:
+                click.echo(f"Warning: Fetch failed: {e}", err=True)
 
-    # Get and display status
-    try:
+        # Get and display status
         status = get_project_status(project_dir, per_project_meta, fetch=False, fetch_pr=fetch_pr)
         output = format_status_output(
             status, verbose=verbose, meta_only=meta_only, repos_only=repos_only
         )
         click.echo(output)
+
+    except RuntimeContextError as e:
+        # User-friendly error from RuntimeContext
+        raise click.ClickException(str(e)) from e
+    except QenConfigError as e:
+        # Config error - probably project not found
+        raise click.ClickException(
+            f"Project '{project_name or 'current'}' not found in qen configuration: {e}"
+        ) from e
     except StatusError as e:
+        # Status operation error
         raise click.ClickException(str(e)) from e
 
 
@@ -480,16 +465,20 @@ def status_command(
         # Show only sub-repositories
         $ qen status --repos-only
     """
-    overrides = ctx.obj.get("config_overrides", {})
+    # Get RuntimeContext from Click context
+    runtime_ctx = ctx.obj.get("runtime_context")
+    if not runtime_ctx:
+        raise click.ClickException("RuntimeContext not available. This is a bug.")
+
     try:
         show_project_status(
+            ctx=runtime_ctx,
             project_name=project,
             fetch=fetch,
             fetch_pr=pr,
             verbose=verbose,
             meta_only=meta_only,
             repos_only=repos_only,
-            config_overrides=overrides,
         )
     except click.ClickException:
         raise

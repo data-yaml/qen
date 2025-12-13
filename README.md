@@ -62,7 +62,7 @@ From within or near your `meta` repository:
 uvx qen init
 ```
 
-This finds your meta prime repository, extracts metadata (remote URL, parent directory, default branch), extracts your organization from git remotes, and stores configuration in your system's CONFIG_HOME directory.
+This finds your meta prime repository, extracts metadata (remote URL, parent directory, default branch), extracts your organization from git remotes, and stores configuration in your system's standard config directory (via platformdirs: `~/Library/Application Support/qen` on macOS, `~/.config/qen` on Linux).
 
 ### 2. Create a Project
 
@@ -111,7 +111,7 @@ uvx qen init myproject
 The command automatically:
 
 1. **Checks for remote branches** matching the project name
-2. **Checks for local config** in `$XDG_CONFIG_HOME/qen/projects/`
+2. **Checks for local config** in your system's config directory (platformdirs handles the location)
 3. **Checks for local repo** at `meta-{project}/`
 4. **Shows you what exists** and what will happen
 5. **Prompts for confirmation** before taking action
@@ -165,7 +165,7 @@ The wrapper is especially useful when you have multiple projects, as it eliminat
 
 ### 3. Manage Configuration
 
-Configuration is stored in your system's CONFIG_HOME directory and tracks:
+Configuration is stored in your system's standard config directory (via platformdirs: `~/Library/Application Support/qen` on macOS, `~/.config/qen` on Linux) and tracks:
 
 - Your meta prime location and metadata (remote URL, parent directory, default branch)
 - Your GitHub organization
@@ -337,7 +337,7 @@ Example output:
 
 ```text
 Delete project 'myproject':
-  ✓ Config: ~/.config/qen/projects/myproject.toml
+  ✓ Config: <config-dir>/myproject/config.toml
   ✓ Repo: ~/GitHub/meta-myproject (branch: 251210-myproject)
   ✗ Remote: origin/251210-myproject (will NOT be deleted)
 
@@ -379,7 +379,7 @@ uvx qen@0.3.0 status
 To migrate to the new architecture:
 
 1. Finish or archive your current projects
-2. Delete old project configurations: `rm -rf ~/.config/qen/projects/`
+2. Delete old project configurations (location varies by OS - use `qen config --list` to find them)
 3. Reinitialize: `uvx qen init`
 4. Recreate projects: `uvx qen init my-project`
 

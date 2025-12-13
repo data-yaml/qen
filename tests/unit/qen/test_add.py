@@ -21,7 +21,7 @@ from qen.repo_utils import (
     infer_repo_path,
     parse_repo_url,
 )
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
 # Test URL Parsing

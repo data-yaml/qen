@@ -1,6 +1,6 @@
 [project]
 name = "qen"
-version = "0.4.0"
+version = "0.4.1"
 description = "A tiny, extensible tool for organizing multi-repository development work"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -68,10 +68,10 @@ packages = ["src/qen", "src/qenvy"]
 
 [tool.poe.tasks]
 setup-hooks = { shell = "pre-commit install && pre-commit install --hook-type pre-push", help = "Install git hooks" }
-test = { sequence = ["setup-hooks", { cmd = "pytest tests/ -m 'not integration' -v" }], help = "Run unit tests (auto-installs hooks)" }
 test-unit = { cmd = "pytest tests/ -m 'not integration' -v", help = "Run only unit tests (fast, mocked)" }
+test = { sequence = ["setup-hooks", "test-unit"], help = "Run unit tests (auto-installs hooks)" }
 test-integration = { cmd = "python scripts/integration_test.py", help = "Run integration tests (auto-detects GitHub token from gh CLI)" }
-test-all = { cmd = "pytest tests/ -v", help = "Run all tests (unit + integration)" }
+test-all = { sequence = ["test-unit", "test-integration"], help = "Run all tests (unit + integration)" }
 test-cov = "pytest tests/ -m 'not integration' --cov=src --cov-report=term --cov-report=html"
 test-fast = "pytest tests/ -m 'not integration' -x"
 typecheck = "mypy src/"

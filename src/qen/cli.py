@@ -20,6 +20,7 @@ from .commands.rm import rm
 from .commands.sh import sh_command
 from .commands.status import status_command
 from .commands.workspace import workspace_command
+from .context.runtime import RuntimeContext
 
 
 @click.group(invoke_without_command=True)
@@ -48,6 +49,15 @@ def main(ctx: click.Context, config_dir: Path | None, meta: Path | None, proj: s
     a meta repository structure.
     """
     ctx.ensure_object(dict)
+
+    # Create RuntimeContext for new Phase 2 commands
+    ctx.obj["runtime_context"] = RuntimeContext.from_cli(
+        config_dir=str(config_dir) if config_dir else None,
+        meta=str(meta) if meta else None,
+        proj=proj,
+    )
+
+    # Keep legacy config_overrides for commands not yet refactored
     ctx.obj["config_overrides"] = {
         "config_dir": config_dir,
         "meta_path": meta,
@@ -104,27 +114,21 @@ def init(
         $ qen init my-project --force
 
     """
-    overrides = ctx.obj.get("config_overrides", {})
+    runtime_ctx = ctx.obj.get("runtime_context")
     if project_name is None:
         # Mode 1: Initialize qen tooling
         init_qen(
+            ctx=runtime_ctx,
             verbose=verbose,
-            storage=None,
-            config_dir=overrides.get("config_dir"),
-            meta_path_override=overrides.get("meta_path"),
-            current_project_override=overrides.get("current_project"),
         )
     else:
         # Mode 2: Create new project
         init_project(
-            project_name,
+            ctx=runtime_ctx,
+            project_name=project_name,
             verbose=verbose,
             yes=yes,
             force=force,
-            storage=None,
-            config_dir=overrides.get("config_dir"),
-            meta_path_override=overrides.get("meta_path"),
-            current_project_override=overrides.get("current_project"),
         )
 
 
@@ -186,7 +190,15 @@ def add(
         # Add without regenerating workspace files
         $ qen add myrepo --no-workspace
     """
+    from .context.runtime import RuntimeContext
+
     overrides = ctx.obj.get("config_overrides", {})
+    runtime_ctx = RuntimeContext.from_cli(
+        config_dir=str(overrides["config_dir"]) if overrides.get("config_dir") else None,
+        meta=str(overrides["meta_path"]) if overrides.get("meta_path") else None,
+        proj=overrides.get("current_project"),
+    )
+
     add_repository(
         repo,
         branch,
@@ -195,9 +207,7 @@ def add(
         force,
         yes,
         no_workspace,
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
+        runtime_ctx=runtime_ctx,
     )
 
 

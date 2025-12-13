@@ -6,7 +6,7 @@ the actual GitHub API schema, preventing test mocks from diverging from reality.
 
 import pytest
 
-from tests.schemas.github_pr import CheckRun
+from tests.unit.schemas.github_pr import CheckRun
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ from qen.commands.workspace import (
     generate_vscode_workspace,
     workspace_command,
 )
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 
 @pytest.fixture

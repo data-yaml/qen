@@ -26,7 +26,7 @@ from qen.commands.rm import (
 )
 from qen.git_utils import RepoStatus, SyncStatus
 from qen.pyproject_utils import PyProjectUpdateError
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
 # Test RepoToRemove Dataclass

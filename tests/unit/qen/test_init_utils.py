@@ -20,8 +20,8 @@ from qen.git_utils import (
     NotAGitRepoError,
 )
 from qen.init_utils import ensure_correct_branch, ensure_initialized
-from tests.helpers.qenvy_test import QenvyTest
-from tests.helpers.test_mock import create_test_config
+from tests.unit.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.test_mock import create_test_config
 
 # ==============================================================================
 # Test ensure_initialized Function
@@ -82,13 +82,16 @@ class TestEnsureInitialized:
         # Setup: No existing config (test_storage is empty by default)
 
         # Mock init_qen to simulate successful initialization
-        def mock_init_side_effect(**kwargs):
+        # Write directly to test_storage since RuntimeContext creates its own config
+        def mock_init_side_effect(ctx, **kwargs):
             # Simulate init_qen creating the config
-            storage = kwargs.get("storage")
-            storage.write_profile(
+            test_storage.write_profile(
                 "main",
                 {
                     "meta_path": "/fake/meta",
+                    "meta_remote": "https://github.com/testorg/meta",
+                    "meta_parent": "/fake",
+                    "meta_default_branch": "main",
                     "github_org": "testorg",
                     "current_project": None,
                 },
@@ -104,13 +107,10 @@ class TestEnsureInitialized:
         # Verify: init_qen was called
         mock_init_qen.assert_called_once()
 
-        # Verify: init_qen received correct parameters
+        # Verify: init_qen received RuntimeContext and verbose=False
         call_kwargs = mock_init_qen.call_args.kwargs
         assert call_kwargs["verbose"] is False
-        assert call_kwargs["storage"] is test_storage
-        assert call_kwargs["config_dir"] is None
-        assert call_kwargs["meta_path_override"] is None
-        assert call_kwargs["current_project_override"] is None
+        assert "ctx" in mock_init_qen.call_args.kwargs or len(mock_init_qen.call_args.args) > 0
 
         # Verify: config is valid
         assert isinstance(config, QenConfig)
@@ -229,12 +229,15 @@ class TestEnsureInitialized:
         meta_path = tmp_path / "custom-meta"
 
         # Mock init_qen to simulate successful initialization
-        def mock_init_side_effect(**kwargs):
-            storage = kwargs.get("storage")
-            storage.write_profile(
+        # Write directly to test_storage since RuntimeContext creates its own config
+        def mock_init_side_effect(ctx, **kwargs):
+            test_storage.write_profile(
                 "main",
                 {
                     "meta_path": str(meta_path),
+                    "meta_remote": "https://github.com/testorg/meta",
+                    "meta_parent": str(meta_path.parent),
+                    "meta_default_branch": "main",
                     "github_org": "testorg",
                     "current_project": None,
                 },
@@ -251,10 +254,11 @@ class TestEnsureInitialized:
             verbose=False,
         )
 
-        # Verify: init_qen was called with override
+        # Verify: init_qen was called with RuntimeContext containing the override
         mock_init_qen.assert_called_once()
-        call_kwargs = mock_init_qen.call_args.kwargs
-        assert call_kwargs["meta_path_override"] == meta_path
+        # The context's meta_path_override should be set
+        ctx_arg = mock_init_qen.call_args.kwargs.get("ctx") or mock_init_qen.call_args.args[0]
+        assert ctx_arg.meta_path_override == meta_path
 
         # Verify: config was created successfully
         assert isinstance(config, QenConfig)
@@ -271,12 +275,15 @@ class TestEnsureInitialized:
         # Setup: No existing config
 
         # Mock init_qen to simulate successful initialization
-        def mock_init_side_effect(**kwargs):
-            storage = kwargs.get("storage")
-            storage.write_profile(
+        # Write directly to test_storage since RuntimeContext creates its own config
+        def mock_init_side_effect(ctx, **kwargs):
+            test_storage.write_profile(
                 "main",
                 {
                     "meta_path": "/fake/meta",
+                    "meta_remote": "https://github.com/testorg/meta",
+                    "meta_parent": "/fake",
+                    "meta_default_branch": "main",
                     "github_org": "testorg",
                     "current_project": None,
                 },

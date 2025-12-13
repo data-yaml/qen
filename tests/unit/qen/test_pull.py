@@ -21,7 +21,7 @@ from qen.commands.pull import (
     update_pyproject_metadata,
 )
 from qen.pyproject_utils import PyProjectUpdateError, read_pyproject
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 # ==============================================================================
 # Test GitHub CLI Detection
@@ -521,8 +521,9 @@ class TestPullAllRepositories:
         """Test pull with no qen configuration."""
         import click
 
-        # Don't create any config
+        # Don't create any config - mock ensure_initialized to raise Abort (simulating auto-init failure)
         with (
+            patch("qen.commands.pull.ensure_initialized", side_effect=click.Abort()),
             patch("qen.commands.pull.ensure_correct_branch"),
             pytest.raises(click.exceptions.Abort),
         ):

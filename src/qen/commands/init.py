@@ -12,9 +12,8 @@ from pathlib import Path
 
 import click
 
-from qenvy.base import QenvyBase
-
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
+from ..context.runtime import RuntimeContext
 from ..git_utils import (
     AmbiguousOrgError,
     GitError,
@@ -66,10 +65,11 @@ class ActionPlan:
 
 
 def discover_project_state(
-    config: QenConfig,
+    ctx: RuntimeContext,
     config_name: str,
     meta_parent: Path,
     meta_remote: str,
+    explicit_branch: str | None = None,
 ) -> DiscoveryState:
     """Discover existing project state from remote, local config, and local repo.
 
@@ -79,27 +79,44 @@ def discover_project_state(
     3. Local per-project meta clone
 
     Args:
-        config: QenConfig instance for config file access
+        ctx: RuntimeContext for config access
         config_name: Project config name (what user typed)
         meta_parent: Parent directory where per-project metas are cloned
         meta_remote: Remote URL to query for branches
+        explicit_branch: Explicit branch name if provided (from fully-qualified name)
 
     Returns:
         DiscoveryState with findings from all three sources
 
     Example:
-        >>> state = discover_project_state(config, "myproj", Path("~/GitHub"), "git@...")
+        >>> state = discover_project_state(ctx, "myproj", Path("~/GitHub"), "git@...")
         >>> if state.remote_branches:
         ...     print(f"Found {len(state.remote_branches)} remote branches")
     """
     # 1. Check for remote branches matching pattern
-    remote_branches = find_remote_branches(meta_remote, f"*-{config_name}")
+    # If explicit_branch provided (fully-qualified name like "251208-proj"),
+    # search for exact match. Otherwise, search with wildcard pattern.
+    if explicit_branch:
+        remote_branches_result = find_remote_branches(meta_remote, explicit_branch)
+    else:
+        remote_branches_result = find_remote_branches(meta_remote, f"*-{config_name}")
+
+    # Handle network errors vs. empty results
+    if remote_branches_result is None:
+        # Network error occurred
+        click.echo(
+            "Warning: Could not query remote repository. Proceeding with local state only.",
+            err=True,
+        )
+        remote_branches: list[RemoteBranchInfo] = []
+    else:
+        remote_branches = remote_branches_result
 
     # 2. Check if local config exists
     local_config: dict[str, str] | None = None
-    if config.project_config_exists(config_name):
+    if ctx.config_service.project_config_exists(config_name):
         try:
-            local_config = config.read_project_config(config_name)
+            local_config = ctx.config_service.read_project_config(config_name)
         except QenConfigError:
             # Config file exists but can't be read - treat as None
             local_config = None
@@ -143,13 +160,19 @@ def build_action_plan(
     has_config = state.local_config is not None
     has_repo = state.local_repo is not None
 
-    # Scenario C: Already setup (all exist)
-    if has_remote and has_config and has_repo:
-        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
+    # Scenario C: Already setup (config + repo exist)
+    # Note: Remote branch may or may not exist (user might not have pushed yet)
+    if has_config and has_repo:
+        branch_value = state.local_config.get("branch") if state.local_config else None
+        # Validate type safety - branch must be a string
+        branch = branch_value if isinstance(branch_value, str) else "unknown"
+        warnings = []
+        if not has_remote:
+            warnings.append("Remote branch not found - you may want to push your local branch")
         return ActionPlan(
             scenario="already_setup",
             actions=[],
-            warnings=[],
+            warnings=warnings,
             target_branch=branch,
         )
 
@@ -198,16 +221,32 @@ def build_action_plan(
 
     # Edge case: Config exists but repo missing
     if has_config and not has_repo:
-        branch = state.local_config.get("branch", "unknown") if state.local_config else "unknown"
-        return ActionPlan(
-            scenario="config_orphaned",
-            actions=[
-                "Config exists but repo is missing",
-                "Recommend deleting config and recreating",
-            ],
-            warnings=["Config file exists but repository is missing"],
-            target_branch=branch,
-        )
+        branch_value = state.local_config.get("branch") if state.local_config else None
+        # Validate type safety - branch must be a string
+        branch = branch_value if isinstance(branch_value, str) else "unknown"
+        if has_remote:
+            # Remote exists - can offer to re-clone
+            return ActionPlan(
+                scenario="config_orphaned",
+                actions=[
+                    "Config exists but repo is missing",
+                    f"Can re-clone from remote branch: {target_branch}",
+                    "Or delete config and start fresh",
+                ],
+                warnings=["Config file exists but repository is missing"],
+                target_branch=branch,
+            )
+        else:
+            # No remote - can't recover easily
+            return ActionPlan(
+                scenario="config_orphaned",
+                actions=[
+                    "Config exists but repo is missing",
+                    "No remote branch found - recommend deleting config",
+                ],
+                warnings=["Config file exists but repository and remote branch are missing"],
+                target_branch=branch,
+            )
 
     # Edge case: Repo exists but config missing
     if has_repo and not has_config:
@@ -363,25 +402,19 @@ def extract_remote_and_org(meta_path: Path) -> tuple[str, str]:
 
 
 def init_qen(
+    ctx: RuntimeContext,
     verbose: bool = False,
-    storage: QenvyBase | None = None,
-    config_dir: Path | str | None = None,
-    meta_path_override: Path | str | None = None,
-    current_project_override: str | None = None,
 ) -> None:
     """Initialize qen tooling.
 
     Behavior:
-    1. Search for meta repo (current dir -> parent dirs)
+    1. Search for meta repo (current dir -> parent dirs) or use override
     2. Extract org from git remote URL
     3. Create $XDG_CONFIG_HOME/qen/main/config.toml
 
     Args:
+        ctx: RuntimeContext for config access and overrides
         verbose: Enable verbose output
-        storage: Optional storage backend for testing
-        config_dir: Override configuration directory
-        meta_path_override: Override meta repository path
-        current_project_override: Override current project name
 
     Raises:
         MetaRepoNotFoundError: If meta repository cannot be found
@@ -392,8 +425,8 @@ def init_qen(
     """
     # Find meta repository
     # Use override if provided (for testing or explicit specification)
-    if meta_path_override:
-        meta_path = Path(meta_path_override)
+    if ctx.meta_path_override:
+        meta_path = ctx.meta_path_override
         if verbose:
             click.echo(f"Using meta repository from override: {meta_path}")
     else:
@@ -471,15 +504,8 @@ def init_qen(
         click.echo(f"Default branch: {default_branch}")
 
     # Create configuration
-    config = QenConfig(
-        storage=storage,
-        config_dir=config_dir,
-        meta_path_override=meta_path_override,
-        current_project_override=current_project_override,
-    )
-
     try:
-        config.write_main_config(
+        ctx.config_service.write_main_config(
             meta_path=str(meta_path),
             meta_remote=remote_url,
             meta_parent=str(meta_parent),
@@ -492,7 +518,7 @@ def init_qen(
         raise click.Abort() from e
 
     # Success message
-    config_path = config.get_main_config_path()
+    config_path = ctx.config_service.get_main_config_path()
     click.echo(f"Initialized qen configuration at: {config_path}")
     click.echo(f"  meta_path: {meta_path}")
     click.echo(f"  meta_remote: {remote_url}")
@@ -504,14 +530,11 @@ def init_qen(
 
 
 def init_project(
+    ctx: RuntimeContext,
     project_name: str,
     verbose: bool = False,
     yes: bool = False,
     force: bool = False,
-    storage: QenvyBase | None = None,
-    config_dir: Path | str | None = None,
-    meta_path_override: Path | str | None = None,
-    current_project_override: str | None = None,
 ) -> None:
     """Setup a project (discover existing or create new) - discovery-first approach.
 
@@ -524,14 +547,11 @@ def init_project(
     6. Execute plan
 
     Args:
+        ctx: RuntimeContext for config access and overrides
         project_name: Name of the project (short or fully-qualified with YYMMDD prefix)
         verbose: Enable verbose output
         yes: Auto-confirm prompts (skip all confirmation prompts)
         force: Force recreate if project already exists (delete and recreate)
-        storage: Optional storage backend for testing
-        config_dir: Override configuration directory
-        meta_path_override: Override meta repository path
-        current_project_override: Override current project name
 
     Raises:
         QenConfigError: If config operations fail
@@ -559,27 +579,14 @@ def init_project(
         click.echo()
 
     # Step 2: Ensure global config exists
-    config = QenConfig(
-        storage=storage,
-        config_dir=config_dir,
-        meta_path_override=meta_path_override,
-        current_project_override=current_project_override,
-    )
-
-    if not config.main_config_exists():
+    if not ctx.config_service.main_config_exists():
         if verbose:
             click.echo("Auto-initializing qen configuration...")
-        init_qen(
-            verbose=False,
-            storage=storage,
-            config_dir=config_dir,
-            meta_path_override=meta_path_override,
-            current_project_override=current_project_override,
-        )
+        init_qen(ctx, verbose=False)
 
     # Read main config
     try:
-        main_config = config.read_main_config()
+        main_config = ctx.config_service.read_main_config()
         meta_remote = main_config["meta_remote"]
         meta_parent = Path(main_config["meta_parent"])
         meta_default_branch = main_config["meta_default_branch"]
@@ -590,12 +597,12 @@ def init_project(
         raise click.Abort() from e
 
     # Step 3: Handle force mode (delete existing project)
-    if force and config.project_config_exists(config_name):
+    if force and ctx.config_service.project_config_exists(config_name):
         if verbose:
             click.echo(f"Force mode: Cleaning up existing project '{config_name}'")
 
         try:
-            old_config = config.read_project_config(config_name)
+            old_config = ctx.config_service.read_project_config(config_name)
             per_project_meta = Path(old_config["repo"])
 
             if per_project_meta.exists():
@@ -605,18 +612,18 @@ def init_project(
                     click.echo(f"  Deleted: {per_project_meta}")
 
             # Delete config
-            config.delete_project_config(config_name)
+            ctx.config_service.delete_project_config(config_name)
             if verbose:
                 click.echo(f"  Deleted config for '{config_name}'")
         except (QenConfigError, KeyError):
             # Can't read config - just delete it
-            config.delete_project_config(config_name)
+            ctx.config_service.delete_project_config(config_name)
 
     # Step 4: Discover existing state
     if verbose:
         click.echo("Discovering project state...")
 
-    state = discover_project_state(config, config_name, meta_parent, meta_remote)
+    state = discover_project_state(ctx, config_name, meta_parent, meta_remote, explicit_branch)
 
     # Step 5: Build action plan
     def branch_generator(name: str) -> str:
@@ -650,14 +657,27 @@ def init_project(
 
     if plan.scenario in ["create_new", "clone_existing"]:
         # Clone per-project meta
+        import os
+
         from ..git_utils import clone_per_project_meta
+
+        # Validate meta_parent is writable before attempting clone
+        if not meta_parent.is_dir() or not os.access(meta_parent, os.W_OK):
+            click.echo(f"Error: Parent directory not writable: {meta_parent}", err=True)
+            raise click.Abort()
+
+        # For clone_existing, use the target branch (existing remote branch)
+        # For create_new, use the default branch (will create new branch later)
+        clone_branch = (
+            plan.target_branch if plan.scenario == "clone_existing" else meta_default_branch
+        )
 
         try:
             per_project_meta = clone_per_project_meta(
                 meta_remote,
                 config_name,
                 meta_parent,
-                meta_default_branch,
+                clone_branch,
             )
             if verbose:
                 click.echo(f"Cloned: {per_project_meta}")
@@ -689,7 +709,7 @@ def init_project(
 
         # Write config
         try:
-            config.write_project_config(
+            ctx.config_service.write_project_config(
                 project_name=config_name,
                 branch=branch_name,
                 folder=folder_path,
@@ -702,7 +722,7 @@ def init_project(
 
         # Set as current project
         try:
-            config.update_current_project(config_name)
+            ctx.config_service.update_current_project(config_name)
         except QenConfigError:
             pass  # Non-critical
 
@@ -728,7 +748,7 @@ def init_project(
 
         folder_path = f"proj/{branch}"
 
-        config.write_project_config(
+        ctx.config_service.write_project_config(
             project_name=config_name,
             branch=branch,
             folder=folder_path,
@@ -736,15 +756,95 @@ def init_project(
             created=now.isoformat(),
         )
 
-        config.update_current_project(config_name)
+        ctx.config_service.update_current_project(config_name)
 
         click.echo(f"\nConfig created for existing repo at {state.local_repo}")
 
     elif plan.scenario == "config_orphaned":
-        # Config exists but repo missing - recommend recreation
-        click.echo("Config exists but repository is missing.")
-        click.echo(f"Run: qen init {config_name} --force")
-        raise click.Abort()
+        # Config exists but repo missing - offer to fix automatically
+        click.echo("\nConfig exists but repository is missing.")
+
+        # Check if remote exists for re-cloning
+        has_remote = len(state.remote_branches) > 0
+
+        if has_remote:
+            # Can re-clone from remote
+            click.echo(f"Remote branch found: {plan.target_branch}")
+            click.echo()
+
+            # Ask for confirmation (unless --yes)
+            if yes or click.confirm("Delete config and re-clone from remote?", default=True):
+                # Delete config
+                ctx.config_service.delete_project_config(config_name)
+                if verbose:
+                    click.echo(f"Deleted config for '{config_name}'")
+
+                # Re-clone from remote
+                import os
+
+                from ..git_utils import clone_per_project_meta
+
+                # Validate meta_parent is writable
+                if not meta_parent.is_dir() or not os.access(meta_parent, os.W_OK):
+                    click.echo(f"Error: Parent directory not writable: {meta_parent}", err=True)
+                    raise click.Abort()
+
+                try:
+                    per_project_meta = clone_per_project_meta(
+                        meta_remote,
+                        config_name,
+                        meta_parent,
+                        plan.target_branch,
+                    )
+                    if verbose:
+                        click.echo(f"Cloned: {per_project_meta}")
+                except GitError as e:
+                    click.echo(f"Error cloning: {e}", err=True)
+                    raise click.Abort() from e
+
+                # Write new config
+                branch_name = plan.target_branch
+                folder_path = f"proj/{branch_name}"
+
+                try:
+                    ctx.config_service.write_project_config(
+                        project_name=config_name,
+                        branch=branch_name,
+                        folder=folder_path,
+                        repo=str(per_project_meta),
+                        created=now.isoformat(),
+                    )
+                except QenConfigError as e:
+                    click.echo(f"Error writing config: {e}", err=True)
+                    raise click.Abort() from e
+
+                # Set as current project
+                try:
+                    ctx.config_service.update_current_project(config_name)
+                except QenConfigError:
+                    pass  # Non-critical
+
+                click.echo(f"\nProject '{config_name}' ready at {per_project_meta}")
+                click.echo(f"  Branch: {branch_name}")
+                click.echo(f"  Directory: {per_project_meta / folder_path}")
+            else:
+                click.echo("Aborted.")
+                raise click.Abort()
+        else:
+            # No remote - can only delete config
+            click.echo("No remote branch found.")
+            click.echo()
+
+            # Ask for confirmation (unless --yes)
+            if yes or click.confirm("Delete orphaned config?", default=True):
+                ctx.config_service.delete_project_config(config_name)
+                click.echo(f"Deleted config for '{config_name}'")
+                click.echo()
+                click.echo("You can now run:")
+                click.echo(f"  qen init {config_name}")
+            else:
+                click.echo("Aborted.")
+                raise click.Abort()
 
     else:
         # Unknown scenario

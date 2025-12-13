@@ -28,12 +28,11 @@ repos:
         stages: [pre-commit]
         types: [python]
 
-      # Run tests (runs on pre-push)
-      - id: pytest
-        name: pytest
-        entry: uv run pytest
+      # Run all tests (runs on pre-push)
+      - id: test-all
+        name: test-all (unit + integration)
+        entry: bash -c 'cd "$GIT_REPO_DIR" && ./poe test-all'
         language: system
-        args: [tests/, -v, -m, "not integration"]
         pass_filenames: false
         stages: [pre-push]
         always_run: true

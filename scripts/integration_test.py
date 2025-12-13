@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Integration test runner that auto-detects GitHub token.
+"""Integration test runner that auto-detects GitHub token and fails hard if missing.
 
 This script automatically detects a GitHub token from:
 1. GITHUB_TOKEN environment variable (if already set)
 2. gh CLI (via `gh auth token`)
 
-Then runs pytest with the integration marker and passes through all arguments.
+If no token is found, the script exits with error code 1 to prevent
+silent test skipping. This ensures 100% test pass rate with no skipped tests.
 """
 
 import os
@@ -30,17 +31,17 @@ def main() -> int:
             token = result.stdout.strip()
         except (subprocess.CalledProcessError, FileNotFoundError):
             print(
-                "Warning: No GitHub token found. Integration tests may fail.",
+                "Error: No GitHub token found. Integration tests REQUIRE a token.",
                 file=sys.stderr,
             )
             print(
                 "To fix: Run 'gh auth login' or set GITHUB_TOKEN environment variable",
                 file=sys.stderr,
             )
+            return 1
 
-    # Set token in environment if found
-    if token:
-        os.environ["GITHUB_TOKEN"] = token
+    # Set token in environment
+    os.environ["GITHUB_TOKEN"] = token
 
     # Build pytest command with all args passed through
     pytest_args = ["pytest", "tests/", "-m", "integration", "-v"] + sys.argv[1:]

@@ -25,7 +25,9 @@ def test_stacked_prs_standard() -> None:
     NO MOCKS - uses real GitHub API to query PR relationships.
     """
     # Get standard stack PR numbers
-    stack_pr_numbers = STANDARD_PRS["stack"]
+    stack_pr_numbers_raw = STANDARD_PRS["stack"]
+    assert isinstance(stack_pr_numbers_raw, list), "Expected stack to be a list"
+    stack_pr_numbers: list[int] = stack_pr_numbers_raw
     assert len(stack_pr_numbers) == 3, "Expected 3 PRs in stack"
 
     stack_branches = [
@@ -95,7 +97,9 @@ def test_pr_with_passing_checks_standard() -> None:
     NO MOCKS - uses real GitHub API to query check status.
     """
     # Verify standard PR exists and is open
-    pr_number = STANDARD_PRS["passing"]
+    pr_number_raw = STANDARD_PRS["passing"]
+    assert isinstance(pr_number_raw, int), "Expected passing to be an int"
+    pr_number: int = pr_number_raw
     verify_standard_pr_exists(pr_number)
 
     # Query PR status via gh CLI (REAL API call)
@@ -119,7 +123,9 @@ def test_pr_with_passing_checks_standard() -> None:
     pr_full_data = json.loads(result.stdout)
 
     # PR should be open
-    assert pr_full_data["state"] == "OPEN"
+    assert pr_full_data["state"] == "OPEN", (
+        f"Expected PR state 'OPEN', got '{pr_full_data.get('state')}' for PR #{pr_number}"
+    )
 
     # Checks should exist (from GitHub Actions workflows)
     checks = pr_full_data.get("statusCheckRollup", [])
@@ -142,7 +148,9 @@ def test_pr_with_failing_checks_standard() -> None:
     NO MOCKS - uses real GitHub API to query check status.
     """
     # Verify standard PR exists and is open
-    pr_number = STANDARD_PRS["failing"]
+    pr_number_raw = STANDARD_PRS["failing"]
+    assert isinstance(pr_number_raw, int), "Expected failing to be an int"
+    pr_number: int = pr_number_raw
     verify_standard_pr_exists(pr_number)
     branch = STANDARD_BRANCHES["failing"]
 
@@ -170,7 +178,9 @@ def test_pr_with_failing_checks_standard() -> None:
     pr_full_data = json.loads(result.stdout)
 
     # PR should be open
-    assert pr_full_data["state"] == "OPEN"
+    assert pr_full_data["state"] == "OPEN", (
+        f"Expected PR state 'OPEN', got '{pr_full_data.get('state')}' for PR #{pr_number}"
+    )
 
     # Checks should exist
     checks = pr_full_data.get("statusCheckRollup", [])

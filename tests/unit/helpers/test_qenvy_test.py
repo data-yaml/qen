@@ -1,6 +1,6 @@
 """Tests for QenvyTest in-memory storage implementation."""
 
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 
 def test_qenvy_test_basic_operations():

@@ -20,7 +20,7 @@ from qen.config import (
     QenConfig,
     QenConfigError,
 )
-from tests.helpers.qenvy_test import QenvyTest
+from tests.unit.helpers.qenvy_test import QenvyTest
 
 
 class TestConfigInitialization:
