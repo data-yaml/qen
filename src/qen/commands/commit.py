@@ -258,7 +258,7 @@ def show_changes_summary(repo_path: Path, verbose: bool = False) -> None:
 
     Args:
         repo_path: Path to repository
-        verbose: If True, show file list
+        verbose: If True, show all files (no limit)
     """
     try:
         status = run_git_command(["status", "--short"], cwd=repo_path)
@@ -268,26 +268,80 @@ def show_changes_summary(repo_path: Path, verbose: bool = False) -> None:
             click.echo("   No changes")
             return
 
-        modified, staged, untracked = count_files_changed(repo_path)
-
-        parts = []
-        if modified > 0:
-            parts.append(f"{modified} modified")
-        if staged > 0:
-            parts.append(f"{staged} staged")
-        if untracked > 0:
-            parts.append(f"{untracked} untracked")
-
-        click.echo(f"   {len(lines)} files changed: {', '.join(parts)}")
-
+        # Always show files (not just in verbose mode)
+        click.echo("   Files:")
         if verbose:
-            for line in lines[:10]:  # Show first 10 files
+            # Verbose mode: show all files
+            for line in lines:
+                click.echo(f"     {line}")
+        else:
+            # Normal mode: show up to 10 files
+            for line in lines[:10]:
                 click.echo(f"     {line}")
             if len(lines) > 10:
                 click.echo(f"     ... and {len(lines) - 10} more")
 
     except GitError:
         click.echo("   (Cannot determine changes)")
+
+
+def prompt_for_commit(
+    repo_name: str,
+    repo_path: Path,
+    default_message: str | None = None,
+    verbose: bool = False,
+) -> tuple[bool, str | None]:
+    """Prompt user whether to commit a repository.
+
+    Args:
+        repo_name: Display name for the repository
+        repo_path: Path to repository
+        default_message: Default commit message
+        verbose: If True, show detailed output
+
+    Returns:
+        Tuple of (should_commit, commit_message)
+        - should_commit: True if user wants to commit
+        - commit_message: The commit message, or None if skipped
+    """
+    # Show changes
+    show_changes_summary(repo_path, verbose=verbose)
+
+    # Prompt user
+    click.echo("\n   Options: [Y]es  [n]o  [e]dit message  [s]how diff")
+    choice = input(f"   Commit {repo_name}? [Y/n/e/s] ").strip().lower()
+
+    if choice == "n":
+        return (False, None)
+
+    if choice == "s":
+        # Show detailed diff
+        try:
+            diff = run_git_command(["diff", "HEAD"], cwd=repo_path)
+            click.echo("\n" + diff)
+        except GitError:
+            click.echo("   (Cannot show diff)")
+
+        choice = input(f"\n   Commit {repo_name}? [Y/n/e] ").strip().lower()
+        if choice == "n":
+            return (False, None)
+
+    # Get commit message
+    if choice == "e":
+        message = get_message_from_editor(default_message)
+    elif default_message:
+        use_default = input("   Use default message? [Y/n] ").strip().lower()
+        if use_default != "n":
+            message = default_message
+        else:
+            message = input("   Commit message: ").strip()
+    else:
+        message = input("   Commit message: ").strip()
+
+    if not message:
+        return (False, None)
+
+    return (True, message)
 
 
 def get_message_from_editor(default: str | None = None) -> str:
@@ -392,84 +446,34 @@ def commit_interactive(
     if meta_has_changes:
         click.echo("\n📦 Meta Repository (per-project meta)")
 
-        # Show changes
-        show_changes_summary(per_project_meta, verbose=verbose)
+        # Prompt for commit
+        should_commit, message = prompt_for_commit(
+            "meta repository", per_project_meta, default_message, verbose
+        )
 
-        # Prompt user
-        choice = input("\n   Commit meta repository? [Y/n/e/s] ").strip().lower()
+        if should_commit and message:
+            # Commit meta repo
+            result = commit_repo(
+                per_project_meta, message, amend=amend, no_add=no_add, verbose=verbose
+            )
 
-        if choice != "n":
-            if choice == "s":
-                # Show detailed diff
-                try:
-                    diff = run_git_command(["diff", "HEAD"], cwd=per_project_meta)
-                    click.echo("\n" + diff)
-                except GitError:
-                    click.echo("   (Cannot show diff)")
-
-                choice = input("\n   Commit meta repository? [Y/n/e] ").strip().lower()
-
-            if choice != "n":
-                # Get commit message
-                if choice == "e":
-                    message = get_message_from_editor(default_message)
-                elif default_message:
-                    use_default = input("   Use default message? [Y/n] ").strip().lower()
-                    if use_default != "n":
-                        message = default_message
-                    else:
-                        message = input("   Commit message: ").strip()
-                else:
-                    message = input("   Commit message: ").strip()
-
-                if message:
-                    # Commit meta repo
-                    result = commit_repo(
-                        per_project_meta, message, amend=amend, no_add=no_add, verbose=verbose
-                    )
-
-                    if result.success:
-                        click.echo(f'   ✓ Committed: "{message}"')
-                    else:
-                        click.echo(f"   ✗ {result.error_message}")
-
-                    results.append(("Meta Repository", result))
-                else:
-                    click.echo("   ✗ No commit message provided. Skipped.")
-                    results.append(
-                        (
-                            "Meta Repository",
-                            CommitResult(
-                                success=False,
-                                files_changed=0,
-                                message="",
-                                error_message="No message provided",
-                            ),
-                        )
-                    )
+            if result.success:
+                click.echo(f'   ✓ Committed: "{message}"')
             else:
-                click.echo("   Skipped")
-                results.append(
-                    (
-                        "Meta Repository",
-                        CommitResult(
-                            success=True,
-                            files_changed=0,
-                            message="",
-                            skipped=True,
-                        ),
-                    )
-                )
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append(("Meta Repository", result))
         else:
             click.echo("   Skipped")
             results.append(
                 (
                     "Meta Repository",
                     CommitResult(
-                        success=True,
+                        success=False if message is None and should_commit else True,
                         files_changed=0,
                         message="",
-                        skipped=True,
+                        error_message="No message provided" if should_commit else None,
+                        skipped=not should_commit,
                     ),
                 )
             )
@@ -480,87 +484,35 @@ def commit_interactive(
 
         click.echo(f"\n📦 {repo_name} ({repo_config.branch})")
 
-        # Show changes
-        show_changes_summary(repo_path, verbose=verbose)
+        # Prompt for commit
+        should_commit, message = prompt_for_commit(
+            "this repository", repo_path, default_message, verbose
+        )
 
-        # Prompt user
-        choice = input("\n   Commit this repository? [Y/n/e/s] ").strip().lower()
+        if should_commit and message:
+            # Commit
+            result = commit_repo(repo_path, message, amend=amend, no_add=no_add, verbose=verbose)
 
-        if choice == "n":
+            if result.success:
+                click.echo(f'   ✓ Committed: "{message}"')
+            else:
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append((repo_name, result))
+        else:
             click.echo("   Skipped")
             results.append(
                 (
                     repo_name,
                     CommitResult(
-                        success=True,
+                        success=False if message is None and should_commit else True,
                         files_changed=0,
                         message="",
-                        skipped=True,
+                        error_message="No message provided" if should_commit else None,
+                        skipped=not should_commit,
                     ),
                 )
             )
-            continue
-
-        if choice == "s":
-            # Show detailed diff
-            try:
-                diff = run_git_command(["diff", "HEAD"], cwd=repo_path)
-                click.echo("\n" + diff)
-            except GitError:
-                click.echo("   (Cannot show diff)")
-
-            choice = input("\n   Commit this repository? [Y/n/e] ").strip().lower()
-            if choice == "n":
-                click.echo("   Skipped")
-                results.append(
-                    (
-                        repo_name,
-                        CommitResult(
-                            success=True,
-                            files_changed=0,
-                            message="",
-                            skipped=True,
-                        ),
-                    )
-                )
-                continue
-
-        # Get commit message
-        if choice == "e":
-            message = get_message_from_editor(default_message)
-        elif default_message:
-            use_default = input("   Use default message? [Y/n] ").strip().lower()
-            if use_default != "n":
-                message = default_message
-            else:
-                message = input("   Commit message: ").strip()
-        else:
-            message = input("   Commit message: ").strip()
-
-        if not message:
-            click.echo("   ✗ No commit message provided. Skipped.")
-            results.append(
-                (
-                    repo_name,
-                    CommitResult(
-                        success=False,
-                        files_changed=0,
-                        message="",
-                        error_message="No message provided",
-                    ),
-                )
-            )
-            continue
-
-        # Commit
-        result = commit_repo(repo_path, message, amend=amend, no_add=no_add, verbose=verbose)
-
-        if result.success:
-            click.echo(f'   ✓ Committed: "{message}"')
-        else:
-            click.echo(f"   ✗ {result.error_message}")
-
-        results.append((repo_name, result))
 
     # Print summary
     summary = print_commit_summary(results)
