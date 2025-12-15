@@ -14,7 +14,7 @@ import click
 
 from ..config import QenConfigError
 from ..context.runtime import RuntimeContext
-from ..git_utils import GitError, get_current_branch
+from ..git_utils import GitError, get_current_branch, get_default_branch
 from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import (
     PyProjectNotFoundError,
@@ -256,12 +256,23 @@ def add_repository(
         click.echo(f"Error cloning repository: {e}", err=True)
         raise click.Abort() from e
 
-    # 9. Add initial metadata to pyproject.toml
+    # 9. Detect default branch from the cloned repository
+    try:
+        default_branch = get_default_branch(clone_path)
+        if verbose:
+            click.echo(f"Detected default branch: {default_branch}")
+    except GitError:
+        # Fall back to 'main' if detection fails
+        default_branch = "main"
+        if verbose:
+            click.echo("Could not detect default branch, using 'main'")
+
+    # 10. Add initial metadata to pyproject.toml
     if verbose:
         click.echo("Adding initial metadata to pyproject.toml...")
 
     try:
-        add_repo_to_pyproject(project_dir, url, branch, path)
+        add_repo_to_pyproject(project_dir, url, branch, path, default_branch)
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
         # Clean up the cloned repository
@@ -275,7 +286,7 @@ def add_repository(
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
-    # 10. Initialize metadata and detect PR/issue associations via pull
+    # 11. Initialize metadata and detect PR/issue associations via pull
     if verbose:
         click.echo("Initializing repository metadata...")
 
@@ -318,7 +329,7 @@ def add_repository(
         if verbose:
             click.echo("Repository was added successfully but metadata may be incomplete.")
 
-    # 11. Regenerate workspace files (unless --no-workspace)
+    # 12. Regenerate workspace files (unless --no-workspace)
     if not no_workspace:
         if verbose:
             click.echo("\nRegenerating workspace files...")
@@ -346,7 +357,7 @@ def add_repository(
             if verbose:
                 click.echo("You can manually regenerate with: qen workspace")
 
-    # 12. Success message
+    # 13. Success message
     click.echo()
     click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")

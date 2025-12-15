@@ -326,6 +326,7 @@ path = "repos/repo"
             "url": "https://github.com/org/repo",
             "branch": "main",
             "path": "repos/repo",
+            "default_branch": "main",
         }
 
     def test_add_multiple_repos(self, tmp_path: Path) -> None:
