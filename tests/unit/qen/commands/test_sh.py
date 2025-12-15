@@ -477,6 +477,44 @@ class TestInteractiveShellMode:
             mock_open.assert_called_once()
             assert mock_open.call_args[1]["project_name"] is None
 
+    def test_sh_interactive_no_prompt(self, tmp_path: Path) -> None:
+        """Test that qen sh (interactive) doesn't show prompt."""
+        runner = CliRunner()
+
+        meta_path = tmp_path / "meta"
+        project_folder = "proj/2025-12-06-test-project"
+        project_dir = meta_path / project_folder
+        project_dir.mkdir(parents=True)
+
+        with (
+            patch("qen.commands.sh.ensure_initialized") as mock_ensure,
+            patch("qen.commands.sh.ensure_correct_branch"),
+            patch("qen.commands.sh.open_interactive_shell") as mock_open,
+        ):
+            mock_config = Mock()
+            mock_config.read_main_config.return_value = {
+                "meta_path": str(meta_path),
+                "org": "testorg",
+                "current_project": "test-project",
+            }
+            mock_config.read_project_config.return_value = {
+                "name": "test-project",
+                "branch": "2025-12-06-test-project",
+                "folder": project_folder,
+                "repo": str(meta_path),
+            }
+            mock_ensure.return_value = mock_config
+
+            # Run without input - should not require user input
+            result = runner.invoke(main, ["sh"])
+
+            # Should succeed without prompting
+            assert result.exit_code == 0
+            # Should NOT contain the confirmation prompt
+            assert "Run command in this directory?" not in result.output
+            # Should call open_interactive_shell
+            mock_open.assert_called_once()
+
     def test_sh_with_command_executes_single_command(self, tmp_path: Path) -> None:
         """Test that qen sh with command executes single command."""
         runner = CliRunner()
