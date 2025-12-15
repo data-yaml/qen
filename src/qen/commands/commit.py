@@ -15,6 +15,7 @@ from ..config import QenConfig, QenConfigError
 from ..git_utils import GitError, run_git_command
 from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, load_repos_from_pyproject
+from .status import format_status_output, get_project_status
 
 
 class CommitError(Exception):
@@ -562,7 +563,24 @@ def commit_interactive(
         results.append((repo_name, result))
 
     # Print summary
-    return print_commit_summary(results)
+    summary = print_commit_summary(results)
+
+    # Show final status of all repositories
+    try:
+        click.echo("\n" + "=" * 60)
+        click.echo("Final Status")
+        click.echo("=" * 60 + "\n")
+        project_status = get_project_status(
+            project_dir, per_project_meta, fetch=False, fetch_pr=False
+        )
+        status_output = format_status_output(
+            project_status, verbose=False, meta_only=False, repos_only=False
+        )
+        click.echo(status_output)
+    except Exception as e:
+        click.echo(f"Warning: Could not fetch final status: {e}")
+
+    return summary
 
 
 def commit_project(
@@ -785,6 +803,21 @@ def commit_project(
 
     # Print summary
     summary = print_commit_summary(results, dry_run=dry_run)
+
+    # Show final status of all repositories
+    try:
+        click.echo("\n" + "=" * 60)
+        click.echo("Final Status")
+        click.echo("=" * 60 + "\n")
+        project_status = get_project_status(
+            project_dir, per_project_meta, fetch=False, fetch_pr=False
+        )
+        status_output = format_status_output(
+            project_status, verbose=False, meta_only=False, repos_only=False
+        )
+        click.echo(status_output)
+    except Exception as e:
+        click.echo(f"Warning: Could not fetch final status: {e}")
 
     if summary["failed"] > 0:
         sys.exit(1)
