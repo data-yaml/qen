@@ -460,10 +460,11 @@ def handle_create(
                 "PR description (optional)", default="", show_default=False, type=str
             )
 
-        # Get base branch
-        pr_base = base or "main"
+        # Get base branch - use repo's default_branch
+        repo_default = getattr(pr_info, "default_branch", "main")
+        pr_base = base or repo_default
         if not base and not skip_confirm:
-            pr_base = click.prompt("Base branch", default="main", type=str)
+            pr_base = click.prompt("Base branch", default=repo_default, type=str)
 
         # Execute create via gh CLI
         try:
