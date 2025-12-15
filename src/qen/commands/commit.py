@@ -349,13 +349,12 @@ def commit_interactive(
     """
     # Load project configuration
     try:
-        main_config = config.read_main_config()
         project_config = config.read_project_config(project_name)
-        meta_path = Path(main_config["meta_path"])
+        per_project_meta = Path(project_config["repo"])
     except QenConfigError as e:
         raise CommitError(f"Failed to load configuration: {e}") from e
 
-    project_dir = meta_path / project_config["folder"]
+    project_dir = per_project_meta / project_config["folder"]
 
     # Load repositories
     try:
@@ -365,6 +364,9 @@ def commit_interactive(
 
     results: list[tuple[str, CommitResult]] = []
 
+    # Check if meta repository has changes
+    meta_has_changes = has_uncommitted_changes(per_project_meta)
+
     # Check if any repositories have changes before starting interactive mode
     repos_with_changes = []
     for repo_config in repos:
@@ -372,12 +374,104 @@ def commit_interactive(
         if has_uncommitted_changes(repo_path):
             repos_with_changes.append(repo_config)
 
-    if not repos_with_changes:
+    if not meta_has_changes and not repos_with_changes:
         click.echo(f"Project: {project_name}")
         click.echo("\nNo repositories have uncommitted changes.")
-        return {"committed": 0, "clean": len(repos), "skipped": 0, "failed": 0, "total_files": 0}
+        return {
+            "committed": 0,
+            "clean": len(repos) + 1,
+            "skipped": 0,
+            "failed": 0,
+            "total_files": 0,
+        }
 
     click.echo(f"Committing project: {project_name} (interactive mode)\n")
+
+    # Handle meta repository first if it has changes
+    if meta_has_changes:
+        click.echo("\n📦 Meta Repository (per-project meta)")
+
+        # Show changes
+        show_changes_summary(per_project_meta, verbose=verbose)
+
+        # Prompt user
+        choice = input("\n   Commit meta repository? [Y/n/e/s] ").strip().lower()
+
+        if choice != "n":
+            if choice == "s":
+                # Show detailed diff
+                try:
+                    diff = run_git_command(["diff", "HEAD"], cwd=per_project_meta)
+                    click.echo("\n" + diff)
+                except GitError:
+                    click.echo("   (Cannot show diff)")
+
+                choice = input("\n   Commit meta repository? [Y/n/e] ").strip().lower()
+
+            if choice != "n":
+                # Get commit message
+                if choice == "e":
+                    message = get_message_from_editor(default_message)
+                elif default_message:
+                    use_default = input("   Use default message? [Y/n] ").strip().lower()
+                    if use_default != "n":
+                        message = default_message
+                    else:
+                        message = input("   Commit message: ").strip()
+                else:
+                    message = input("   Commit message: ").strip()
+
+                if message:
+                    # Commit meta repo
+                    result = commit_repo(
+                        per_project_meta, message, amend=amend, no_add=no_add, verbose=verbose
+                    )
+
+                    if result.success:
+                        click.echo(f'   ✓ Committed: "{message}"')
+                    else:
+                        click.echo(f"   ✗ {result.error_message}")
+
+                    results.append(("Meta Repository", result))
+                else:
+                    click.echo("   ✗ No commit message provided. Skipped.")
+                    results.append(
+                        (
+                            "Meta Repository",
+                            CommitResult(
+                                success=False,
+                                files_changed=0,
+                                message="",
+                                error_message="No message provided",
+                            ),
+                        )
+                    )
+            else:
+                click.echo("   Skipped")
+                results.append(
+                    (
+                        "Meta Repository",
+                        CommitResult(
+                            success=True,
+                            files_changed=0,
+                            message="",
+                            skipped=True,
+                        ),
+                    )
+                )
+        else:
+            click.echo("   Skipped")
+            results.append(
+                (
+                    "Meta Repository",
+                    CommitResult(
+                        success=True,
+                        files_changed=0,
+                        message="",
+                        skipped=True,
+                    ),
+                )
+            )
 
     for repo_config in repos_with_changes:
         repo_path = project_dir / repo_config.path
@@ -555,11 +649,11 @@ def commit_project(
     # Non-interactive mode
     try:
         project_config = config.read_project_config(target_project)
-        meta_path = Path(main_config["meta_path"])
+        per_project_meta = Path(project_config["repo"])
     except QenConfigError as e:
         raise click.ClickException(f"Failed to load project configuration: {e}") from e
 
-    project_dir = meta_path / project_config["folder"]
+    project_dir = per_project_meta / project_config["folder"]
 
     # Load repositories
     try:
@@ -571,6 +665,61 @@ def commit_project(
 
     prefix = "[DRY RUN] " if dry_run else ""
     click.echo(f"{prefix}Committing project: {target_project}\n")
+
+    # Handle meta repository first if it has changes
+    if has_uncommitted_changes(per_project_meta):
+        click.echo("📦 Meta Repository (per-project meta)")
+
+        if dry_run:
+            # Show what would be committed
+            show_changes_summary(per_project_meta, verbose=verbose)
+            click.echo(f'   Would commit: "{message}"')
+            modified, staged, untracked = count_files_changed(per_project_meta)
+            results.append(
+                (
+                    "Meta Repository",
+                    CommitResult(
+                        success=True,
+                        files_changed=modified + staged + untracked,
+                        message=message or "",
+                    ),
+                )
+            )
+        else:
+            # Actually commit
+            result = commit_repo(
+                per_project_meta,
+                message or "",
+                amend=amend,
+                no_add=no_add,
+                allow_empty=allow_empty,
+                verbose=verbose,
+            )
+
+            if result.success and not result.no_changes:
+                show_changes_summary(per_project_meta, verbose=verbose)
+                click.echo(f'   ✓ Committed: "{message}"')
+            elif result.no_changes:
+                click.echo("   • No changes to commit (clean)")
+            else:
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append(("Meta Repository", result))
+    else:
+        # Meta repo is clean
+        click.echo("📦 Meta Repository (per-project meta)")
+        click.echo("   • No changes to commit (clean)")
+        results.append(
+            (
+                "Meta Repository",
+                CommitResult(
+                    success=True,
+                    files_changed=0,
+                    message="",
+                    no_changes=True,
+                ),
+            )
+        )
 
     for repo_config in repos:
         repo_path = project_dir / repo_config.path
