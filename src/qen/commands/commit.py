@@ -7,13 +7,12 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import click
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
+from ..context.runtime import RuntimeContext, RuntimeContextError
 from ..git_utils import GitError, run_git_command
-from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, load_repos_from_pyproject
 from .status import format_status_output, get_project_status
 
@@ -380,36 +379,45 @@ def get_message_from_editor(default: str | None = None) -> str:
 
 
 def commit_interactive(
+    ctx: RuntimeContext,
     project_name: str,
-    config: QenConfig,
     default_message: str | None = None,
     amend: bool = False,
     no_add: bool = False,
     verbose: bool = False,
-    config_overrides: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Commit repositories interactively.
 
     Args:
+        ctx: RuntimeContext with config access
         project_name: Name of project
-        config: QenConfig instance
         default_message: Default commit message
         amend: If True, amend previous commits
         no_add: If True, don't auto-stage changes
         verbose: If True, show detailed output
-        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Returns:
         Dictionary with summary counts
     """
-    # Load project configuration
+    # Load project configuration using RuntimeContext
     try:
-        project_config = config.read_project_config(project_name)
-        per_project_meta = Path(project_config["repo"])
-    except QenConfigError as e:
-        raise CommitError(f"Failed to load configuration: {e}") from e
+        config_service = ctx.config_service
+        project_config = config_service.read_project_config(project_name)
 
-    project_dir = per_project_meta / project_config["folder"]
+        # Check for per-project meta repo field
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{project_name}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {project_name}",
+                err=True,
+            )
+            raise click.Abort()
+
+        per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
+    except (QenConfigError, RuntimeContextError) as e:
+        raise CommitError(f"Failed to load configuration: {e}") from e
 
     # Load repositories
     try:
@@ -536,6 +544,7 @@ def commit_interactive(
 
 
 def commit_project(
+    ctx: RuntimeContext,
     project_name: str | None = None,
     message: str | None = None,
     interactive: bool = False,
@@ -545,11 +554,11 @@ def commit_project(
     specific_repo: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
-    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Commit all repositories in a project.
 
     Args:
+        ctx: RuntimeContext with config access
         project_name: Name of project (None = use current)
         message: Commit message
         interactive: If True, prompt for each repo
@@ -559,7 +568,6 @@ def commit_project(
         specific_repo: If set, only commit this repository
         dry_run: If True, show what would be committed
         verbose: If True, show detailed output
-        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Raises:
         click.ClickException: If commit fails
@@ -568,66 +576,58 @@ def commit_project(
     if not message and not interactive:
         interactive = True
 
-    # Load configuration (auto-initialize if needed)
-    overrides = config_overrides or {}
-    config = ensure_initialized(
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-        verbose=False,
-    )
-
-    # Ensure correct project branch after initialization
-    ensure_correct_branch(config, verbose=False)
-
-    # Config is guaranteed to exist after ensure_initialized
-    main_config = config.read_main_config()
-
-    # Determine which project to use
-    if project_name:
-        target_project = project_name
-    else:
-        target_project_raw = main_config.get("current_project")
-        if not target_project_raw:
-            raise click.ClickException(
-                "No active project. Create a project with 'qen init <project-name>' first."
-            )
-        target_project = str(target_project_raw)
-
-    # Interactive mode
-    if interactive:
-        try:
-            summary = commit_interactive(
-                target_project,
-                config,
-                default_message=message,
-                amend=amend,
-                no_add=no_add,
-                verbose=verbose,
-                config_overrides=overrides,
-            )
-            click.echo("\nSummary:")
-            click.echo(f"  {summary['committed']} repositories committed")
-            if summary["skipped"] > 0:
-                click.echo(f"  {summary['skipped']} repositories skipped")
-            if summary["failed"] > 0:
-                click.echo(f"  {summary['failed']} repositories failed")
-            return
-        except CommitError as e:
-            raise click.ClickException(str(e)) from e
-
-    # Non-interactive mode
     try:
-        project_config = config.read_project_config(target_project)
+        # Determine which project to use
+        if project_name:
+            target_project = project_name
+        else:
+            target_project = ctx.get_current_project()
+
+        # Interactive mode
+        if interactive:
+            try:
+                summary = commit_interactive(
+                    ctx,
+                    target_project,
+                    default_message=message,
+                    amend=amend,
+                    no_add=no_add,
+                    verbose=verbose,
+                )
+                click.echo("\nSummary:")
+                click.echo(f"  {summary['committed']} repositories committed")
+                if summary["skipped"] > 0:
+                    click.echo(f"  {summary['skipped']} repositories skipped")
+                if summary["failed"] > 0:
+                    click.echo(f"  {summary['failed']} repositories failed")
+                return
+            except CommitError as e:
+                raise click.ClickException(str(e)) from e
+
+        # Non-interactive mode - get project configuration
+        config_service = ctx.config_service
+        project_config = config_service.read_project_config(target_project)
+
+        # Check for per-project meta repo field
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{target_project}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {target_project}",
+                err=True,
+            )
+            raise click.Abort()
+
         per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
+
+        # Load repositories
+        repos = load_repos_from_pyproject(project_dir)
+
+    except RuntimeContextError as e:
+        raise click.ClickException(str(e)) from e
     except QenConfigError as e:
         raise click.ClickException(f"Failed to load project configuration: {e}") from e
-
-    project_dir = per_project_meta / project_config["folder"]
-
-    # Load repositories
-    try:
-        repos = load_repos_from_pyproject(project_dir)
     except (PyProjectNotFoundError, Exception) as e:
         raise click.ClickException(f"Failed to load repositories: {e}") from e
 
@@ -871,9 +871,14 @@ def commit_command(
         # Show what would be committed
         $ qen commit -m "Test" --dry-run
     """
+    # Get RuntimeContext from Click context
+    runtime_ctx = ctx.obj.get("runtime_context")
+    if not runtime_ctx:
+        raise click.ClickException("RuntimeContext not available. This is a bug.")
+
     try:
-        overrides = ctx.obj.get("config_overrides", {})
         commit_project(
+            ctx=runtime_ctx,
             project_name=project,
             message=message,
             interactive=interactive,
@@ -883,7 +888,6 @@ def commit_command(
             specific_repo=repo,
             dry_run=dry_run,
             verbose=verbose,
-            config_overrides=overrides,
         )
     except click.ClickException:
         raise
