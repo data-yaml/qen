@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Default branch tracking**: `qen add` now auto-detects each repository's default branch (main/master/etc.) and stores it in `default_branch` field
+- **Meta repository commits**: `qen commit` now includes the per-project meta repository alongside sub-repositories
+- **Final status display**: `qen commit` shows complete repository state after committing (using `qen status` format)
+- **File lists in commit prompts**: Show actual file names (not just counts) when prompting for commits, limited to 10 files with overflow indicator
+
+### Changed
+
+- **Interactive shell UX**: `qen sh` (naked command) no longer shows confirmation prompt - opens interactive subshell immediately
+- **Commit prompt clarity**: Added clear option explanations `[Y]es [n]o [e]dit message [s]how diff` to commit prompts
+- **PR commands use repo defaults**: PR creation now uses each repository's stored `default_branch` instead of hardcoding "main"
+
+### Fixed
+
+- **BREAKING**: `qen pull` now only persists stable metadata to pyproject.toml (branch, pr, pr_base, issue) - transient fields (updated, pr_status, pr_checks) are displayed but not written to reduce git noise
+- **Command initialization**: Refactored `qen commit` to use RuntimeContext pattern like other commands, fixing path resolution inconsistencies
+- **Meta repo visibility**: Fixed issue where `qen commit` reported "no changes" when only meta repo had uncommitted changes
+
+### Development
+
+- Added comprehensive analysis of command initialization patterns in spec/6-debt/10-command-initialization-inconsistency.md
+- Updated INTEGRATION_TESTING.md with required core functionality tests
+- Improved code maintainability by extracting duplicate commit prompting logic into shared helper function (~80 lines reduced)
+
 ## [0.4.1] - 2025-12-13
 
 ### Fixed
