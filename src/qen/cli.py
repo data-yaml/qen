@@ -140,6 +140,7 @@ def init(
 @click.option("--force", is_flag=True, help="Force re-add if repository exists")
 @click.option("--yes", "-y", is_flag=True, help="Auto-confirm prompts")
 @click.option("--no-workspace", is_flag=True, help="Skip workspace file regeneration")
+@click.option("--no-commit", is_flag=True, help="Skip automatic git commit")
 @click.pass_context
 def add(
     ctx: click.Context,
@@ -150,6 +151,7 @@ def add(
     force: bool,
     yes: bool,
     no_workspace: bool,
+    no_commit: bool,
 ) -> None:
     """Add a repository to the current project.
 
@@ -207,6 +209,7 @@ def add(
         force,
         yes,
         no_workspace,
+        no_commit,
         runtime_ctx=runtime_ctx,
     )
 

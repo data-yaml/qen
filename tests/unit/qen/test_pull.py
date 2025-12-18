@@ -268,7 +268,7 @@ class TestMetadataUpdates:
     """Tests for pyproject.toml metadata updates."""
 
     def test_update_pyproject_metadata_success(self, tmp_path: Path) -> None:
-        """Test successful metadata update."""
+        """Test successful metadata update - only writes persistent fields."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             """
@@ -287,17 +287,22 @@ path = "repos/main/repo1"
             "https://github.com/org/repo1",
             "main",
             {
-                "updated": "2025-12-05T15:00:00Z",
-                "pr": 123,
-                "pr_base": "develop",
+                "updated": "2025-12-05T15:00:00Z",  # Transient - not persisted
+                "pr": 123,  # Persistent
+                "pr_base": "develop",  # Persistent
+                "pr_status": "open",  # Transient - not persisted
+                "pr_checks": "passing",  # Transient - not persisted
             },
         )
 
         result = read_pyproject(tmp_path)
         repo = result["tool"]["qen"]["repos"][0]
-        assert repo["updated"] == "2025-12-05T15:00:00Z"
+        # Only persistent fields should be written
+        assert "updated" not in repo  # Transient field not persisted
         assert repo["pr"] == 123
         assert repo["pr_base"] == "develop"
+        assert "pr_status" not in repo  # Transient field not persisted
+        assert "pr_checks" not in repo  # Transient field not persisted
 
     def test_update_pyproject_metadata_repo_not_found(self, tmp_path: Path) -> None:
         """Test metadata update when repo not found."""
@@ -323,7 +328,7 @@ path = "repos/main/repo1"
             )
 
     def test_update_pyproject_metadata_preserves_other_fields(self, tmp_path: Path) -> None:
-        """Test that metadata update preserves other fields."""
+        """Test that metadata update preserves other fields and ignores transient fields."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             """
@@ -342,7 +347,10 @@ added = "2025-12-05T10:00:00Z"
             tmp_path,
             "https://github.com/org/repo1",
             "main",
-            {"updated": "2025-12-05T15:00:00Z"},
+            {
+                "updated": "2025-12-05T15:00:00Z",  # Transient - not persisted
+                "pr": 456,  # Persistent - should be written
+            },
         )
 
         result = read_pyproject(tmp_path)
@@ -351,7 +359,8 @@ added = "2025-12-05T10:00:00Z"
         assert repo["branch"] == "main"
         assert repo["path"] == "repos/main/repo1"
         assert repo["added"] == "2025-12-05T10:00:00Z"
-        assert repo["updated"] == "2025-12-05T15:00:00Z"
+        assert "updated" not in repo  # Transient field not persisted
+        assert repo["pr"] == 456  # Persistent field written
 
 
 # ==============================================================================
@@ -688,11 +697,11 @@ path = "repos/main/child_repo"
                 storage=test_storage,
             )
 
-        # Verify: Metadata was updated
+        # Verify: Only persistent metadata was written (not transient fields like 'updated')
         result = read_pyproject(project_dir)
         repo = result["tool"]["qen"]["repos"][0]
-        assert "updated" in repo
-        assert repo["branch"] == "main"
+        assert "updated" not in repo  # Transient field not persisted
+        assert repo["branch"] == "main"  # Persistent field written
 
     def test_pull_all_fetch_only(
         self,
@@ -766,10 +775,10 @@ path = "repos/main/child_repo"
                 storage=test_storage,
             )
 
-        # Should succeed without errors
+        # Should succeed without errors, no transient fields persisted
         result = read_pyproject(project_dir)
         repo = result["tool"]["qen"]["repos"][0]
-        assert "updated" in repo
+        assert "updated" not in repo  # Transient field not persisted
 
     def test_pull_all_multiple_repos(
         self,
@@ -884,9 +893,9 @@ path = "repos/main/child_repo2"
                 storage=test_storage,
             )
 
-        # Verify both repos updated
+        # Verify both repos updated (but no transient fields persisted)
         result = read_pyproject(project_dir)
         repos = result["tool"]["qen"]["repos"]
         assert len(repos) == 2
-        assert "updated" in repos[0]
-        assert "updated" in repos[1]
+        assert "updated" not in repos[0]  # Transient field not persisted
+        assert "updated" not in repos[1]  # Transient field not persisted

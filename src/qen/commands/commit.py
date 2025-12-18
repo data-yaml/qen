@@ -7,14 +7,14 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import click
 
-from ..config import QenConfig, QenConfigError
+from ..config import QenConfigError
+from ..context.runtime import RuntimeContext, RuntimeContextError
 from ..git_utils import GitError, run_git_command
-from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import PyProjectNotFoundError, load_repos_from_pyproject
+from .status import format_status_output, get_project_status
 
 
 class CommitError(Exception):
@@ -257,7 +257,7 @@ def show_changes_summary(repo_path: Path, verbose: bool = False) -> None:
 
     Args:
         repo_path: Path to repository
-        verbose: If True, show file list
+        verbose: If True, show all files (no limit)
     """
     try:
         status = run_git_command(["status", "--short"], cwd=repo_path)
@@ -267,26 +267,80 @@ def show_changes_summary(repo_path: Path, verbose: bool = False) -> None:
             click.echo("   No changes")
             return
 
-        modified, staged, untracked = count_files_changed(repo_path)
-
-        parts = []
-        if modified > 0:
-            parts.append(f"{modified} modified")
-        if staged > 0:
-            parts.append(f"{staged} staged")
-        if untracked > 0:
-            parts.append(f"{untracked} untracked")
-
-        click.echo(f"   {len(lines)} files changed: {', '.join(parts)}")
-
+        # Always show files (not just in verbose mode)
+        click.echo("   Files:")
         if verbose:
-            for line in lines[:10]:  # Show first 10 files
+            # Verbose mode: show all files
+            for line in lines:
+                click.echo(f"     {line}")
+        else:
+            # Normal mode: show up to 10 files
+            for line in lines[:10]:
                 click.echo(f"     {line}")
             if len(lines) > 10:
                 click.echo(f"     ... and {len(lines) - 10} more")
 
     except GitError:
         click.echo("   (Cannot determine changes)")
+
+
+def prompt_for_commit(
+    repo_name: str,
+    repo_path: Path,
+    default_message: str | None = None,
+    verbose: bool = False,
+) -> tuple[bool, str | None]:
+    """Prompt user whether to commit a repository.
+
+    Args:
+        repo_name: Display name for the repository
+        repo_path: Path to repository
+        default_message: Default commit message
+        verbose: If True, show detailed output
+
+    Returns:
+        Tuple of (should_commit, commit_message)
+        - should_commit: True if user wants to commit
+        - commit_message: The commit message, or None if skipped
+    """
+    # Show changes
+    show_changes_summary(repo_path, verbose=verbose)
+
+    # Prompt user
+    click.echo("\n   Options: [Y]es  [n]o  [e]dit message  [s]how diff")
+    choice = input(f"   Commit {repo_name}? [Y/n/e/s] ").strip().lower()
+
+    if choice == "n":
+        return (False, None)
+
+    if choice == "s":
+        # Show detailed diff
+        try:
+            diff = run_git_command(["diff", "HEAD"], cwd=repo_path)
+            click.echo("\n" + diff)
+        except GitError:
+            click.echo("   (Cannot show diff)")
+
+        choice = input(f"\n   Commit {repo_name}? [Y/n/e] ").strip().lower()
+        if choice == "n":
+            return (False, None)
+
+    # Get commit message
+    if choice == "e":
+        message = get_message_from_editor(default_message)
+    elif default_message:
+        use_default = input("   Use default message? [Y/n] ").strip().lower()
+        if use_default != "n":
+            message = default_message
+        else:
+            message = input("   Commit message: ").strip()
+    else:
+        message = input("   Commit message: ").strip()
+
+    if not message:
+        return (False, None)
+
+    return (True, message)
 
 
 def get_message_from_editor(default: str | None = None) -> str:
@@ -325,37 +379,45 @@ def get_message_from_editor(default: str | None = None) -> str:
 
 
 def commit_interactive(
+    ctx: RuntimeContext,
     project_name: str,
-    config: QenConfig,
     default_message: str | None = None,
     amend: bool = False,
     no_add: bool = False,
     verbose: bool = False,
-    config_overrides: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Commit repositories interactively.
 
     Args:
+        ctx: RuntimeContext with config access
         project_name: Name of project
-        config: QenConfig instance
         default_message: Default commit message
         amend: If True, amend previous commits
         no_add: If True, don't auto-stage changes
         verbose: If True, show detailed output
-        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Returns:
         Dictionary with summary counts
     """
-    # Load project configuration
+    # Load project configuration using RuntimeContext
     try:
-        main_config = config.read_main_config()
-        project_config = config.read_project_config(project_name)
-        meta_path = Path(main_config["meta_path"])
-    except QenConfigError as e:
-        raise CommitError(f"Failed to load configuration: {e}") from e
+        config_service = ctx.config_service
+        project_config = config_service.read_project_config(project_name)
 
-    project_dir = meta_path / project_config["folder"]
+        # Check for per-project meta repo field
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{project_name}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {project_name}",
+                err=True,
+            )
+            raise click.Abort()
+
+        per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
+    except (QenConfigError, RuntimeContextError) as e:
+        raise CommitError(f"Failed to load configuration: {e}") from e
 
     # Load repositories
     try:
@@ -365,6 +427,9 @@ def commit_interactive(
 
     results: list[tuple[str, CommitResult]] = []
 
+    # Check if meta repository has changes
+    meta_has_changes = has_uncommitted_changes(per_project_meta)
+
     # Check if any repositories have changes before starting interactive mode
     repos_with_changes = []
     for repo_config in repos:
@@ -372,12 +437,54 @@ def commit_interactive(
         if has_uncommitted_changes(repo_path):
             repos_with_changes.append(repo_config)
 
-    if not repos_with_changes:
+    if not meta_has_changes and not repos_with_changes:
         click.echo(f"Project: {project_name}")
         click.echo("\nNo repositories have uncommitted changes.")
-        return {"committed": 0, "clean": len(repos), "skipped": 0, "failed": 0, "total_files": 0}
+        return {
+            "committed": 0,
+            "clean": len(repos) + 1,
+            "skipped": 0,
+            "failed": 0,
+            "total_files": 0,
+        }
 
     click.echo(f"Committing project: {project_name} (interactive mode)\n")
+
+    # Handle meta repository first if it has changes
+    if meta_has_changes:
+        click.echo("\n📦 Meta Repository (per-project meta)")
+
+        # Prompt for commit
+        should_commit, message = prompt_for_commit(
+            "meta repository", per_project_meta, default_message, verbose
+        )
+
+        if should_commit and message:
+            # Commit meta repo
+            result = commit_repo(
+                per_project_meta, message, amend=amend, no_add=no_add, verbose=verbose
+            )
+
+            if result.success:
+                click.echo(f'   ✓ Committed: "{message}"')
+            else:
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append(("Meta Repository", result))
+        else:
+            click.echo("   Skipped")
+            results.append(
+                (
+                    "Meta Repository",
+                    CommitResult(
+                        success=False if message is None and should_commit else True,
+                        files_changed=0,
+                        message="",
+                        error_message="No message provided" if should_commit else None,
+                        skipped=not should_commit,
+                    ),
+                )
+            )
 
     for repo_config in repos_with_changes:
         repo_path = project_dir / repo_config.path
@@ -385,93 +492,59 @@ def commit_interactive(
 
         click.echo(f"\n📦 {repo_name} ({repo_config.branch})")
 
-        # Show changes
-        show_changes_summary(repo_path, verbose=verbose)
+        # Prompt for commit
+        should_commit, message = prompt_for_commit(
+            "this repository", repo_path, default_message, verbose
+        )
 
-        # Prompt user
-        choice = input("\n   Commit this repository? [Y/n/e/s] ").strip().lower()
+        if should_commit and message:
+            # Commit
+            result = commit_repo(repo_path, message, amend=amend, no_add=no_add, verbose=verbose)
 
-        if choice == "n":
+            if result.success:
+                click.echo(f'   ✓ Committed: "{message}"')
+            else:
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append((repo_name, result))
+        else:
             click.echo("   Skipped")
             results.append(
                 (
                     repo_name,
                     CommitResult(
-                        success=True,
+                        success=False if message is None and should_commit else True,
                         files_changed=0,
                         message="",
-                        skipped=True,
+                        error_message="No message provided" if should_commit else None,
+                        skipped=not should_commit,
                     ),
                 )
             )
-            continue
-
-        if choice == "s":
-            # Show detailed diff
-            try:
-                diff = run_git_command(["diff", "HEAD"], cwd=repo_path)
-                click.echo("\n" + diff)
-            except GitError:
-                click.echo("   (Cannot show diff)")
-
-            choice = input("\n   Commit this repository? [Y/n/e] ").strip().lower()
-            if choice == "n":
-                click.echo("   Skipped")
-                results.append(
-                    (
-                        repo_name,
-                        CommitResult(
-                            success=True,
-                            files_changed=0,
-                            message="",
-                            skipped=True,
-                        ),
-                    )
-                )
-                continue
-
-        # Get commit message
-        if choice == "e":
-            message = get_message_from_editor(default_message)
-        elif default_message:
-            use_default = input("   Use default message? [Y/n] ").strip().lower()
-            if use_default != "n":
-                message = default_message
-            else:
-                message = input("   Commit message: ").strip()
-        else:
-            message = input("   Commit message: ").strip()
-
-        if not message:
-            click.echo("   ✗ No commit message provided. Skipped.")
-            results.append(
-                (
-                    repo_name,
-                    CommitResult(
-                        success=False,
-                        files_changed=0,
-                        message="",
-                        error_message="No message provided",
-                    ),
-                )
-            )
-            continue
-
-        # Commit
-        result = commit_repo(repo_path, message, amend=amend, no_add=no_add, verbose=verbose)
-
-        if result.success:
-            click.echo(f'   ✓ Committed: "{message}"')
-        else:
-            click.echo(f"   ✗ {result.error_message}")
-
-        results.append((repo_name, result))
 
     # Print summary
-    return print_commit_summary(results)
+    summary = print_commit_summary(results)
+
+    # Show final status of all repositories
+    try:
+        click.echo("\n" + "=" * 60)
+        click.echo("Final Status")
+        click.echo("=" * 60 + "\n")
+        project_status = get_project_status(
+            project_dir, per_project_meta, fetch=False, fetch_pr=False
+        )
+        status_output = format_status_output(
+            project_status, verbose=False, meta_only=False, repos_only=False
+        )
+        click.echo(status_output)
+    except Exception as e:
+        click.echo(f"Warning: Could not fetch final status: {e}")
+
+    return summary
 
 
 def commit_project(
+    ctx: RuntimeContext,
     project_name: str | None = None,
     message: str | None = None,
     interactive: bool = False,
@@ -481,11 +554,11 @@ def commit_project(
     specific_repo: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
-    config_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Commit all repositories in a project.
 
     Args:
+        ctx: RuntimeContext with config access
         project_name: Name of project (None = use current)
         message: Commit message
         interactive: If True, prompt for each repo
@@ -495,7 +568,6 @@ def commit_project(
         specific_repo: If set, only commit this repository
         dry_run: If True, show what would be committed
         verbose: If True, show detailed output
-        config_overrides: Dictionary of config overrides (config_dir, meta_path, current_project)
 
     Raises:
         click.ClickException: If commit fails
@@ -504,66 +576,58 @@ def commit_project(
     if not message and not interactive:
         interactive = True
 
-    # Load configuration (auto-initialize if needed)
-    overrides = config_overrides or {}
-    config = ensure_initialized(
-        config_dir=overrides.get("config_dir"),
-        meta_path_override=overrides.get("meta_path"),
-        current_project_override=overrides.get("current_project"),
-        verbose=False,
-    )
-
-    # Ensure correct project branch after initialization
-    ensure_correct_branch(config, verbose=False)
-
-    # Config is guaranteed to exist after ensure_initialized
-    main_config = config.read_main_config()
-
-    # Determine which project to use
-    if project_name:
-        target_project = project_name
-    else:
-        target_project_raw = main_config.get("current_project")
-        if not target_project_raw:
-            raise click.ClickException(
-                "No active project. Create a project with 'qen init <project-name>' first."
-            )
-        target_project = str(target_project_raw)
-
-    # Interactive mode
-    if interactive:
-        try:
-            summary = commit_interactive(
-                target_project,
-                config,
-                default_message=message,
-                amend=amend,
-                no_add=no_add,
-                verbose=verbose,
-                config_overrides=overrides,
-            )
-            click.echo("\nSummary:")
-            click.echo(f"  {summary['committed']} repositories committed")
-            if summary["skipped"] > 0:
-                click.echo(f"  {summary['skipped']} repositories skipped")
-            if summary["failed"] > 0:
-                click.echo(f"  {summary['failed']} repositories failed")
-            return
-        except CommitError as e:
-            raise click.ClickException(str(e)) from e
-
-    # Non-interactive mode
     try:
-        project_config = config.read_project_config(target_project)
-        meta_path = Path(main_config["meta_path"])
+        # Determine which project to use
+        if project_name:
+            target_project = project_name
+        else:
+            target_project = ctx.get_current_project()
+
+        # Interactive mode
+        if interactive:
+            try:
+                summary = commit_interactive(
+                    ctx,
+                    target_project,
+                    default_message=message,
+                    amend=amend,
+                    no_add=no_add,
+                    verbose=verbose,
+                )
+                click.echo("\nSummary:")
+                click.echo(f"  {summary['committed']} repositories committed")
+                if summary["skipped"] > 0:
+                    click.echo(f"  {summary['skipped']} repositories skipped")
+                if summary["failed"] > 0:
+                    click.echo(f"  {summary['failed']} repositories failed")
+                return
+            except CommitError as e:
+                raise click.ClickException(str(e)) from e
+
+        # Non-interactive mode - get project configuration
+        config_service = ctx.config_service
+        project_config = config_service.read_project_config(target_project)
+
+        # Check for per-project meta repo field
+        if "repo" not in project_config:
+            click.echo(
+                f"Error: Project '{target_project}' uses old configuration format.\n"
+                f"This version requires per-project meta clones.\n"
+                f"To migrate: qen init --force {target_project}",
+                err=True,
+            )
+            raise click.Abort()
+
+        per_project_meta = Path(project_config["repo"])
+        project_dir = per_project_meta / project_config["folder"]
+
+        # Load repositories
+        repos = load_repos_from_pyproject(project_dir)
+
+    except RuntimeContextError as e:
+        raise click.ClickException(str(e)) from e
     except QenConfigError as e:
         raise click.ClickException(f"Failed to load project configuration: {e}") from e
-
-    project_dir = meta_path / project_config["folder"]
-
-    # Load repositories
-    try:
-        repos = load_repos_from_pyproject(project_dir)
     except (PyProjectNotFoundError, Exception) as e:
         raise click.ClickException(f"Failed to load repositories: {e}") from e
 
@@ -571,6 +635,61 @@ def commit_project(
 
     prefix = "[DRY RUN] " if dry_run else ""
     click.echo(f"{prefix}Committing project: {target_project}\n")
+
+    # Handle meta repository first if it has changes
+    if has_uncommitted_changes(per_project_meta):
+        click.echo("📦 Meta Repository (per-project meta)")
+
+        if dry_run:
+            # Show what would be committed
+            show_changes_summary(per_project_meta, verbose=verbose)
+            click.echo(f'   Would commit: "{message}"')
+            modified, staged, untracked = count_files_changed(per_project_meta)
+            results.append(
+                (
+                    "Meta Repository",
+                    CommitResult(
+                        success=True,
+                        files_changed=modified + staged + untracked,
+                        message=message or "",
+                    ),
+                )
+            )
+        else:
+            # Actually commit
+            result = commit_repo(
+                per_project_meta,
+                message or "",
+                amend=amend,
+                no_add=no_add,
+                allow_empty=allow_empty,
+                verbose=verbose,
+            )
+
+            if result.success and not result.no_changes:
+                show_changes_summary(per_project_meta, verbose=verbose)
+                click.echo(f'   ✓ Committed: "{message}"')
+            elif result.no_changes:
+                click.echo("   • No changes to commit (clean)")
+            else:
+                click.echo(f"   ✗ {result.error_message}")
+
+            results.append(("Meta Repository", result))
+    else:
+        # Meta repo is clean
+        click.echo("📦 Meta Repository (per-project meta)")
+        click.echo("   • No changes to commit (clean)")
+        results.append(
+            (
+                "Meta Repository",
+                CommitResult(
+                    success=True,
+                    files_changed=0,
+                    message="",
+                    no_changes=True,
+                ),
+            )
+        )
 
     for repo_config in repos:
         repo_path = project_dir / repo_config.path
@@ -636,6 +755,21 @@ def commit_project(
 
     # Print summary
     summary = print_commit_summary(results, dry_run=dry_run)
+
+    # Show final status of all repositories
+    try:
+        click.echo("\n" + "=" * 60)
+        click.echo("Final Status")
+        click.echo("=" * 60 + "\n")
+        project_status = get_project_status(
+            project_dir, per_project_meta, fetch=False, fetch_pr=False
+        )
+        status_output = format_status_output(
+            project_status, verbose=False, meta_only=False, repos_only=False
+        )
+        click.echo(status_output)
+    except Exception as e:
+        click.echo(f"Warning: Could not fetch final status: {e}")
 
     if summary["failed"] > 0:
         sys.exit(1)
@@ -737,9 +871,14 @@ def commit_command(
         # Show what would be committed
         $ qen commit -m "Test" --dry-run
     """
+    # Get RuntimeContext from Click context
+    runtime_ctx = ctx.obj.get("runtime_context")
+    if not runtime_ctx:
+        raise click.ClickException("RuntimeContext not available. This is a bug.")
+
     try:
-        overrides = ctx.obj.get("config_overrides", {})
         commit_project(
+            ctx=runtime_ctx,
             project_name=project,
             message=message,
             interactive=interactive,
@@ -749,7 +888,6 @@ def commit_command(
             specific_repo=repo,
             dry_run=dry_run,
             verbose=verbose,
-            config_overrides=overrides,
         )
     except click.ClickException:
         raise

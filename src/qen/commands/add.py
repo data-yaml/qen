@@ -14,7 +14,7 @@ import click
 
 from ..config import QenConfigError
 from ..context.runtime import RuntimeContext
-from ..git_utils import GitError, get_current_branch
+from ..git_utils import GitError, get_current_branch, get_default_branch
 from ..init_utils import ensure_correct_branch, ensure_initialized
 from ..pyproject_utils import (
     PyProjectNotFoundError,
@@ -87,6 +87,7 @@ def add_repository(
     force: bool = False,
     yes: bool = False,
     no_workspace: bool = False,
+    no_commit: bool = False,
     runtime_ctx: RuntimeContext | None = None,
     # Legacy parameters for backward compatibility with tests
     config_dir: Path | str | None = None,
@@ -104,6 +105,7 @@ def add_repository(
         force: Force re-add even if repository exists (removes and re-clones)
         yes: Auto-confirm prompts (create local branch without asking)
         no_workspace: Skip automatic workspace file regeneration
+        no_commit: Skip automatic git commit
         runtime_ctx: Runtime context with CLI overrides (preferred, for production use)
         config_dir: [DEPRECATED] Override config directory (for testing, use runtime_ctx instead)
         storage: [DEPRECATED] Override storage backend (for testing)
@@ -217,51 +219,110 @@ def add_repository(
         click.echo(f"Path: {path}")
 
     # 7. Check if repository already exists in pyproject.toml
-    # With --yes, automatically enable force-like cleanup behavior
     try:
-        if repo_exists_in_pyproject(project_dir, url, branch):
-            if not force and not yes:
-                # Existing behavior - block and abort
-                click.echo(
-                    f"Error: Repository already exists in project: {url} (branch: {branch})",
-                    err=True,
-                )
-                raise click.Abort()
-            else:
-                # Remove existing entry and re-add (with --force or --yes)
+        repo_in_config = repo_exists_in_pyproject(project_dir, url, branch)
+        if repo_in_config:
+            if force:
+                # With --force, remove and re-add without asking
                 if verbose:
-                    flag = "--force" if force else "--yes"
-                    click.echo(f"Repository exists. Removing and re-adding with {flag}...")
+                    click.echo("Repository exists. Removing and re-adding with --force...")
                 remove_existing_repo(project_dir, url, branch, verbose)
+            elif yes:
+                # With --yes, remove and re-add without asking
+                if verbose:
+                    click.echo("Repository exists. Removing and re-adding with --yes...")
+                remove_existing_repo(project_dir, url, branch, verbose)
+            else:
+                # No flags - prompt user
+                click.echo("\nRepository already exists in project:")
+                click.echo(f"  URL: {url}")
+                click.echo(f"  Branch: {branch}")
+                click.echo("\nOptions:")
+                click.echo("  [y] Remove and re-add (re-clone from scratch)")
+                click.echo("  [n] Reuse (pull to update) - default")
+                if click.confirm("\nRemove and re-add?", default=False):
+                    if verbose:
+                        click.echo("Removing existing repository...")
+                    remove_existing_repo(project_dir, url, branch, verbose)
+                else:
+                    click.echo("Reusing existing entry, will update metadata")
+                    # Don't abort - continue to update metadata
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
         raise click.Abort() from e
 
-    # 8. Clone the repository
+    # 8. Clone the repository (or prompt if it exists)
     clone_path = project_dir / path
+    skip_clone = False
 
-    if verbose:
-        click.echo(f"Cloning to: {clone_path}")
+    if clone_path.exists():
+        # Check if it's a valid git repository
+        from ..git_utils import is_git_repo
 
-    # With --force or --yes, ensure clean slate by removing any existing directory
-    # This handles cases where directory exists but isn't in config
-    if (force or yes) and clone_path.exists():
+        if not is_git_repo(clone_path):
+            # Directory exists but is not a git repo - this is an error state
+            click.echo(
+                f"Error: Directory exists but is not a git repository: {clone_path}", err=True
+            )
+            click.echo("Options:", err=True)
+            click.echo("  1. Remove the directory manually and try again", err=True)
+            click.echo("  2. Use --force to automatically remove and re-clone", err=True)
+            raise click.Abort()
+
+        # Valid git repo exists on disk
+        if force:
+            # With --force, remove and re-clone without asking
+            if verbose:
+                click.echo(f"Removing existing clone directory at {clone_path}")
+            shutil.rmtree(clone_path)
+        elif yes:
+            # With --yes, skip cloning and just update metadata
+            if verbose:
+                click.echo(f"Clone already exists at {clone_path}, skipping clone")
+            click.echo(f"Repository already exists at {clone_path}")
+            click.echo("Skipping clone, will update metadata only")
+            skip_clone = True
+        else:
+            # Prompt user for action
+            click.echo(f"\nRepository already exists at {clone_path}")
+            click.echo("Options:")
+            click.echo("  [y] Remove and re-clone from scratch")
+            click.echo("  [n] Reuse existing clone and pull latest (default)")
+            if click.confirm("\nRemove and re-clone?", default=False):
+                if verbose:
+                    click.echo(f"Removing existing clone directory at {clone_path}")
+                shutil.rmtree(clone_path)
+            else:
+                click.echo("Reusing existing clone, will pull latest and update metadata")
+                skip_clone = True
+
+    if not skip_clone:
         if verbose:
-            click.echo(f"Removing existing clone directory at {clone_path}")
-        shutil.rmtree(clone_path)
+            click.echo(f"Cloning to: {clone_path}")
 
+        try:
+            clone_repository(url, clone_path, branch, verbose, yes=yes)
+        except GitError as e:
+            click.echo(f"Error cloning repository: {e}", err=True)
+            raise click.Abort() from e
+
+    # 9. Detect default branch from the cloned repository
     try:
-        clone_repository(url, clone_path, branch, verbose, yes=yes)
-    except GitError as e:
-        click.echo(f"Error cloning repository: {e}", err=True)
-        raise click.Abort() from e
+        default_branch = get_default_branch(clone_path)
+        if verbose:
+            click.echo(f"Detected default branch: {default_branch}")
+    except GitError:
+        # Fall back to 'main' if detection fails
+        default_branch = "main"
+        if verbose:
+            click.echo("Could not detect default branch, using 'main'")
 
-    # 9. Add initial metadata to pyproject.toml
+    # 10. Add initial metadata to pyproject.toml
     if verbose:
         click.echo("Adding initial metadata to pyproject.toml...")
 
     try:
-        add_repo_to_pyproject(project_dir, url, branch, path)
+        add_repo_to_pyproject(project_dir, url, branch, path, default_branch)
     except PyProjectNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
         # Clean up the cloned repository
@@ -275,7 +336,7 @@ def add_repository(
             shutil.rmtree(clone_path)
         raise click.Abort() from e
 
-    # 10. Initialize metadata and detect PR/issue associations via pull
+    # 11. Initialize metadata and detect PR/issue associations via pull
     if verbose:
         click.echo("Initializing repository metadata...")
 
@@ -304,21 +365,46 @@ def add_repository(
             raise ValueError(f"Repository entry not found after add: {url}")
 
         # Call pull_repository to update metadata and detect PR/issue info
+        # save_metadata=True by default, so metadata is automatically saved
         gh_available = check_gh_installed()
-        pull_repository(
+        result = pull_repository(
             repo_entry=repo_entry,
             project_dir=project_dir,
             fetch_only=False,
             gh_available=gh_available,
             verbose=verbose,
+            save_metadata=True,  # Auto-save metadata to pyproject.toml
         )
+
+        # Check pull result
+        if not result["success"]:
+            # Pull failed - this is a critical error
+            error_msg = result.get("message", "Unknown error")
+            click.echo(f"Error: Failed to pull repository: {error_msg}", err=True)
+            click.echo(
+                "The repository was added to pyproject.toml but could not be synchronized.",
+                err=True,
+            )
+            raise click.Abort()
+
+        # Check for metadata save errors (non-fatal)
+        if result.get("metadata_save_error"):
+            click.echo(
+                f"Warning: Metadata collected but not saved: {result['metadata_save_error']}",
+                err=True,
+            )
+        elif verbose:
+            click.echo("Repository metadata initialized and saved successfully")
+    except click.Abort:
+        # Re-raise Abort to exit cleanly
+        raise
     except Exception as e:
-        # Non-fatal: repository is added but metadata might be incomplete
+        # Other errors are non-fatal: repository is added but metadata might be incomplete
         click.echo(f"Warning: Could not initialize metadata: {e}", err=True)
         if verbose:
             click.echo("Repository was added successfully but metadata may be incomplete.")
 
-    # 11. Regenerate workspace files (unless --no-workspace)
+    # 12. Regenerate workspace files (unless --no-workspace)
     if not no_workspace:
         if verbose:
             click.echo("\nRegenerating workspace files...")
@@ -346,17 +432,64 @@ def add_repository(
             if verbose:
                 click.echo("You can manually regenerate with: qen workspace")
 
-    # 12. Success message
+    # 13. Auto-commit (unless --no-commit)
+    if not no_commit:
+        if verbose:
+            click.echo("\nCommitting changes...")
+        try:
+            import subprocess
+
+            # Stage pyproject.toml
+            subprocess.run(
+                ["git", "add", "pyproject.toml"],
+                cwd=per_project_meta,
+                check=True,
+                capture_output=True,
+            )
+
+            # Stage workspace files if they were generated
+            if not no_workspace:
+                subprocess.run(
+                    ["git", "add", "*.code-workspace", "*.sublime-project"],
+                    cwd=project_dir,
+                    check=False,  # Don't fail if no workspace files exist
+                    capture_output=True,
+                )
+
+            # Commit
+            commit_msg = f"Add {repo_name} (branch: {branch})"
+            subprocess.run(
+                ["git", "commit", "-m", commit_msg],
+                cwd=per_project_meta,
+                check=True,
+                capture_output=True,
+            )
+
+            if verbose:
+                click.echo(f"Committed: {commit_msg}")
+        except subprocess.CalledProcessError as e:
+            # Non-fatal: commit failed but repo was added
+            click.echo(f"Warning: Could not auto-commit: {e}", err=True)
+            if verbose:
+                click.echo(
+                    f"You can manually commit with: git add pyproject.toml && "
+                    f"git commit -m 'Add {repo_name} (branch: {branch})'"
+                )
+
+    # 14. Success message
     click.echo()
     click.echo(f"✓ Added repository: {url}")
     click.echo(f"  Branch: {branch}")
     click.echo(f"  Path: {clone_path}")
     if not no_workspace:
         click.echo("  Workspace files: updated")
-    click.echo()
-    click.echo("Next steps:")
-    click.echo("  - Review the cloned repository")
-    click.echo(
-        f"  - Commit changes: git add pyproject.toml && "
-        f"git commit -m 'Add {repo_name} (branch: {branch})'"
-    )
+    if not no_commit:
+        click.echo("  Changes: committed")
+    else:
+        click.echo()
+        click.echo("Next steps:")
+        click.echo("  - Review the cloned repository")
+        click.echo(
+            f"  - Commit changes: git add pyproject.toml && "
+            f"git commit -m 'Add {repo_name} (branch: {branch})'"
+        )

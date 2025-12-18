@@ -37,6 +37,7 @@ def prepare_shell_context(
     yes: bool,
     verbose: bool,
     config_overrides: dict[str, Any] | None,
+    is_interactive: bool = False,
 ) -> ShellContext:
     """Prepare context for shell execution.
 
@@ -49,6 +50,7 @@ def prepare_shell_context(
         yes: Skip confirmation prompt
         verbose: Show additional context information
         config_overrides: Configuration overrides from CLI
+        is_interactive: Whether this is for interactive shell (skip prompt if True)
 
     Returns:
         ShellContext with validated paths and config
@@ -126,8 +128,10 @@ def prepare_shell_context(
         click.echo(f"Target directory: {target_dir}")
         click.echo("")
 
-    # Confirmation prompt (unless --yes)
-    if not yes:
+    # Confirmation prompt (unless --yes or interactive shell)
+    # Interactive shell is safe - user can explore and see where they are
+    # One-off commands should prompt - they execute immediately
+    if not yes and not is_interactive:
         click.echo(f"Project: {target_project}")
         click.echo(f"Target directory: {target_dir}")
         if not click.confirm("Run command in this directory?", default=True):
@@ -171,6 +175,7 @@ def execute_shell_command(
         yes=yes,
         verbose=verbose,
         config_overrides=config_overrides,
+        is_interactive=False,  # Command execution requires confirmation
     )
 
     # Show command if verbose
@@ -288,6 +293,7 @@ def open_interactive_shell(
         yes=yes,
         verbose=verbose,
         config_overrides=config_overrides,
+        is_interactive=True,  # Interactive shell doesn't need confirmation
     )
 
     # Detect shell

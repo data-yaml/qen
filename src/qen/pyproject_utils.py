@@ -30,6 +30,7 @@ class RepoConfig:
     url: str
     branch: str
     path: str
+    default_branch: str = "main"  # Default branch of the remote repository
 
     def local_path(self, project_dir: Path) -> Path:
         """Get absolute path to repository.
@@ -109,12 +110,13 @@ def load_repos_from_pyproject(project_dir: Path) -> list[RepoConfig]:
         url = repo.get("url")
         branch = repo.get("branch", "main")
         path = repo.get("path")
+        default_branch = repo.get("default_branch", "main")
 
         if not url or not path:
             # Skip invalid entries
             continue
 
-        repos.append(RepoConfig(url=url, branch=branch, path=path))
+        repos.append(RepoConfig(url=url, branch=branch, path=path, default_branch=default_branch))
 
     return repos
 
@@ -160,7 +162,9 @@ def repo_exists_in_pyproject(project_dir: Path, url: str, branch: str) -> bool:
     return False
 
 
-def add_repo_to_pyproject(project_dir: Path, url: str, branch: str, path: str) -> None:
+def add_repo_to_pyproject(
+    project_dir: Path, url: str, branch: str, path: str, default_branch: str = "main"
+) -> None:
     """Add a repository entry to pyproject.toml.
 
     Updates the [[tool.qen.repos]] section with a new repository.
@@ -171,6 +175,7 @@ def add_repo_to_pyproject(project_dir: Path, url: str, branch: str, path: str) -
         url: Repository URL
         branch: Branch to track
         path: Local path for the repository (relative to project dir)
+        default_branch: Default branch of the remote repository
 
     Raises:
         PyProjectNotFoundError: If pyproject.toml does not exist
@@ -205,6 +210,7 @@ def add_repo_to_pyproject(project_dir: Path, url: str, branch: str, path: str) -
         "url": url,
         "branch": branch,
         "path": path,
+        "default_branch": default_branch,
     }
     config["tool"]["qen"]["repos"].append(repo_entry)
 

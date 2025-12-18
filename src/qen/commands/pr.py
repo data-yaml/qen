@@ -55,6 +55,7 @@ class PrInfo:
     repo_url: str
     branch: str
     has_pr: bool
+    default_branch: str = "main"  # Default branch of the repository
     pr_number: int | None = None
     pr_title: str | None = None
     pr_state: str | None = None
@@ -643,6 +644,7 @@ def get_all_pr_infos(
         url = repo_entry.get("url", "")
         branch = repo_entry.get("branch", "main")
         path = repo_entry.get("path", "")
+        default_branch = repo_entry.get("default_branch", "main")
 
         # Construct full path to repository
         repo_path = project_dir / path
@@ -653,11 +655,14 @@ def get_all_pr_infos(
                 repo_path=str(Path(path).name),
                 repo_url=url,
                 branch=branch,
+                default_branch=default_branch,
                 has_pr=False,
                 error="Repository not found on disk",
             )
         else:
             pr_info = get_pr_info_for_branch(repo_path, branch, url)
+            # Add default_branch to the retrieved pr_info
+            pr_info.default_branch = default_branch
 
         pr_infos.append(pr_info)
 

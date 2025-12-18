@@ -94,7 +94,144 @@ All fixtures in `tests/conftest.py`:
 
 ## Test Scenarios
 
-### 1. PR with Passing Checks
+### Core Functionality Tests (REQUIRED)
+
+**These tests MUST exist for core commands that manipulate project state:**
+
+#### 1. Status Command
+
+Tests that `qen status` correctly displays project state.
+
+**Test:** `tests/integration/test_status.py`
+
+```python
+@pytest.mark.integration
+def test_status_command(temp_config_dir, real_test_repo):
+    """Verify status command displays correct project state."""
+    # Create project
+    subprocess.run(["./qen", "--config-dir", temp_config_dir, "init", "test-proj"], check=True)
+
+    # Add repo
+    subprocess.run(["./qen", "--config-dir", temp_config_dir, "add", real_test_repo], check=True)
+
+    # Run status
+    result = subprocess.run(
+        ["./qen", "--config-dir", temp_config_dir, "status"],
+        capture_output=True, text=True, check=True
+    )
+
+    assert "test-proj" in result.stdout
+    assert real_test_repo in result.stdout
+```
+
+#### 2. Commit Command
+
+Tests that `qen commit` correctly commits changes across repositories.
+
+**Test:** `tests/integration/test_commit.py`
+
+```python
+@pytest.mark.integration
+def test_commit_command(temp_config_dir, real_test_repo):
+    """Verify commit command commits changes across repos."""
+    # Setup project
+    subprocess.run(["./qen", "--config-dir", temp_config_dir, "init", "test-proj"], check=True)
+
+    # Get project paths
+    project_config = load_project_config(temp_config_dir, "test-proj")
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
+
+    # Create test file
+    test_file = project_dir / "test.txt"
+    test_file.write_text("test content")
+
+    # Commit should work
+    result = subprocess.run(
+        ["./qen", "--config-dir", temp_config_dir, "commit", "-m", "test commit"],
+        capture_output=True, text=True, check=True
+    )
+
+    assert "committed" in result.stdout.lower() or "clean" in result.stdout.lower()
+```
+
+#### 3. Add Command
+
+Tests that `qen add` correctly clones and registers repositories.
+
+**Test:** `tests/integration/test_add.py`
+
+```python
+@pytest.mark.integration
+def test_add_command(temp_config_dir, real_test_repo):
+    """Verify add command clones and registers repos."""
+    # Setup project
+    subprocess.run(["./qen", "--config-dir", temp_config_dir, "init", "test-proj"], check=True)
+
+    # Add repo
+    result = subprocess.run(
+        ["./qen", "--config-dir", temp_config_dir, "add", real_test_repo],
+        capture_output=True, text=True, check=True
+    )
+
+    # Verify repo was added
+    project_config = load_project_config(temp_config_dir, "test-proj")
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
+
+    # Check pyproject.toml
+    pyproject_path = project_dir / "pyproject.toml"
+    assert pyproject_path.exists()
+
+    pyproject = tomli.loads(pyproject_path.read_text())
+    assert "tool" in pyproject
+    assert "qen" in pyproject["tool"]
+    assert "repos" in pyproject["tool"]["qen"]
+    assert len(pyproject["tool"]["qen"]["repos"]) == 1
+```
+
+#### 4. Status-Commit Consistency
+
+Tests that status and commit see the same project directory.
+
+**Test:** `tests/integration/test_consistency.py`
+
+```python
+@pytest.mark.integration
+def test_status_commit_consistency(temp_config_dir, real_test_repo):
+    """Verify status and commit use same project paths."""
+    # Setup
+    subprocess.run(["./qen", "--config-dir", temp_config_dir, "init", "test-proj"], check=True)
+
+    # Status should work
+    result = subprocess.run(
+        ["./qen", "--config-dir", temp_config_dir, "status"],
+        capture_output=True, text=True, check=True
+    )
+    status_output = result.stdout
+
+    # Get project dir from config
+    project_config = load_project_config(temp_config_dir, "test-proj")
+    per_project_meta = Path(project_config["repo"])
+    project_dir = per_project_meta / project_config["folder"]
+
+    # Create test file
+    (project_dir / "test.txt").write_text("test")
+
+    # Commit should see same directory
+    result = subprocess.run(
+        ["./qen", "--config-dir", temp_config_dir, "commit", "-m", "test"],
+        capture_output=True, text=True, check=True
+    )
+
+    # Both should reference same project
+    assert "test-proj" in status_output
+    assert "test-proj" in result.stdout or "Meta Repository" in result.stdout
+```
+
+### GitHub API Integration Tests
+
+#### 5. PR with Passing Checks
 
 ```python
 @pytest.mark.integration
@@ -110,15 +247,15 @@ def test_pr_with_passing_checks(real_test_repo, unique_prefix, cleanup_branches)
     assert checks passed
 ```
 
-### 2. PR with Failing Checks
+#### 6. PR with Failing Checks
 
 Branch name contains "-failing-" to trigger `always-fail.yml` workflow.
 
-### 3. Stacked PRs
+#### 7. Stacked PRs
 
 Creates real PR stack: main → A → B → C
 
-### 4. Slow Check Progress
+#### 8. Slow Check Progress
 
 Tests handling of in-progress checks during `slow-check.yml` execution.
 
@@ -209,6 +346,21 @@ The following mock infrastructure has been **DELETED**:
 - Unit tests < 10 minutes
 - Integration tests ~10-15 seconds (using standard PRs)
 - Standard PR availability > 99%
+
+**Required Test Coverage:**
+
+Core functionality tests MUST exist for:
+
+- ✅ `status` - Project state display
+- ✅ `commit` - Change committing
+- ✅ `add` - Repository registration
+- ✅ Cross-command consistency (status/commit use same paths)
+
+GitHub API integration tests:
+
+- ✅ PR status checks (passing/failing)
+- ✅ Stacked PRs
+- ✅ Slow check progress
 
 ## Related Documentation
 
