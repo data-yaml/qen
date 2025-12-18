@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-12-18
+
 ### Added
 
 - **Default branch tracking**: `qen add` now auto-detects each repository's default branch (main/master/etc.) and stores it in `default_branch` field
@@ -20,10 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Interactive shell UX**: `qen sh` (naked command) no longer shows confirmation prompt - opens interactive subshell immediately
 - **Commit prompt clarity**: Added clear option explanations `[Y]es [n]o [e]dit message [s]how diff` to commit prompts
 - **PR commands use repo defaults**: PR creation now uses each repository's stored `default_branch` instead of hardcoding "main"
+- **BREAKING**: `qen pull` now only persists stable metadata to pyproject.toml (branch, pr, pr_base, issue) - transient fields (updated, pr_status, pr_checks) are displayed but not written to reduce git noise
 
 ### Fixed
 
-- **BREAKING**: `qen pull` now only persists stable metadata to pyproject.toml (branch, pr, pr_base, issue) - transient fields (updated, pr_status, pr_checks) are displayed but not written to reduce git noise
 - **Command initialization**: Refactored `qen commit` to use RuntimeContext pattern like other commands, fixing path resolution inconsistencies
 - **Meta repo visibility**: Fixed issue where `qen commit` reported "no changes" when only meta repo had uncommitted changes
 
@@ -187,7 +189,8 @@ Re-released 0.1.2 to fix CI.
 - GitHub Actions workflow with OIDC authentication
 - TestPyPI and PyPI publishing support
 
-[Unreleased]: https://github.com/data-yaml/qen/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/data-yaml/qen/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/data-yaml/qen/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/data-yaml/qen/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/data-yaml/qen/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/data-yaml/qen/compare/v0.2.1...v0.3.0

@@ -1,6 +1,6 @@
 [project]
 name = "qen"
-version = "0.4.2"
+version = "0.5.0"
 description = "A tiny, extensible tool for organizing multi-repository development work"
 readme = "README.md"
 requires-python = ">=3.12"
