@@ -287,6 +287,7 @@ def pull_repository(
     fetch_only: bool,
     gh_available: bool,
     verbose: bool,
+    save_metadata: bool = True,
 ) -> dict[str, Any]:
     """Pull or fetch a single repository and update metadata.
 
@@ -296,6 +297,7 @@ def pull_repository(
         fetch_only: If True, only fetch (don't merge)
         gh_available: Whether GitHub CLI is available
         verbose: Enable verbose output
+        save_metadata: If True, automatically save metadata to pyproject.toml (default: True)
 
     Returns:
         Dictionary with operation results and updated metadata
@@ -378,6 +380,21 @@ def pull_repository(
             if issue:
                 result["updated_metadata"]["issue"] = issue
 
+        # Save metadata to pyproject.toml if requested
+        if save_metadata and result.get("updated_metadata"):
+            try:
+                update_pyproject_metadata(
+                    project_dir,
+                    url,
+                    branch,
+                    result["updated_metadata"],
+                )
+            except PyProjectUpdateError as e:
+                # Non-fatal: metadata was collected but couldn't be saved
+                result["metadata_save_error"] = str(e)
+                if verbose:
+                    click.echo(f"Warning: Could not save metadata: {e}")
+
     return result
 
 
@@ -389,16 +406,35 @@ def update_pyproject_metadata(
 ) -> None:
     """Update repository metadata in pyproject.toml.
 
+    Only writes PERSISTENT fields to pyproject.toml:
+    - branch: Current branch being tracked
+    - pr: PR number (stable identifier)
+    - pr_base: PR base branch (relatively stable)
+    - issue: Issue number (stable identifier)
+
+    DOES NOT write TRANSIENT fields (displayed only, not persisted):
+    - updated: Timestamp changes every pull
+    - pr_status: Changes frequently (open/closed/merged)
+    - pr_checks: Changes with every CI run
+
     Args:
         project_dir: Path to project directory
         repo_url: Repository URL
         repo_branch: Repository branch
-        updated_metadata: Metadata fields to update
+        updated_metadata: Metadata fields to update (both persistent and transient)
 
     Raises:
         PyProjectUpdateError: If update fails
     """
     from qenvy.formats import TOMLHandler
+
+    # Define which fields should be persisted to pyproject.toml
+    PERSISTENT_FIELDS = {
+        "branch",  # Current branch being tracked
+        "pr",  # PR number (stable)
+        "pr_base",  # PR base branch (relatively stable)
+        "issue",  # Issue number (stable)
+    }
 
     pyproject_path = project_dir / "pyproject.toml"
 
@@ -419,18 +455,9 @@ def update_pyproject_metadata(
     for repo in repos:
         if isinstance(repo, dict):
             if repo.get("url") == repo_url and repo.get("branch") == repo_branch:
-                # Update metadata fields
+                # Only update PERSISTENT metadata fields
                 for key, value in updated_metadata.items():
-                    # Only update metadata fields (not core fields like url, path)
-                    if key in [
-                        "branch",
-                        "updated",
-                        "pr",
-                        "pr_base",
-                        "pr_status",
-                        "pr_checks",
-                        "issue",
-                    ]:
+                    if key in PERSISTENT_FIELDS:
                         repo[key] = value
                 found = True
                 break
@@ -621,24 +648,17 @@ def pull_all_repositories(
             fetch_only,
             gh_available,
             verbose,
+            save_metadata=True,  # Auto-save metadata (default behavior)
         )
         results.append(result)
 
         # Display result
         click.echo(format_repo_output(result))
 
-        # Update pyproject.toml if successful
-        if result["success"] and result.get("updated_metadata"):
-            try:
-                update_pyproject_metadata(
-                    project_dir,
-                    result["url"],
-                    result["branch"],
-                    result["updated_metadata"],
-                )
-            except PyProjectUpdateError as e:
-                if verbose:
-                    click.echo(f"   Warning: Failed to update metadata: {e}")
+        # Note: Metadata is now automatically saved by pull_repository()
+        # Check for save errors and display warning if needed
+        if result.get("metadata_save_error") and verbose:
+            click.echo(f"   Warning: Failed to save metadata: {result['metadata_save_error']}")
 
     # Display summary
     total = len(results)

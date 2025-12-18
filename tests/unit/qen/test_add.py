@@ -671,7 +671,7 @@ created = "2025-12-05T10:00:00Z"
         child_repo: Path,
         mocker,
     ) -> None:
-        """Test that adding duplicate repository fails."""
+        """Test that adding duplicate repository prompts and reuses when user declines re-add."""
         # Setup
         meta_repo = temp_git_repo
         meta_repo.rename(tmp_path / "meta")
@@ -681,8 +681,9 @@ created = "2025-12-05T10:00:00Z"
         mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
         mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
         mocker.patch("qen.git_utils.checkout_branch")
-        # Mock click.confirm to automatically proceed with branch switch if needed
-        mocker.patch("click.confirm", return_value=True)
+        # Mock click.confirm to return False for duplicate repo prompt (user declines)
+        # This will cause the add to abort
+        mocker.patch("click.confirm", return_value=False)
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -741,17 +742,22 @@ created = "2025-12-05T10:00:00Z"
             storage=test_storage,
         )
 
-        # Try to add same repository again - should fail
-        import click
+        # Try to add same repository again - should reuse (not abort)
+        # Mock pull_repository to avoid actual pull
+        mocker.patch(
+            "qen.commands.pull.pull_repository",
+            return_value={"success": True, "updated_metadata": {}},
+        )
 
-        with pytest.raises(click.exceptions.Abort):
-            add_repository(
-                repo=str(child_repo),
-                branch="main",
-                path=None,
-                verbose=False,
-                storage=test_storage,
-            )
+        # This should succeed (reuses existing entry)
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            storage=test_storage,
+            no_commit=True,  # Skip commit for test
+        )
 
     def test_add_same_repo_different_branches_integration(
         self,
@@ -771,8 +777,14 @@ created = "2025-12-05T10:00:00Z"
         mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-05-test-project")
         mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
         mocker.patch("qen.git_utils.checkout_branch")
-        # Mock click.confirm to automatically proceed with branch switch if needed
+
+        # Mock click.confirm to automatically proceed with any prompts
         mocker.patch("click.confirm", return_value=True)
+        # Mock pull_repository to avoid pulling non-existent branches
+        mocker.patch(
+            "qen.commands.pull.pull_repository",
+            return_value={"success": True, "updated_metadata": {}},
+        )
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -885,17 +897,8 @@ created = "2025-12-05T10:00:00Z"
         assert result["tool"]["qen"]["repos"][1]["branch"] == "feature-1"
         assert result["tool"]["qen"]["repos"][1]["path"] == "repos/feature-1/child_repo"
 
-        # Try to add main branch again - should fail
-        import click
-
-        with pytest.raises(click.exceptions.Abort):
-            add_repository(
-                repo=str(child_repo),
-                branch="main",
-                path=None,
-                verbose=False,
-                storage=test_storage,
-            )
+        # Note: Duplicate detection is tested in test_add_duplicate_repository_fails
+        # and test_add_duplicate_repository_fails_without_force
 
     def test_add_repository_uses_meta_branch_by_default(
         self,
@@ -1133,8 +1136,7 @@ class TestAddCommandForce:
         child_repo: Path,
         mocker,
     ) -> None:
-        """Test that adding duplicate repository fails WITHOUT --force flag."""
-        import click
+        """Test that adding duplicate repository prompts and reuses when user declines (no --force)."""
 
         # Setup: Create meta repo with project
         meta_repo = temp_git_repo
@@ -1145,8 +1147,13 @@ class TestAddCommandForce:
         mocker.patch("qen.git_utils.get_current_branch", return_value="2025-12-07-test-project")
         mocker.patch("qen.git_utils.has_uncommitted_changes", return_value=False)
         mocker.patch("qen.git_utils.checkout_branch")
-        # Mock click.confirm to automatically proceed with branch switch if needed
-        mocker.patch("click.confirm", return_value=True)
+        # Mock click.confirm to return False for duplicate repo prompt (user declines re-add)
+        mocker.patch("click.confirm", return_value=False)
+        # Mock pull_repository to avoid actual pull
+        mocker.patch(
+            "qen.commands.pull.pull_repository",
+            return_value={"success": True, "updated_metadata": {}},
+        )
 
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/testorg/meta"],
@@ -1206,16 +1213,16 @@ created = "2025-12-07T10:00:00Z"
             storage=test_storage,
         )
 
-        # Second add WITHOUT force - should fail
-        with pytest.raises(click.exceptions.Abort):
-            add_repository(
-                repo=str(child_repo),
-                branch="main",
-                path=None,
-                verbose=False,
-                force=False,
-                storage=test_storage,
-            )
+        # Second add WITHOUT force - should reuse (not abort)
+        add_repository(
+            repo=str(child_repo),
+            branch="main",
+            path=None,
+            verbose=False,
+            force=False,
+            storage=test_storage,
+            no_commit=True,  # Skip commit for test
+        )
 
     def test_add_duplicate_repository_with_force(
         self,

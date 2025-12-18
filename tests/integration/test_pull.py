@@ -6,7 +6,6 @@ This reduces test time from 68s to ~10s with NO loss of test quality.
 NO MOCKS ALLOWED. These tests still use the real GitHub API.
 """
 
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -18,7 +17,7 @@ from tests.conftest import (
     run_qen,
     verify_standard_pr_exists,
 )
-from tests.integration.constants import EXPECTED_CHECKS, STANDARD_BRANCHES, STANDARD_PRS
+from tests.integration.constants import STANDARD_BRANCHES, STANDARD_PRS
 from tests.integration.helpers import create_test_git_repo, create_test_project
 
 
@@ -117,16 +116,10 @@ def test_pull_updates_pr_metadata_standard(
         f"Expected path 'repos/qen-test', got '{repo.get('path')}'"
     )
 
-    # VERIFY: Auto-generated metadata fields are populated
-    assert "updated" in repo, "Missing 'updated' field"
-    assert isinstance(repo["updated"], str), "updated should be ISO8601 string"
-    # Validate ISO8601 format
-    try:
-        datetime.fromisoformat(repo["updated"].replace("Z", "+00:00"))
-    except ValueError as e:
-        pytest.fail(f"Invalid ISO8601 timestamp in 'updated': {e}")
+    # VERIFY: Only PERSISTENT metadata fields are written to pyproject.toml
+    # Transient fields (updated, pr_status, pr_checks) are displayed but NOT persisted
 
-    # VERIFY: PR metadata fields
+    # PERSISTENT: PR metadata fields
     assert "pr" in repo, "Missing 'pr' field"
     assert repo["pr"] == pr_number, f"Expected PR #{pr_number}, got #{repo['pr']}"
 
@@ -135,14 +128,10 @@ def test_pull_updates_pr_metadata_standard(
         f"Expected pr_base='{pr_data['baseRefName']}', got '{repo['pr_base']}'"
     )
 
-    assert "pr_status" in repo, "Missing 'pr_status' field"
-    assert repo["pr_status"] == "open", f"Expected pr_status='open', got '{repo['pr_status']}'"
-
-    assert "pr_checks" in repo, "Missing 'pr_checks' field"
-    # Checks should be passing or pending (standard PR has stable checks)
-    assert repo["pr_checks"] in EXPECTED_CHECKS["passing"], (
-        f"Expected pr_checks in {EXPECTED_CHECKS['passing']}, got '{repo['pr_checks']}'"
-    )
+    # TRANSIENT: These fields should NOT be persisted to pyproject.toml
+    assert "updated" not in repo, "Transient field 'updated' should not be persisted"
+    assert "pr_status" not in repo, "Transient field 'pr_status' should not be persisted"
+    assert "pr_checks" not in repo, "Transient field 'pr_checks' should not be persisted"
 
     # VERIFY: No issue field (branch doesn't have issue-XXX pattern)
     assert "issue" not in repo, "Should not have 'issue' field for non-issue branch"
@@ -195,20 +184,19 @@ def test_pull_with_failing_checks_standard(
 
     repo = repos[0]
 
-    # VERIFY: pr_checks shows failing (or pending/unknown depending on timing)
-    assert "pr_checks" in repo, "Missing 'pr_checks' field"
-    assert repo["pr_checks"] in EXPECTED_CHECKS["failing"], (
-        f"Expected pr_checks in {EXPECTED_CHECKS['failing']}, got '{repo['pr_checks']}'"
-    )
+    # VERIFY: Only PERSISTENT metadata fields are written to pyproject.toml
+    # Transient fields (updated, pr_status, pr_checks) are displayed but NOT persisted
 
-    # VERIFY: PR status is still open
-    assert repo["pr_status"] == "open", f"Expected pr_status 'open', got '{repo.get('pr_status')}'"
-
-    # VERIFY: PR number matches
+    # PERSISTENT: PR metadata fields
     assert repo["pr"] == pr_number, f"Expected PR #{pr_number}, got #{repo.get('pr')}"
     assert repo["pr_base"] == pr_data["baseRefName"], (
         f"Expected pr_base '{pr_data['baseRefName']}', got '{repo.get('pr_base')}'"
     )
+
+    # TRANSIENT: These fields should NOT be persisted to pyproject.toml
+    assert "updated" not in repo, "Transient field 'updated' should not be persisted"
+    assert "pr_status" not in repo, "Transient field 'pr_status' should not be persisted"
+    assert "pr_checks" not in repo, "Transient field 'pr_checks' should not be persisted"
 
 
 @pytest.mark.integration
@@ -261,14 +249,20 @@ def test_pull_detects_issue_from_branch_standard(
 
     repo = repos[0]
 
-    # VERIFY: Issue field is populated
+    # VERIFY: Only PERSISTENT metadata fields are written to pyproject.toml
+
+    # PERSISTENT: Issue field is populated (extracted from branch name)
     assert "issue" in repo, "Missing 'issue' field"
     assert repo["issue"] == 456, f"Expected issue=456, got {repo.get('issue')}"
     assert isinstance(repo["issue"], int), f"Expected issue to be int, got {type(repo['issue'])}"
 
-    # VERIFY: PR metadata is also present
+    # PERSISTENT: PR metadata fields
     assert repo["pr"] == pr_number, f"Expected PR #{pr_number}, got #{repo.get('pr')}"
     assert repo["pr_base"] == pr_data["baseRefName"], (
         f"Expected pr_base '{pr_data['baseRefName']}', got '{repo.get('pr_base')}'"
     )
-    assert repo["pr_status"] == "open", f"Expected pr_status 'open', got '{repo.get('pr_status')}'"
+
+    # TRANSIENT: These fields should NOT be persisted to pyproject.toml
+    assert "updated" not in repo, "Transient field 'updated' should not be persisted"
+    assert "pr_status" not in repo, "Transient field 'pr_status' should not be persisted"
+    assert "pr_checks" not in repo, "Transient field 'pr_checks' should not be persisted"
